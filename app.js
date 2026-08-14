@@ -797,16 +797,16 @@ function drawMultiEquity(canvas, curves) {
 }
 
 // ===== K 线图 =====
+const KLINE_PERIODS = [
+  { k: 'day', label: '日K', days: 90 },
+  { k: 'week', label: '周K', days: 120 },
+  { k: 'month', label: '月K', days: 120 },
+  { k: 'year', label: '年K', days: 50 },
+];
+
 async function showKline(code, name) {
   toast('加载 K 线...');
-  let bars;
-  try { bars = await api('/api/stocks/' + code + '/bars?days=90'); }
-  catch (err) { toast(err.message); return; }
-  if (!bars || bars.length < 2) { toast('无行情数据'); return; }
-  const last = bars[bars.length - 1];
-  const prev = bars[bars.length - 2];
-  const chg = prev ? (last.close - prev.close) / prev.close * 100 : 0;
-  const cls = chg >= 0 ? 'up' : 'down';
+  const cache = {};
   const mask = document.createElement('div');
   mask.className = 'dialog-mask show';
   mask.id = 'kline-dialog';
@@ -814,9 +814,11 @@ async function showKline(code, name) {
     <div class="dialog" style="width:94%">
       <div class="dialog-title">${esc(name)}
         <span style="color:var(--text-sub);font-size:12px">${esc(code)}</span>
-        <span class="${cls}" style="font-size:13px;margin-left:6px">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
       </div>
-      <div class="dialog-desc">${bars[0].date} ~ ${last.date} · 最新价 ${last.close}</div>
+      <div class="dialog-desc" id="kline-desc"></div>
+      <div class="filter-tabs" id="kline-periods" style="margin-top:8px">
+        ${KLINE_PERIODS.map(p => `<span class="filter-tab${p.k === 'day' ? ' active' : ''}" data-p="${p.k}">${p.label}</span>`).join('')}
+      </div>
       <div class="kline-wrap">
         <canvas id="kline-chart" style="width:100%;height:300px"></canvas>
         <div class="kline-info" id="kline-info"></div>
@@ -836,7 +838,30 @@ async function showKline(code, name) {
   document.body.appendChild(mask);
   mask.addEventListener('click', e => { if (e.target === mask) mask.remove(); });
   $('#kline-close').addEventListener('click', () => mask.remove());
-  drawKline($('#kline-chart'), bars);
+  $('#kline-periods').addEventListener('click', e => {
+    const tab = e.target.closest('.filter-tab');
+    if (tab) loadPeriod(tab.dataset.p);
+  });
+  async function loadPeriod(p) {
+    const meta = KLINE_PERIODS.find(x => x.k === p);
+    if (!cache[p]) {
+      toast('加载 ' + meta.label + '...');
+      try { cache[p] = await api(`/api/stocks/${code}/bars?days=${meta.days}&period=${p}`); }
+      catch (err) { cache[p] = null; toast(err.message); }
+    }
+    const bars = cache[p];
+    if (!bars || bars.length < 2) { toast('无' + meta.label + '数据'); return; }
+    document.querySelectorAll('#kline-periods .filter-tab').forEach(t => t.classList.toggle('active', t.dataset.p === p));
+    const last = bars[bars.length - 1];
+    const prev = bars[bars.length - 2];
+    const chg = prev ? (last.close - prev.close) / prev.close * 100 : 0;
+    const cls = chg >= 0 ? 'up' : 'down';
+    $('#kline-desc').innerHTML =
+      `${bars[0].date} ~ ${last.date} · 最新价 ${last.close} ` +
+      `<span class="${cls}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>`;
+    drawKline($('#kline-chart'), bars);
+  }
+  await loadPeriod('day');
 }
 
 function drawKline(canvas, bars) {

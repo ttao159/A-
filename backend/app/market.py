@@ -18,6 +18,7 @@ class MarketDataService(PublicDataService):
 
     KLINE_TTL = 600    # 日线缓存 10 分钟
     LIST_TTL = 3600    # 股票列表缓存 1 小时
+    PERIOD_TTL = 3600  # 周/月/年 K 线缓存 1 小时
 
     def __init__(self):
         self._kline_cache = {}
@@ -42,6 +43,19 @@ class MarketDataService(PublicDataService):
             if hit and now - hit[0] < self.KLINE_TTL:
                 return hit[1]
         df = super().get_daily_bars(code, start, end)
+        with self._lock:
+            self._kline_cache[key] = (now, df)
+        return df
+
+    def get_kline(self, code: str, period: str, start: str, end: str):
+        key = ("kline", period, code, start, end)
+        ttl = self.KLINE_TTL if period == "day" else self.PERIOD_TTL
+        now = time.time()
+        with self._lock:
+            hit = self._kline_cache.get(key)
+            if hit and now - hit[0] < ttl:
+                return hit[1]
+        df = super().get_kline(code, period, start, end)
         with self._lock:
             self._kline_cache[key] = (now, df)
         return df

@@ -104,6 +104,43 @@ class TestGetDailyBars:
         assert df["date"].iloc[0] == "2024-11-21"
 
 
+class TestGetPeriodKline:
+    MONTH_SAMPLE = {
+        "code": 0,
+        "msg": "",
+        "data": {
+            "sh600519": {
+                "qfqmonth": [
+                    ["2024-01-02", "1680.00", "1700.00", "1710.00", "1660.00", "100000.000"],
+                    ["2024-02-01", "1705.00", "1750.00", "1760.00", "1690.00", "120000.000"],
+                    ["2024-12-02", "1800.00", "1820.00", "1830.00", "1780.00", "90000.000"],
+                    ["2025-01-02", "1820.00", "1850.00", "1860.00", "1810.00", "110000.000"],
+                ]
+            }
+        },
+    }
+
+    def test_month_parses(self):
+        with mock.patch("app.public_data._http_get_json", return_value=self.MONTH_SAMPLE):
+            df = PublicDataService().get_kline("600519", "month", "2024-01-01", "2025-12-31")
+        assert len(df) == 4
+        assert df.iloc[0]["date"] == "2024-01-02"
+
+    def test_year_aggregates_from_month(self):
+        with mock.patch("app.public_data._http_get_json", return_value=self.MONTH_SAMPLE):
+            df = PublicDataService().get_kline("600519", "year", "2024-01-01", "2025-12-31")
+        assert list(df["date"]) == ["2024-01-02", "2025-01-02"]
+        assert df.iloc[0]["open"] == 1680.0
+        assert df.iloc[0]["close"] == 1820.0
+        assert df.iloc[0]["high"] == 1830.0
+        assert df.iloc[0]["low"] == 1660.0
+        assert df.iloc[0]["volume"] == 100000.0 + 120000.0 + 90000.0
+
+    def test_unsupported_period_raises(self):
+        with pytest.raises(DataUnavailableError):
+            PublicDataService().get_kline("600519", "hour", "2024-01-01", "2025-12-31")
+
+
 class TestGetStockList:
     def test_filters_to_main_board(self):
         with mock.patch("app.public_data._http_get_json", return_value=SINA_LIST_SAMPLE):
@@ -184,4 +221,12 @@ class TestMarketDataServiceCache:
                                return_value=[("600519", "贵州茅台")]) as spy:
             svc.get_stock_list()
             svc.get_stock_list()
+            assert spy.call_count == 1
+
+    def test_period_kline_cached(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_kline",
+                               return_value=pd.DataFrame()) as spy:
+            svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
+            svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
             assert spy.call_count == 1

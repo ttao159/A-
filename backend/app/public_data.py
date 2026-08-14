@@ -14,6 +14,8 @@ import pandas as pd
 TIMEOUT = 10
 
 TENCENT_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+
+PERIOD_KEYS = {"day": "qfqday", "week": "qfqweek", "month": "qfqmonth"}
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
 SINA_LIST_URL = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
                  "Market_Center.getHQNodeData")
@@ -124,14 +126,30 @@ class PublicDataService:
 
     def get_daily_bars(self, code: str, start: str, end: str) -> pd.DataFrame:
         """返回真实前复权日线：date/open/high/low/close/volume，按日期升序。"""
+        return self.get_kline(code, "day", start, end)
+
+    def get_kline(self, code: str, period: str, start: str, end: str) -> pd.DataFrame:
+        """按周期返回真实前复权 K 线：day/week/month，year 由月线聚合。"""
+        period = (period or "day").lower()
+        if period == "year":
+            monthly = self.get_kline(code, "month", start, end)
+            return self._aggregate_years(monthly)
+        if period not in PERIOD_KEYS:
+            raise DataUnavailableError(f"不支持的周期: {period}")
         sym = _tencent_symbol(code)
-        url = (f"{TENCENT_KLINE_URL}?param={sym},day,{start},{end},1000,qfq")
+        url = (f"{TENCENT_KLINE_URL}?param={sym},{period},{start},{end},1000,qfq")
         data = _http_get_json(url)
         stock = data.get("data", {}).get(sym, {}) if isinstance(data, dict) else {}
-        rows = stock.get("qfqday") or stock.get("day")
+        rows = stock.get(PERIOD_KEYS[period]) or stock.get(period)
         if not isinstance(rows, list) or not rows:
-            raise DataUnavailableError(f"股票 {code} 无日线数据（{start}~{end}）")
+            raise DataUnavailableError(f"股票 {code} 无{period}数据（{start}~{end}）")
+        parsed = self._parse_rows(rows, code, period)
+        df = pd.DataFrame(parsed, columns=["date", "open", "high", "low", "close", "volume"])
+        df = df[df["date"] >= start].reset_index(drop=True)
+        return df.sort_values("date").reset_index(drop=True)
 
+    @staticmethod
+    def _parse_rows(rows: list, code: str, period_label: str) -> list:
         parsed = []
         for row in rows:
             if not isinstance(row, list) or len(row) < 6:
@@ -145,8 +163,22 @@ class PublicDataService:
                 "volume": float(row[5]),
             })
         if not parsed:
-            raise DataUnavailableError(f"股票 {code} 日线数据解析失败")
+            raise DataUnavailableError(f"股票 {code} {period_label}数据解析失败")
+        return parsed
 
-        df = pd.DataFrame(parsed, columns=["date", "open", "high", "low", "close", "volume"])
-        df = df[df["date"] >= start].reset_index(drop=True)
-        return df.sort_values("date").reset_index(drop=True)
+    @staticmethod
+    def _aggregate_years(df: pd.DataFrame) -> pd.DataFrame:
+        """按月线聚合成年线：open=首月开盘，close=末月收盘，high/low=极值，volume=累计。"""
+        if df is None or len(df) == 0:
+            return df
+        out = []
+        for year, g in df.groupby(df["date"].str[:4], sort=True):
+            out.append({
+                "date": str(g.iloc[0]["date"]),
+                "open": float(g.iloc[0]["open"]),
+                "high": float(g["high"].max()),
+                "low": float(g["low"].min()),
+                "close": float(g.iloc[-1]["close"]),
+                "volume": float(g["volume"].sum()),
+            })
+        return pd.DataFrame(out, columns=["date", "open", "high", "low", "close", "volume"])
