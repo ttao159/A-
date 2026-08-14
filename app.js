@@ -818,7 +818,7 @@ async function showKline(code, name) {
       </div>
       <div class="dialog-desc">${bars[0].date} ~ ${last.date} · 最新价 ${last.close}</div>
       <div class="kline-wrap">
-        <canvas id="kline-chart" width="346" height="300"></canvas>
+        <canvas id="kline-chart" style="width:100%;height:300px"></canvas>
         <div class="kline-info" id="kline-info"></div>
       </div>
       <div class="kline-legend">
@@ -841,8 +841,14 @@ async function showKline(code, name) {
 
 function drawKline(canvas, bars) {
   if (!bars || bars.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(200, Math.round(canvas.getBoundingClientRect().width));
+  const cssH = canvas.getBoundingClientRect().height || 300;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
   const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = cssW, h = cssH;
   const padL = 10, padR = 48, padT = 12, padB = 22;
   const plotW = w - padL - padR;
   const mainH = Math.round((h - padT - padB) * 0.7);
@@ -850,7 +856,7 @@ function drawKline(canvas, bars) {
   const volBase = padT + mainH + 10;
   const n = bars.length;
   const cw = plotW / n;
-  const bw = Math.max(1, cw * 0.62);
+  const bw = Math.max(2.5, Math.min(cw * 0.8, 14));
   const x = i => padL + i * cw + cw / 2;
   const fmtPrice = v => v.toFixed(2);
   const fmtVol = v => v >= 1e8 ? (v / 1e8).toFixed(2) + '亿'
@@ -871,7 +877,7 @@ function drawKline(canvas, bars) {
     ctx.clearRect(0, 0, w, h);
     ctx.font = '10px -apple-system, "PingFang SC", "Helvetica Neue", sans-serif';
     // 主图网格 + 价格轴
-    ctx.strokeStyle = '#eef0f4';
+    ctx.strokeStyle = '#e6eaf0';
     ctx.lineWidth = 1;
     ctx.fillStyle = '#9aa3b2';
     for (let g = 0; g <= 4; g++) {
@@ -883,6 +889,7 @@ function drawKline(canvas, bars) {
       ctx.fillText(fmtPrice(max - (max - min) * g / 4), padL + plotW + 6, gy + 3);
     }
     // 成交量网格
+    ctx.strokeStyle = '#eef0f4';
     for (let g = 0; g <= 2; g++) {
       const gy = volBase + g / 2 * volH;
       ctx.beginPath();
@@ -891,6 +898,7 @@ function drawKline(canvas, bars) {
       ctx.stroke();
     }
     // 蜡烛 + 量柱
+    ctx.lineWidth = 1;
     bars.forEach((b, i) => {
       const up = b.close >= b.open;
       const color = up ? UP : DOWN;
@@ -904,14 +912,15 @@ function drawKline(canvas, bars) {
       const bb = y(Math.min(b.open, b.close));
       ctx.fillRect(x(i) - bw / 2, bt, bw, Math.max(1, bb - bt));
       const vh = Math.max(1, b.volume / maxVol * volH);
-      ctx.globalAlpha = 0.45;
+      ctx.globalAlpha = 0.6;
       ctx.fillRect(x(i) - bw / 2, volBase + volH - vh, bw, vh);
       ctx.globalAlpha = 1;
     });
     // 均线
     const drawLine = (arr, color) => {
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.6;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
       let started = false;
       arr.forEach((v, i) => {
