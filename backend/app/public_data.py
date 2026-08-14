@@ -19,6 +19,7 @@ PERIOD_KEYS = {"day": "qfqday", "week": "qfqweek", "month": "qfqmonth"}
 HFQ_PERIOD_KEYS = {"day": "hfqday", "week": "hfqweek", "month": "hfqmonth"}
 ADJUST_KEYS = {"qfq": PERIOD_KEYS, "hfq": HFQ_PERIOD_KEYS}
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
+TENCENT_MINUTE_URL = "https://web.ifzq.gtimg.cn/appstock/app/minute/query"
 SINA_LIST_URL = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
                  "Market_Center.getHQNodeData")
 
@@ -129,6 +130,40 @@ class PublicDataService:
     def get_daily_bars(self, code: str, start: str, end: str, adjust: str = "qfq") -> pd.DataFrame:
         """返回真实日线：date/open/high/low/close/volume，按日期升序。"""
         return self.get_kline(code, "day", start, end, adjust)
+
+    def get_minute_bars(self, code: str) -> dict:
+        """返回当日分时数据：{prev_close, bars:[{time, price, volume}]}。"""
+        sym = _tencent_symbol(code)
+        url = f"{TENCENT_MINUTE_URL}?code={sym}"
+        data = _http_get_json(url)
+        node = data.get("data", {}).get(sym, {}) if isinstance(data, dict) else {}
+        inner = node.get("data") if isinstance(node.get("data"), dict) else {}
+        rows = inner.get("data")
+        qt = (node.get("qt", {}) or {}).get(sym) or []
+
+        prev_close = 0.0
+        if isinstance(qt, list) and len(qt) > 3:
+            try:
+                prev_close = float(qt[3])
+            except (TypeError, ValueError):
+                prev_close = 0.0
+
+        if not isinstance(rows, list) or not rows:
+            raise DataUnavailableError(f"股票 {code} 无分时数据")
+        bars = []
+        for row in rows:
+            parts = str(row).split()
+            if len(parts) < 2:
+                continue
+            try:
+                price = float(parts[1])
+            except ValueError:
+                continue
+            vol = float(parts[2]) if len(parts) > 2 else 0.0
+            bars.append({"time": parts[0], "price": price, "volume": vol})
+        if not bars:
+            raise DataUnavailableError(f"股票 {code} 分时数据解析失败")
+        return {"prev_close": prev_close, "bars": bars}
 
     def get_kline(self, code: str, period: str, start: str, end: str,
                   adjust: str = "qfq") -> pd.DataFrame:

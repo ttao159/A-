@@ -577,6 +577,9 @@ body {
   border-radius: 50%;
   animation: gen-spin 0.8s linear infinite;
 }
+.gen-hist-item { cursor: pointer; }
+.gen-hist-time { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.gen-hist-sub { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
 @keyframes gen-spin { to { transform: rotate(360deg); } }
 .gen-recommend {
   background: linear-gradient(135deg, var(--primary), #4a9eff);

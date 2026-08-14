@@ -34,8 +34,11 @@ def _latest_price(market, code: str, start: str, end: str) -> float:
     return None
 
 
-def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
-    """执行一次全市场扫描并自动交易，返回扫描报告。"""
+def scan_and_trade(db, market, accounts: AccountService = None, source: str = "manual") -> dict:
+    """执行一次全市场扫描并自动交易，返回扫描报告。
+
+    source: manual（手动触发）/ auto（定时任务）。
+    """
     accounts = accounts or AccountService()
     strategies = db.query(Strategy).filter(Strategy.enabled == 1).all()
     if not strategies:
@@ -139,6 +142,7 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
         buy_count=len(report["buys"]),
         sell_count=len(report["sells"]),
         reject_count=len(report["rejected"]),
+        source=source,
         report_json=json.dumps(report, ensure_ascii=False),
     ))
     db.commit()

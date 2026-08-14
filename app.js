@@ -295,7 +295,7 @@ async function loadScanHistory() {
           <span class="scan-time">${(it.created_at || '').slice(5, 16).replace('T', ' ')}</span>
           <span class="scan-counts">买 <b class="up">${it.buy_count}</b> · 卖 <b class="down">${it.sell_count}</b> · 拒 <b>${it.reject_count}</b></span>
         </div>
-        <div class="scan-item-sub">启用策略 ${it.strategy_count} 个</div>
+        <div class="scan-item-sub">启用策略 ${it.strategy_count} 个 · ${it.source === 'auto' ? '自动扫描' : '手动扫描'}</div>
       </div>
     `).join('')}
   `;
@@ -659,6 +659,7 @@ function renderGeneratorForm() {
       <div class="gen-datasource">腾讯公开行情接口（前复权真实日线），不可用时返回错误</div>
     </div>
     <div class="editor-foot">
+      <button class="btn btn-ghost" id="gen-history-btn" style="flex:1">历史</button>
       <button class="btn btn-ghost" id="gen-cancel" style="flex:1">取消</button>
       <button class="btn" id="gen-run" style="flex:1">开始生成</button>
     </div>
@@ -666,6 +667,7 @@ function renderGeneratorForm() {
 
   $('#gen-back').addEventListener('click', closeGenerator);
   $('#gen-cancel').addEventListener('click', closeGenerator);
+  $('#gen-history-btn').addEventListener('click', renderGeneratorHistory);
   $('#gen-scope-chips').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
@@ -680,6 +682,45 @@ function renderGeneratorForm() {
     $('#gen-risk-chips').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
   });
   $('#gen-run').addEventListener('click', () => runGenerator(scope, risk));
+}
+
+function genReqSummary(req) {
+  const t = req.targets || {};
+  const scope = t.scope === 'market' ? '全市场'
+    : t.scope === 'single' ? '单只 ' + ((t.codes && t.codes[0]) || '')
+    : '自定义 ' + ((t.codes || []).join(','));
+  return scope + ' · ' + (req.start_date || '') + ' ~ ' + (req.end_date || '')
+    + ' · ' + (req.count || '') + ' 个策略';
+}
+
+async function renderGeneratorHistory() {
+  let items;
+  try { items = await api('/api/generator/reports'); }
+  catch (err) { toast(err.message); return; }
+  $('#generator').innerHTML = `
+    <div class="editor-head">
+      <span class="editor-back" id="gen-back-hist">‹</span>
+      <span class="editor-title">生成历史</span>
+    </div>
+    <div class="editor-body">
+      ${items.length ? items.map(it => `
+        <div class="card gen-hist-item" data-id="${it.id}">
+          <div class="gen-hist-time">${(it.created_at || '').slice(5, 16).replace('T', ' ')}</div>
+          <div class="gen-hist-sub">${esc(genReqSummary(it.request))}</div>
+        </div>
+      `).join('') : '<div class="empty">暂无生成记录</div>'}
+    </div>
+  `;
+  $('#gen-back-hist').addEventListener('click', renderGeneratorForm);
+  document.querySelectorAll('.gen-hist-item').forEach(el => {
+    el.addEventListener('click', async () => {
+      toast('加载报告...');
+      try {
+        const report = await api('/api/generator/reports/' + el.dataset.id);
+        renderGeneratorResult(report);
+      } catch (err) { toast(err.message); }
+    });
+  });
 }
 
 async function runGenerator(scope, risk) {
@@ -854,6 +895,7 @@ function drawMultiEquity(canvas, curves) {
 
 // ===== K 线图 =====
 const KLINE_PERIODS = [
+  { k: 'minute', label: '分时', days: 0 },
   { k: 'day', label: '日K', days: 90 },
   { k: 'week', label: '周K', days: 120 },
   { k: 'month', label: '月K', days: 120 },
@@ -914,6 +956,24 @@ async function showKline(code, name) {
     if (cur) loadPeriod(cur.dataset.p);
   });
   async function loadPeriod(p) {
+    if (p === 'minute') {
+      if (!cache.minute) {
+        toast('加载分时...');
+        try { cache.minute = await api(`/api/stocks/${code}/minute`); }
+        catch (err) { cache.minute = null; toast(err.message); }
+      }
+      const data = cache.minute;
+      if (!data || !data.bars || data.bars.length < 2) { toast('无分时数据'); return; }
+      document.querySelectorAll('#kline-periods .filter-tab').forEach(t => t.classList.toggle('active', t.dataset.p === 'minute'));
+      document.querySelectorAll('#kline-adjust .filter-tab').forEach(t => t.classList.remove('active'));
+      const last = data.bars[data.bars.length - 1];
+      const chg = data.prev_close ? (last.price - data.prev_close) / data.prev_close * 100 : 0;
+      const cls = chg >= 0 ? 'up' : 'down';
+      $('#kline-desc').innerHTML =
+        `分时 · 最新价 ${last.price} <span class="${cls}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>`;
+      drawMinuteLine($('#kline-chart'), data);
+      return;
+    }
     const meta = KLINE_PERIODS.find(x => x.k === p);
     const key = p + ':' + adjust;
     if (!cache[key]) {
@@ -1103,6 +1163,91 @@ function drawKline(canvas, bars) {
   });
 }
 
+function drawMinuteLine(canvas, data) {
+  const bars = data.bars;
+  if (!bars || bars.length < 2) return;
+  const prevClose = data.prev_close || bars[0].price;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(200, Math.round(canvas.getBoundingClientRect().width));
+  const cssH = canvas.getBoundingClientRect().height || 300;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = cssW, h = cssH;
+  const padL = 10, padR = 48, padT = 12, padB = 22;
+  const plotW = w - padL - padR;
+  const mainH = Math.round((h - padT - padB) * 0.7);
+  const volH = Math.round((h - padT - padB) * 0.3) - 14;
+  const volBase = padT + mainH + 10;
+  const n = bars.length;
+  const prices = bars.map(b => b.price);
+  const pmin = Math.min(...prices, prevClose);
+  const pmax = Math.max(...prices, prevClose);
+  const range = (pmax - pmin) || 1;
+  const x = i => padL + i / (n - 1) * plotW;
+  const y = v => padT + (pmax - v) / range * mainH;
+  const maxVol = Math.max(...bars.map(b => b.volume)) || 1;
+  const vy = v => volBase + (1 - v / maxVol) * volH;
+  const UP = '#ef4444', DOWN = '#10b981';
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = '10px -apple-system, "PingFang SC", sans-serif';
+
+  // 网格
+  ctx.strokeStyle = '#f0f0f0';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 4; g++) {
+    const gy = padT + mainH * g / 4;
+    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke();
+  }
+  // 昨收参考线
+  const yp = y(prevClose);
+  ctx.strokeStyle = '#999';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(padL, yp); ctx.lineTo(padL + plotW, yp); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 均价线（成交额加权）
+  let cum = 0, cumVol = 0;
+  const avgs = bars.map(b => { cum += b.price * b.volume; cumVol += b.volume; return cumVol ? cum / cumVol : b.price; });
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  avgs.forEach((a, i) => i === 0 ? ctx.moveTo(x(i), y(a)) : ctx.lineTo(x(i), y(a)));
+  ctx.stroke();
+
+  // 价格线
+  const col = bars[n - 1].price >= prevClose ? UP : DOWN;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  bars.forEach((b, i) => i === 0 ? ctx.moveTo(x(i), y(b.price)) : ctx.lineTo(x(i), y(b.price)));
+  ctx.stroke();
+
+  // 成交量柱
+  bars.forEach((b, i) => {
+    ctx.fillStyle = b.price >= prevClose ? 'rgba(239,68,68,0.5)' : 'rgba(16,185,129,0.5)';
+    const top = vy(b.volume);
+    ctx.fillRect(x(i) - 0.5, top, 1.5, volBase + volH - top);
+  });
+
+  // 右轴价格
+  ctx.fillStyle = '#999';
+  ctx.textAlign = 'left';
+  for (let g = 0; g <= 4; g++) {
+    const v = pmax - range * g / 4;
+    ctx.fillText(v.toFixed(2), padL + plotW + 4, padT + mainH * g / 4 + 3);
+  }
+  // 时间轴
+  ctx.textAlign = 'center';
+  const ticks = [0, Math.floor((n - 1) / 2), n - 1];
+  ticks.forEach(i => {
+    const t = bars[i].time;
+    ctx.fillText(t.length === 4 ? t.slice(0, 2) + ':' + t.slice(2) : t, x(i), padT + mainH + volH + 16);
+  });
+}
+
 // ===== 底部导航 =====
 function switchTab(tab) {
   currentTab = tab;
@@ -1135,9 +1280,29 @@ async function refreshData() {
   }
 }
 
+async function refreshAccount() {
+  try {
+    const [acct, pos, trd] = await Promise.all([
+      api('/api/account'),
+      api('/api/positions'),
+      api('/api/trades'),
+    ]);
+    accountData = acct;
+    positionsData = pos;
+    tradesData = trd;
+  } catch (e) {}
+}
+
 // ===== 初始化 =====
 updateClock();
 setInterval(updateClock, 10000);
+// 账户/持仓自动轮询（仅在首页与交易页刷新，避免打断编辑）
+setInterval(async () => {
+  if (currentTab !== 'home' && currentTab !== 'trade') return;
+  await refreshAccount();
+  if (currentTab === 'home') renderHome();
+  else if (currentTab === 'trade') renderTrade();
+}, 30000);
 (async () => {
   await refreshData();
   switchTab('home');

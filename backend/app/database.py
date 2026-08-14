@@ -23,6 +23,10 @@ def migrate():
                 conn.execute(text("ALTER TABLE positions ADD COLUMN hold_days INTEGER DEFAULT 0"))
             if "high_since_buy" not in cols:
                 conn.execute(text("ALTER TABLE positions ADD COLUMN high_since_buy FLOAT DEFAULT 0"))
+        if insp.has_table("scan_reports"):
+            cols = [c["name"] for c in insp.get_columns("scan_reports")]
+            if "source" not in cols:
+                conn.execute(text("ALTER TABLE scan_reports ADD COLUMN source VARCHAR(10) DEFAULT 'manual'"))
 
 
 def get_db():

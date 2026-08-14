@@ -14,7 +14,7 @@ from .account import AccountService
 from .database import Base, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
-from .models import Backtest, EquityPoint, ScanReport, Strategy
+from .models import Backtest, EquityPoint, GenerationReport, ScanReport, Strategy
 from .public_data import DataUnavailableError, PublicDataService
 from .scanner import scan_and_trade
 from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
@@ -166,14 +166,46 @@ def get_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
 
 # ===== 策略生成引擎 =====
 @app.post("/api/generator/run")
-def run_strategy_generator(body: GeneratorRequest):
-    """启发式生成策略 + 公开 API 真实行情回测 + 多策略对比报告。"""
+def run_strategy_generator(body: GeneratorRequest, db: Session = Depends(get_db)):
+    """启发式生成策略 + 公开 API 真实行情回测 + 多策略对比报告，并落库历史。"""
     try:
-        return run_generation(body.model_dump(), public_market)
+        report = run_generation(body.model_dump(), public_market)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except DataUnavailableError as exc:
         raise HTTPException(502, str(exc))
+
+    g = GenerationReport(
+        request_json=json.dumps(body.model_dump(), ensure_ascii=False),
+        report_json=json.dumps(report, ensure_ascii=False),
+        recommended_index=report.get("recommended_index", 0) or 0,
+    )
+    db.add(g)
+    db.commit()
+    db.refresh(g)
+    report["id"] = g.id
+    return report
+
+
+@app.get("/api/generator/reports")
+def list_generation_reports(db: Session = Depends(get_db)):
+    """查询策略生成历史（最近 20 条，不含完整报告）。"""
+    items = db.query(GenerationReport).order_by(GenerationReport.id.desc()).limit(20).all()
+    return [{
+        "id": g.id,
+        "created_at": g.created_at.isoformat() if g.created_at else None,
+        "recommended_index": g.recommended_index,
+        "request": json.loads(g.request_json or "{}"),
+    } for g in items]
+
+
+@app.get("/api/generator/reports/{gid}")
+def get_generation_report(gid: int, db: Session = Depends(get_db)):
+    """查询某次策略生成的完整报告。"""
+    g = db.query(GenerationReport).filter(GenerationReport.id == gid).first()
+    if not g:
+        raise HTTPException(404, "生成报告不存在")
+    return json.loads(g.report_json or "{}")
 
 
 # ===== 账户 =====
@@ -271,6 +303,15 @@ def get_stock_bars(code: str, days: int = 90, period: str = "day", adjust: str =
     ]
 
 
+@app.get("/api/stocks/{code}/minute")
+def get_stock_minute(code: str):
+    """返回当日分时数据（价格/成交量，含昨收价）。"""
+    try:
+        return market.get_minute_bars(code)
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
+
+
 @app.post("/api/scan")
 def trigger_scan(db: Session = Depends(get_db)):
     """手动触发一次全市场扫描交易。"""
@@ -288,6 +329,7 @@ def list_scan_reports(db: Session = Depends(get_db)):
         "buy_count": r.buy_count,
         "sell_count": r.sell_count,
         "reject_count": r.reject_count,
+        "source": r.source or "manual",
         "created_at": r.created_at.isoformat() if r.created_at else None,
     } for r in items]
 

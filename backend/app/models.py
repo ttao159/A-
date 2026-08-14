@@ -102,6 +102,7 @@ class ScanReport(Base):
     buy_count = Column(Integer, default=0)
     sell_count = Column(Integer, default=0)
     reject_count = Column(Integer, default=0)
+    source = Column(String(10), default="manual")  # manual / auto
     report_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -117,3 +118,13 @@ class DailyBarCache(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("code", "period", "adjust", name="uq_bar_cache"),)
+
+
+class GenerationReport(Base):
+    __tablename__ = "generation_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_json = Column(Text, nullable=False)
+    report_json = Column(Text, nullable=False)
+    recommended_index = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)

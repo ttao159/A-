@@ -18,7 +18,7 @@ logger = logging.getLogger("scheduler")
 def _run_scan():
     db = SessionLocal()
     try:
-        report = scan_and_trade(db, MarketDataService(), AccountService())
+        report = scan_and_trade(db, MarketDataService(), AccountService(), source="auto")
         logger.info("自动扫描完成: 买入 %s 笔, 卖出 %s 笔, 拒绝 %s 笔",
                     len(report.get("buys", [])),
                     len(report.get("sells", [])),
