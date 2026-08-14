@@ -128,6 +128,7 @@ def run_strategy_backtest(sid: int, body: BacktestRequest, db: Session = Depends
         "metrics": result["metrics"],
         "equity_curve": result["equity_curve"],
         "trades": result["trades"],
+        "signal_stats": result["signal_stats"],
     }
 
 

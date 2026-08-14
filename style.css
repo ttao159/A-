@@ -213,6 +213,17 @@ body {
 .bt-metric-val { font-size: 15px; font-weight: 700; color: var(--text); }
 .bt-metric-label { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
 .bt-trades-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 16px 0 8px; }
+.sig-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.sig-chip {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--primary-light);
+  color: var(--primary);
+  white-space: nowrap;
+}
+.sig-chip.warn { background: #fdeaea; color: var(--danger); }
+.sig-empty { font-size: 12px; color: var(--text-sub); }
 .bt-trades { max-height: 220px; overflow-y: auto; }
 .bt-trade {
   display: flex; align-items: center; gap: 8px;

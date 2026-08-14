@@ -456,6 +456,7 @@ function showBacktestResult(s, data) {
       `).join('')}
     </div>
   ` : '<div class="bt-trades-title">最近成交</div><div class="empty">暂无成交记录</div>';
+  const sigHtml = signalStatsHtml(data.signal_stats, trades);
   const mask = document.createElement('div');
   mask.className = 'dialog-mask show';
   mask.id = 'backtest-dialog';
@@ -469,6 +470,7 @@ function showBacktestResult(s, data) {
           <div class="bt-metric"><div class="bt-metric-val">${esc(String(r[1]))}</div><div class="bt-metric-label">${esc(r[0])}</div></div>
         `).join('')}
       </div>
+      ${sigHtml}
       ${tradeHtml}
       <div class="dialog-actions">
         <button class="dialog-btn primary" id="bt-close">关闭</button>
@@ -479,6 +481,31 @@ function showBacktestResult(s, data) {
   mask.addEventListener('click', e => { if (e.target === mask) mask.remove(); });
   $('#bt-close').addEventListener('click', () => mask.remove());
   drawEquityCurve($('#bt-chart'), data.equity_curve);
+}
+
+function signalStatsHtml(ss, trades) {
+  if (!ss) return '';
+  const buyFilled = (trades || []).filter(t => t.direction === 'buy').length;
+  const sellReasons = ss.sell || {};
+  const SELL_LABELS = {
+    takeProfit: '止盈', stopLoss: '止损', trailingStop: '移动止损',
+    maDeathCross: '均线死叉', macdDeathCross: 'MACD死叉', belowMA: '跌破均线',
+    maxHoldDays: '超期持有', maxSingleLoss: '单票止损',
+    hangingMan: '上吊线', bearishEngulfing: '看跌吞没', eveningStar: '黄昏星',
+    threeBlackCrows: '三只乌鸦', doubleTop: '双重顶',
+  };
+  const sellEntries = Object.entries(sellReasons);
+  const sellHtml = sellEntries.length
+    ? sellEntries.map(([k, v]) => `<span class="sig-chip">${SELL_LABELS[k] || k} ${v}次</span>`).join('')
+    : '<span class="sig-empty">无卖出信号</span>';
+  return `
+    <div class="bt-trades-title">信号诊断</div>
+    <div class="sig-stats">
+      <span class="sig-chip">买入信号 ${ss.buy} 次</span>
+      <span class="sig-chip${buyFilled < ss.buy ? ' warn' : ''}">实际买入 ${buyFilled} 笔</span>
+      ${sellHtml}
+    </div>
+  `;
 }
 
 async function showHistory(id) {

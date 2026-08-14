@@ -78,6 +78,7 @@ def run_backtest(config: dict, market, start: str, end: str,
     equity_curve = []
     pending_buy = []   # (code, name, qty)
     pending_sell = []  # (code, reason)
+    signal_stats = {"buy": 0, "sell": {}}
 
     for date in all_dates:
         # 1. 撮合上一交易日产生的订单（当日开盘价）
@@ -124,9 +125,11 @@ def run_backtest(config: dict, market, start: str, end: str,
             if code in pf.positions:
                 reason = evaluate_sell(config, pf.positions[code], upto)
                 if reason:
+                    signal_stats["sell"][reason] = signal_stats["sell"].get(reason, 0) + 1
                     pending_sell.append((code, reason))
             else:
                 if evaluate_buy(config, upto):
+                    signal_stats["buy"] += 1
                     close_price = float(upto["close"].iloc[-1])
                     total = pf.equity(prices)
                     qty = matching.round_lot(int(total * max_pos_pct / 100.0 / close_price))
@@ -144,4 +147,5 @@ def run_backtest(config: dict, market, start: str, end: str,
         "metrics": metrics,
         "equity_curve": equity_curve,
         "trades": pf.trades,
+        "signal_stats": signal_stats,
     }

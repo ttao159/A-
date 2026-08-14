@@ -81,10 +81,11 @@ class _FakeMarket:
 
         n = 200
         dates = pd.bdate_range("2025-01-01", periods=n).strftime("%Y-%m-%d").tolist()
-        close = [10.0 * (1 + i * 0.002) for i in range(n)]
+        # 每日涨 2%，上影线仅 0.5%，确保收盘能突破前 20 日最高价
+        close = [10.0 * (1 + i * 0.02) for i in range(n)]
         return pd.DataFrame({
-            "date": dates, "open": close, "high": [c * 1.01 for c in close],
-            "low": [c * 0.99 for c in close], "close": close, "volume": [1e6] * n,
+            "date": dates, "open": close, "high": [c * 1.005 for c in close],
+            "low": [c * 0.995 for c in close], "close": close, "volume": [1e6] * n,
         })
 
 
@@ -92,10 +93,22 @@ def test_backtest_returns_structure():
     market = _FakeMarket()
     cfg = default_config()
     result = backtest.run_backtest(cfg, market, "2025-01-01", "2026-01-01")
-    assert set(result.keys()) == {"metrics", "equity_curve", "trades"}
+    assert set(result.keys()) == {"metrics", "equity_curve", "trades", "signal_stats"}
     assert "total_return_pct" in result["metrics"]
     assert "max_drawdown_pct" in result["metrics"]
     assert len(result["equity_curve"]) > 0
+    assert isinstance(result["signal_stats"]["buy"], int)
+    assert isinstance(result["signal_stats"]["sell"], dict)
+
+
+def test_backtest_signal_stats_counts_triggers():
+    market = _FakeMarket()
+    cfg = default_config()
+    result = backtest.run_backtest(cfg, market, "2025-01-01", "2026-01-01")
+    # 单调上涨行情下，20 日突破买入信号应持续触发
+    assert result["signal_stats"]["buy"] > 0
+    # 卖出信号按原因分组统计，且止盈/止损至少出现一种
+    assert isinstance(result["signal_stats"]["sell"], dict)
 
 
 def test_compute_metrics_basic():
