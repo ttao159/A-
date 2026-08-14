@@ -92,3 +92,15 @@ class EquityPoint(Base):
     backtest_id = Column(Integer, ForeignKey("backtests.id"), nullable=False)
     date = Column(String(20), nullable=False)
     equity = Column(Float, nullable=False)
+
+
+class ScanReport(Base):
+    __tablename__ = "scan_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_count = Column(Integer, default=0)
+    buy_count = Column(Integer, default=0)
+    sell_count = Column(Integer, default=0)
+    reject_count = Column(Integer, default=0)
+    report_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

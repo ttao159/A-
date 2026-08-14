@@ -224,6 +224,12 @@ body {
 }
 .sig-chip.warn { background: #fdeaea; color: var(--danger); }
 .sig-empty { font-size: 12px; color: var(--text-sub); }
+.scan-item { padding: 10px 2px; border-bottom: 1px solid var(--border); }
+.scan-item:last-child { border-bottom: none; }
+.scan-item-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.scan-time { color: var(--text-sub); font-size: 12px; }
+.scan-counts b { font-weight: 600; margin: 0 1px; }
+.scan-item-sub { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
 .bt-trades { max-height: 220px; overflow-y: auto; }
 .bt-trade {
   display: flex; align-items: center; gap: 8px;

@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 from . import config, matching
 from .account import AccountService, check_risk
-from .models import Position, Strategy
+from .models import Position, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
@@ -102,5 +102,14 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
                     state["cash"] = acct.available_cash
                     equity = acct.available_cash + sum(p.qty * p.avg_cost for p in positions)
                     state["high_water"] = max(state["high_water"], equity)
+
+    db.add(ScanReport(
+        strategy_count=len(strategies),
+        buy_count=len(report["buys"]),
+        sell_count=len(report["sells"]),
+        reject_count=len(report["rejected"]),
+        report_json=json.dumps(report, ensure_ascii=False),
+    ))
+    db.commit()
 
     return report

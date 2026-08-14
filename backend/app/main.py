@@ -14,7 +14,7 @@ from .account import AccountService
 from .database import Base, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
-from .models import Backtest, EquityPoint, Strategy
+from .models import Backtest, EquityPoint, ScanReport, Strategy
 from .public_data import DataUnavailableError, PublicDataService
 from .scanner import scan_and_trade
 from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
@@ -265,6 +265,20 @@ def trigger_scan(db: Session = Depends(get_db)):
     """手动触发一次全市场扫描交易。"""
     report = scan_and_trade(db, market, accounts)
     return report
+
+
+@app.get("/api/scan/reports")
+def list_scan_reports(db: Session = Depends(get_db)):
+    """查询扫描历史报告（最近 20 条）。"""
+    items = db.query(ScanReport).order_by(ScanReport.id.desc()).limit(20).all()
+    return [{
+        "id": r.id,
+        "strategy_count": r.strategy_count,
+        "buy_count": r.buy_count,
+        "sell_count": r.sell_count,
+        "reject_count": r.reject_count,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in items]
 
 
 @app.post("/api/account/reset")

@@ -267,9 +267,38 @@ function renderMine() {
       <button class="btn" id="scan-btn" style="margin-bottom:10px">立即扫描交易</button>
       <button class="btn btn-ghost" id="reset-btn">重置模拟账户</button>
     </div>
+    <div class="card" id="scan-history-card">
+      <div class="card-title">扫描历史</div>
+      <div class="empty">加载中...</div>
+    </div>
   `;
   $('#scan-btn').addEventListener('click', scanNow);
   $('#reset-btn').addEventListener('click', resetAccount);
+  loadScanHistory();
+}
+
+async function loadScanHistory() {
+  const el = $('#scan-history-card');
+  if (!el) return;
+  let items;
+  try { items = await api('/api/scan/reports'); }
+  catch (e) { el.innerHTML = '<div class="card-title">扫描历史</div><div class="empty">加载失败</div>'; return; }
+  if (!items.length) {
+    el.innerHTML = '<div class="card-title">扫描历史</div><div class="empty">暂无扫描记录</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="card-title">扫描历史</div>
+    ${items.map(it => `
+      <div class="scan-item">
+        <div class="scan-item-top">
+          <span class="scan-time">${(it.created_at || '').slice(5, 16).replace('T', ' ')}</span>
+          <span class="scan-counts">买 <b class="up">${it.buy_count}</b> · 卖 <b class="down">${it.sell_count}</b> · 拒 <b>${it.reject_count}</b></span>
+        </div>
+        <div class="scan-item-sub">启用策略 ${it.strategy_count} 个</div>
+      </div>
+    `).join('')}
+  `;
 }
 
 async function scanNow() {
