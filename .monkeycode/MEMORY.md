@@ -64,3 +64,12 @@ Entries discovered by the Agent during task execution should follow this format:
 - Instructions:
   - 用户说「你决定」「你看着办」时，由 agent 自行决策并推进，不再反复询问
   - 用户默认用中文交流
+
+[A股自动交易助手 公开行情API可用性]
+- Date: 2026-08-14
+- Context: Discovered by Agent while implementing strategy generation engine (public_data.py)
+- Category: Troubleshooting & Debugging
+- Instructions:
+  - 当前预览环境可用的公开行情接口：腾讯 K 线 `web.ifzq.gtimg.cn/appstock/app/fqkline/get`（前复权日线）、腾讯实时 `qt.gtimg.cn/q=`（GBK 编码）、新浪股票列表 `vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?node=hs_a`
+  - 不可用接口：东方财富 push2 系列（返回空）、腾讯 stock.gtimg.cn 榜单接口（返回空）、akshare（内部东财接口被限制）
+  - 策略生成引擎（generator.py + public_data.py）只使用真实公开 API 数据，禁用合成数据；扫描/账户功能仍用 akshare + 合成降级
