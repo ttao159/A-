@@ -49,14 +49,6 @@ Entries discovered by the Agent during task execution should follow this format:
   - 测试框架为 pytest，运行命令：`cd /workspace/backend && python3 -m pytest tests/ -v`
   - 测试目录为 `backend/tests/`，conftest.py 负责将 backend 目录加入 sys.path
 
-[A股自动交易助手 行情数据源]
-- Date: 2026-08-14
-- Context: Discovered by Agent while implementing market data service
-- Category: Troubleshooting & Debugging
-- Instructions:
-  - 行情数据优先使用 akshare 真实数据，失败时自动降级为合成数据（按股票代码确定性生成、可复现）
-  - 当前预览环境无法访问 akshare，演示时依赖合成数据；本机联网部署后才能用真实行情
-
 [A股自动交易助手 用户决策约定]
 - Date: 2026-08-14
 - Context: User repeatedly said "你决定" when asked to choose next steps
@@ -73,3 +65,5 @@ Entries discovered by the Agent during task execution should follow this format:
   - 当前预览环境可用的公开行情接口：腾讯 K 线 `web.ifzq.gtimg.cn/appstock/app/fqkline/get`（前复权日线）、腾讯实时 `qt.gtimg.cn/q=`（GBK 编码）、新浪股票列表 `vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?node=hs_a`
   - 不可用接口：东方财富 push2 系列（返回空）、腾讯 stock.gtimg.cn 榜单接口（返回空）、akshare（内部东财接口被限制）
   - 全系统行情数据已统一为公开 API 真实数据（MarketDataService 继承 PublicDataService），禁用合成数据；日线带 10 分钟 TTL 缓存、股票列表 1 小时缓存、并发预取（16 线程）
+  - 腾讯 K 线复权参数：qfq 前复权（最新价=真实价，但极早期历史价可能为负，如茅台 2001 年）；hfq 后复权（恒为正，长期趋势/收益计算更可靠）。年K 等长周期显示默认用 hfq 避免负价
+  - 回测必须用前复权 qfq 价（量级接近真实价才能正确计算成交手数），后复权 hfq 价放大数倍会导致无法满 100 股成手；两者仅差一个常数因子，信号等价

@@ -35,27 +35,27 @@ class MarketDataService(PublicDataService):
         self._list_ts = now
         return result
 
-    def get_daily_bars(self, code: str, start: str, end: str):
-        key = (code, start, end)
+    def get_daily_bars(self, code: str, start: str, end: str, adjust: str = "qfq"):
+        key = (code, start, end, adjust)
         now = time.time()
         with self._lock:
             hit = self._kline_cache.get(key)
             if hit and now - hit[0] < self.KLINE_TTL:
                 return hit[1]
-        df = super().get_daily_bars(code, start, end)
+        df = super().get_daily_bars(code, start, end, adjust)
         with self._lock:
             self._kline_cache[key] = (now, df)
         return df
 
-    def get_kline(self, code: str, period: str, start: str, end: str):
-        key = ("kline", period, code, start, end)
+    def get_kline(self, code: str, period: str, start: str, end: str, adjust: str = "qfq"):
+        key = ("kline", period, adjust, code, start, end)
         ttl = self.KLINE_TTL if period == "day" else self.PERIOD_TTL
         now = time.time()
         with self._lock:
             hit = self._kline_cache.get(key)
             if hit and now - hit[0] < ttl:
                 return hit[1]
-        df = super().get_kline(code, period, start, end)
+        df = super().get_kline(code, period, start, end, adjust)
         with self._lock:
             self._kline_cache[key] = (now, df)
         return df

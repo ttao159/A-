@@ -140,6 +140,26 @@ class TestGetPeriodKline:
         with pytest.raises(DataUnavailableError):
             PublicDataService().get_kline("600519", "hour", "2024-01-01", "2025-12-31")
 
+    def test_hfq_uses_hfq_key(self):
+        sample = {
+            "code": 0,
+            "msg": "",
+            "data": {
+                "sh600519": {
+                    "hfqmonth": [
+                        ["2024-01-02", "10000.00", "10100.00", "10200.00", "9900.00", "100000.000"],
+                    ]
+                }
+            },
+        }
+        with mock.patch("app.public_data._http_get_json", return_value=sample):
+            df = PublicDataService().get_kline("600519", "month", "2024-01-01", "2025-12-31", "hfq")
+        assert df.iloc[0]["close"] == 10100.0
+
+    def test_invalid_adjust_raises(self):
+        with pytest.raises(DataUnavailableError):
+            PublicDataService().get_kline("600519", "day", "2024-01-01", "2025-12-31", "bfq")
+
 
 class TestGetStockList:
     def test_filters_to_main_board(self):

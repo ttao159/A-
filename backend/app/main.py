@@ -235,16 +235,17 @@ def get_stocks():
 
 
 @app.get("/api/stocks/{code}/bars")
-def get_stock_bars(code: str, days: int = 90, period: str = "day"):
+def get_stock_bars(code: str, days: int = 90, period: str = "day", adjust: str = "qfq"):
     period = (period or "day").lower()
+    adjust = (adjust or "qfq").lower()
     day_span = {"day": 1, "week": 7, "month": 31, "year": 366}.get(period, 1)
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=days * day_span + 30)).isoformat()
     try:
         if period == "day":
-            df = market.get_daily_bars(code, start, end)
+            df = market.get_daily_bars(code, start, end, adjust)
         else:
-            df = market.get_kline(code, period, start, end)
+            df = market.get_kline(code, period, start, end, adjust)
     except DataUnavailableError as exc:
         raise HTTPException(502, str(exc))
     if df is None or len(df) == 0:

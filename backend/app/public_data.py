@@ -16,6 +16,8 @@ TIMEOUT = 10
 TENCENT_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
 
 PERIOD_KEYS = {"day": "qfqday", "week": "qfqweek", "month": "qfqmonth"}
+HFQ_PERIOD_KEYS = {"day": "hfqday", "week": "hfqweek", "month": "hfqmonth"}
+ADJUST_KEYS = {"qfq": PERIOD_KEYS, "hfq": HFQ_PERIOD_KEYS}
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
 SINA_LIST_URL = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
                  "Market_Center.getHQNodeData")
@@ -124,23 +126,31 @@ class PublicDataService:
                 names[code] = fields[1]
         return names
 
-    def get_daily_bars(self, code: str, start: str, end: str) -> pd.DataFrame:
-        """返回真实前复权日线：date/open/high/low/close/volume，按日期升序。"""
-        return self.get_kline(code, "day", start, end)
+    def get_daily_bars(self, code: str, start: str, end: str, adjust: str = "qfq") -> pd.DataFrame:
+        """返回真实日线：date/open/high/low/close/volume，按日期升序。"""
+        return self.get_kline(code, "day", start, end, adjust)
 
-    def get_kline(self, code: str, period: str, start: str, end: str) -> pd.DataFrame:
-        """按周期返回真实前复权 K 线：day/week/month，year 由月线聚合。"""
+    def get_kline(self, code: str, period: str, start: str, end: str,
+                  adjust: str = "qfq") -> pd.DataFrame:
+        """按周期返回真实 K 线：day/week/month，year 由月线聚合。
+
+        adjust: qfq 前复权（最新价=真实价，极早期可能为负）；hfq 后复权（恒为正）。
+        """
         period = (period or "day").lower()
+        adjust = (adjust or "qfq").lower()
+        if adjust not in ADJUST_KEYS:
+            raise DataUnavailableError(f"不支持的复权方式: {adjust}")
         if period == "year":
-            monthly = self.get_kline(code, "month", start, end)
+            monthly = self.get_kline(code, "month", start, end, adjust)
             return self._aggregate_years(monthly)
         if period not in PERIOD_KEYS:
             raise DataUnavailableError(f"不支持的周期: {period}")
         sym = _tencent_symbol(code)
-        url = (f"{TENCENT_KLINE_URL}?param={sym},{period},{start},{end},1000,qfq")
+        url = (f"{TENCENT_KLINE_URL}?param={sym},{period},{start},{end},1000,{adjust}")
         data = _http_get_json(url)
         stock = data.get("data", {}).get(sym, {}) if isinstance(data, dict) else {}
-        rows = stock.get(PERIOD_KEYS[period]) or stock.get(period)
+        key = ADJUST_KEYS[adjust][period]
+        rows = stock.get(key) or stock.get(period)
         if not isinstance(rows, list) or not rows:
             raise DataUnavailableError(f"股票 {code} 无{period}数据（{start}~{end}）")
         parsed = self._parse_rows(rows, code, period)

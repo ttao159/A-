@@ -807,6 +807,7 @@ const KLINE_PERIODS = [
 async function showKline(code, name) {
   toast('加载 K 线...');
   const cache = {};
+  let adjust = 'qfq';
   const mask = document.createElement('div');
   mask.className = 'dialog-mask show';
   mask.id = 'kline-dialog';
@@ -818,6 +819,10 @@ async function showKline(code, name) {
       <div class="dialog-desc" id="kline-desc"></div>
       <div class="filter-tabs" id="kline-periods" style="margin-top:8px">
         ${KLINE_PERIODS.map(p => `<span class="filter-tab${p.k === 'day' ? ' active' : ''}" data-p="${p.k}">${p.label}</span>`).join('')}
+      </div>
+      <div class="filter-tabs" id="kline-adjust" style="margin-top:8px">
+        <span class="filter-tab active" data-a="qfq">前复权</span>
+        <span class="filter-tab" data-a="hfq">后复权</span>
       </div>
       <div class="kline-wrap">
         <canvas id="kline-chart" style="width:100%;height:300px"></canvas>
@@ -840,18 +845,30 @@ async function showKline(code, name) {
   $('#kline-close').addEventListener('click', () => mask.remove());
   $('#kline-periods').addEventListener('click', e => {
     const tab = e.target.closest('.filter-tab');
-    if (tab) loadPeriod(tab.dataset.p);
+    if (!tab) return;
+    const p = tab.dataset.p;
+    if (p === 'year' && adjust !== 'hfq') adjust = 'hfq';
+    loadPeriod(p);
+  });
+  $('#kline-adjust').addEventListener('click', e => {
+    const tab = e.target.closest('.filter-tab');
+    if (!tab || tab.dataset.a === adjust) return;
+    adjust = tab.dataset.a;
+    const cur = document.querySelector('#kline-periods .filter-tab.active');
+    if (cur) loadPeriod(cur.dataset.p);
   });
   async function loadPeriod(p) {
     const meta = KLINE_PERIODS.find(x => x.k === p);
-    if (!cache[p]) {
+    const key = p + ':' + adjust;
+    if (!cache[key]) {
       toast('加载 ' + meta.label + '...');
-      try { cache[p] = await api(`/api/stocks/${code}/bars?days=${meta.days}&period=${p}`); }
-      catch (err) { cache[p] = null; toast(err.message); }
+      try { cache[key] = await api(`/api/stocks/${code}/bars?days=${meta.days}&period=${p}&adjust=${adjust}`); }
+      catch (err) { cache[key] = null; toast(err.message); }
     }
-    const bars = cache[p];
+    const bars = cache[key];
     if (!bars || bars.length < 2) { toast('无' + meta.label + '数据'); return; }
     document.querySelectorAll('#kline-periods .filter-tab').forEach(t => t.classList.toggle('active', t.dataset.p === p));
+    document.querySelectorAll('#kline-adjust .filter-tab').forEach(t => t.classList.toggle('active', t.dataset.a === adjust));
     const last = bars[bars.length - 1];
     const prev = bars[bars.length - 2];
     const chg = prev ? (last.close - prev.close) / prev.close * 100 : 0;
