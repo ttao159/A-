@@ -212,7 +212,8 @@ class TestGetStockNames:
 class TestMarketDataServiceCache:
     def test_daily_bars_cached_within_ttl(self):
         svc = MarketDataService()
-        with mock.patch.object(PublicDataService, "get_daily_bars",
+        with mock.patch.object(MarketDataService, "_disk_get", return_value=None), \
+             mock.patch.object(PublicDataService, "get_daily_bars",
                                return_value=pd.DataFrame()) as spy:
             svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
             svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
@@ -220,7 +221,8 @@ class TestMarketDataServiceCache:
 
     def test_daily_bars_not_cached_across_dates(self):
         svc = MarketDataService()
-        with mock.patch.object(PublicDataService, "get_daily_bars",
+        with mock.patch.object(MarketDataService, "_disk_get", return_value=None), \
+             mock.patch.object(PublicDataService, "get_daily_bars",
                                return_value=pd.DataFrame()) as spy:
             svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
             svc.get_daily_bars("600519", "2023-01-01", "2023-12-31")
@@ -229,7 +231,8 @@ class TestMarketDataServiceCache:
     def test_cache_expires_after_ttl(self):
         svc = MarketDataService()
         svc.KLINE_TTL = 0
-        with mock.patch.object(PublicDataService, "get_daily_bars",
+        with mock.patch.object(MarketDataService, "_disk_get", return_value=None), \
+             mock.patch.object(PublicDataService, "get_daily_bars",
                                return_value=pd.DataFrame()) as spy:
             svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
             svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")

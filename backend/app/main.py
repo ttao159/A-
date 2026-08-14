@@ -180,7 +180,18 @@ def run_strategy_generator(body: GeneratorRequest):
 @app.get("/api/account")
 def get_account(db: Session = Depends(get_db)):
     acct, positions, _ = accounts.get_snapshot(db)
-    market_value = sum(p.qty * p.avg_cost for p in positions)
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=10)).isoformat()
+    market_value = 0.0
+    for p in positions:
+        price = p.avg_cost
+        try:
+            bars = market.get_daily_bars(p.code, start, end)
+            if bars is not None and len(bars):
+                price = float(bars["close"].iloc[-1])
+        except Exception:
+            pass
+        market_value += p.qty * price
     total = acct.available_cash + market_value
     return {
         "initial_capital": acct.initial_capital,

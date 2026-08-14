@@ -23,6 +23,17 @@ def _position_dict(p: Position) -> dict:
     }
 
 
+def _latest_price(market, code: str, start: str, end: str) -> float:
+    """获取某股票最新收盘价，失败返回 None。"""
+    try:
+        bars = market.get_daily_bars(code, start, end)
+        if bars is not None and len(bars):
+            return float(bars["close"].iloc[-1])
+    except DataUnavailableError:
+        pass
+    return None
+
+
 def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
     """执行一次全市场扫描并自动交易，返回扫描报告。"""
     accounts = accounts or AccountService()
@@ -49,6 +60,13 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
         positions = db.query(Position).filter(Position.account_id == acct.id).all()
         held = {p.code: p for p in positions}
 
+        # 持仓最新价（用于风控权益计算，缺省回退成本价）
+        prices = {p.code: p.avg_cost for p in positions}
+        for p in positions:
+            latest = _latest_price(market, p.code, start, end)
+            if latest is not None:
+                prices[p.code] = latest
+
         # 组合状态（用于风控与持仓市值）
         state = {
             "initial_capital": acct.initial_capital,
@@ -56,10 +74,11 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
             "positions": {p.code: _position_dict(p) for p in positions},
             "high_water": acct.initial_capital,
         }
-        equity = acct.available_cash + sum(p.qty * p.avg_cost for p in positions)
+        equity = acct.available_cash + sum(p.qty * prices.get(p.code, p.avg_cost)
+                                           for p in positions)
         state["high_water"] = max(acct.initial_capital, equity)
 
-        for code, name in market.get_stock_list():
+        for code, name in stock_list:
             try:
                 bars = market.get_daily_bars(code, start, end)
             except DataUnavailableError:
@@ -67,6 +86,7 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
             if bars is None or len(bars) < 3:
                 continue
             price = float(bars["close"].iloc[-1])
+            prices[code] = price
 
             if code in held:
                 p = held[code]
@@ -78,15 +98,23 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
                             "code": code, "name": name, "price": round(price, 3),
                             "qty": p.qty, "reason": reason,
                         })
+                        # 卖出后同步组合状态，避免后续风控用过期数据
+                        positions = db.query(Position).filter(Position.account_id == acct.id).all()
+                        held = {p.code: p for p in positions}
+                        state["positions"] = {p.code: _position_dict(p) for p in positions}
+                        state["cash"] = acct.available_cash
             else:
                 if not evaluate_buy(cfg, bars):
                     continue
+                equity = state["cash"] + sum(
+                    pp["qty"] * prices.get(pp["code"], pp["avg_cost"])
+                    for pp in state["positions"].values()
+                )
                 max_pos_pct = float(cfg.get("risk", {}).get("maxPositionPercent", 20))
-                total = equity
-                qty = matching.round_lot(int(total * max_pos_pct / 100.0 / price))
+                qty = matching.round_lot(int(equity * max_pos_pct / 100.0 / price))
                 if qty < 100:
                     continue
-                ok, why = check_risk(state, cfg, price, qty, {p.code: p.avg_cost for p in positions})
+                ok, why = check_risk(state, cfg, price, qty, prices)
                 if not ok:
                     report["rejected"].append({"code": code, "name": name, "reason": why})
                     continue
@@ -100,7 +128,10 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
                     held = {p.code: p for p in positions}
                     state["positions"] = {p.code: _position_dict(p) for p in positions}
                     state["cash"] = acct.available_cash
-                    equity = acct.available_cash + sum(p.qty * p.avg_cost for p in positions)
+                    equity = state["cash"] + sum(
+                        pp["qty"] * prices.get(pp["code"], pp["avg_cost"])
+                        for pp in state["positions"].values()
+                    )
                     state["high_water"] = max(state["high_water"], equity)
 
     db.add(ScanReport(
