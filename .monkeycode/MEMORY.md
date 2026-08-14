@@ -72,4 +72,4 @@ Entries discovered by the Agent during task execution should follow this format:
 - Instructions:
   - 当前预览环境可用的公开行情接口：腾讯 K 线 `web.ifzq.gtimg.cn/appstock/app/fqkline/get`（前复权日线）、腾讯实时 `qt.gtimg.cn/q=`（GBK 编码）、新浪股票列表 `vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?node=hs_a`
   - 不可用接口：东方财富 push2 系列（返回空）、腾讯 stock.gtimg.cn 榜单接口（返回空）、akshare（内部东财接口被限制）
-  - 策略生成引擎（generator.py + public_data.py）只使用真实公开 API 数据，禁用合成数据；扫描/账户功能仍用 akshare + 合成降级
+  - 全系统行情数据已统一为公开 API 真实数据（MarketDataService 继承 PublicDataService），禁用合成数据；日线带 10 分钟 TTL 缓存、股票列表 1 小时缓存、并发预取（16 线程）

@@ -238,7 +238,10 @@ def get_stocks():
 def get_stock_bars(code: str, days: int = 90):
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=days * 2 + 30)).isoformat()
-    df = market.get_daily_bars(code, start, end)
+    try:
+        df = market.get_daily_bars(code, start, end)
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
     if df is None or len(df) == 0:
         raise HTTPException(404, "无行情数据")
     df = df.tail(days)

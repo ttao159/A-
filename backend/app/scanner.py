@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from . import config, matching
 from .account import AccountService, check_risk
 from .models import Position, Strategy
+from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
 LOOKBACK_DAYS = 120
@@ -35,6 +36,12 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat()
 
+    # 并发预取全市场日线，填充缓存，随后各策略循环命中缓存
+    stock_list = market.get_stock_list()
+    prefetch = getattr(market, "prefetch_daily_bars", None)
+    if prefetch:
+        prefetch([c for c, _ in stock_list], start, end)
+
     report = {"buys": [], "sells": [], "rejected": [], "strategy_count": len(strategies)}
 
     for strategy in strategies:
@@ -53,7 +60,10 @@ def scan_and_trade(db, market, accounts: AccountService = None) -> dict:
         state["high_water"] = max(acct.initial_capital, equity)
 
         for code, name in market.get_stock_list():
-            bars = market.get_daily_bars(code, start, end)
+            try:
+                bars = market.get_daily_bars(code, start, end)
+            except DataUnavailableError:
+                continue
             if bars is None or len(bars) < 3:
                 continue
             price = float(bars["close"].iloc[-1])

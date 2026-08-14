@@ -4,6 +4,7 @@ import pandas as pd
 
 from . import matching
 from .account import Portfolio, check_risk
+from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
 
@@ -54,9 +55,15 @@ def run_backtest(config: dict, market, start: str, end: str,
                  initial_capital: float = 1_000_000.0) -> dict:
     """执行回测，返回 metrics/equity_curve/trades。"""
     stock_list = market.get_stock_list()
+    prefetch = getattr(market, "prefetch_daily_bars", None)
+    if prefetch:
+        prefetch([c for c, _ in stock_list], start, end)
     bars_map = {}
     for code, name in stock_list:
-        df = market.get_daily_bars(code, start, end)
+        try:
+            df = market.get_daily_bars(code, start, end)
+        except DataUnavailableError:
+            continue
         if df is not None and len(df):
             bars_map[code] = df.reset_index(drop=True)
 

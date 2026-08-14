@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, "..")  # noqa: E402
 
+from app.market import MarketDataService
 from app.public_data import DataUnavailableError, PublicDataService, is_main_board
 
 # 腾讯 K 线接口真实响应样本（600519 qfq 日线，行格式 date/open/close/high/low/volume）
@@ -149,3 +150,38 @@ class TestGetStockNames:
     def test_failure_falls_back_to_empty(self):
         with mock.patch("app.public_data.urllib.request.urlopen", side_effect=Exception("net")):
             assert PublicDataService().get_stock_names(["600519"]) == {}
+
+
+class TestMarketDataServiceCache:
+    def test_daily_bars_cached_within_ttl(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_daily_bars",
+                               return_value=pd.DataFrame()) as spy:
+            svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
+            svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
+            assert spy.call_count == 1
+
+    def test_daily_bars_not_cached_across_dates(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_daily_bars",
+                               return_value=pd.DataFrame()) as spy:
+            svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
+            svc.get_daily_bars("600519", "2023-01-01", "2023-12-31")
+            assert spy.call_count == 2
+
+    def test_cache_expires_after_ttl(self):
+        svc = MarketDataService()
+        svc.KLINE_TTL = 0
+        with mock.patch.object(PublicDataService, "get_daily_bars",
+                               return_value=pd.DataFrame()) as spy:
+            svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
+            svc.get_daily_bars("600519", "2024-01-01", "2024-12-31")
+            assert spy.call_count == 2
+
+    def test_stock_list_cached(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_stock_list",
+                               return_value=[("600519", "贵州茅台")]) as spy:
+            svc.get_stock_list()
+            svc.get_stock_list()
+            assert spy.call_count == 1

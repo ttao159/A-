@@ -257,7 +257,7 @@ function renderMine() {
     <div class="card">
       <div class="row"><div class="row-left"><div class="row-title">模拟账户</div><div class="row-sub">初始资金 100 万元 · A 股主板</div></div></div>
       <div class="row"><div class="row-left"><div class="row-title">扫描范围</div><div class="row-sub">沪深主板（排除创业板、科创板）</div></div></div>
-      <div class="row"><div class="row-left"><div class="row-title">行情数据源</div><div class="row-sub">akshare</div></div></div>
+      <div class="row"><div class="row-left"><div class="row-title">行情数据源</div><div class="row-sub">腾讯/新浪公开行情 API（真实数据）</div></div></div>
       <div class="row"><div class="row-left"><div class="row-title">撮合模式</div><div class="row-sub">本地模拟撮合</div></div></div>
     </div>
     <div class="card">

@@ -7,7 +7,6 @@ from sqlalchemy.orm import sessionmaker
 from app import backtest
 from app.account import AccountService, Portfolio, check_risk
 from app.database import Base
-from app.market import MarketDataService
 from app.models import Account, Position
 from app.schemas import default_config
 
@@ -71,8 +70,26 @@ def test_portfolio_sell_realizes_pnl():
 
 
 # ===== 回测 =====
+class _FakeMarket:
+    """固定行情，避免真实网络请求。"""
+
+    def get_stock_list(self):
+        return [("600519", "贵州茅台"), ("600036", "招商银行")]
+
+    def get_daily_bars(self, code, start, end):
+        import pandas as pd
+
+        n = 200
+        dates = pd.bdate_range("2025-01-01", periods=n).strftime("%Y-%m-%d").tolist()
+        close = [10.0 * (1 + i * 0.002) for i in range(n)]
+        return pd.DataFrame({
+            "date": dates, "open": close, "high": [c * 1.01 for c in close],
+            "low": [c * 0.99 for c in close], "close": close, "volume": [1e6] * n,
+        })
+
+
 def test_backtest_returns_structure():
-    market = MarketDataService()
+    market = _FakeMarket()
     cfg = default_config()
     result = backtest.run_backtest(cfg, market, "2025-01-01", "2026-01-01")
     assert set(result.keys()) == {"metrics", "equity_curve", "trades"}
