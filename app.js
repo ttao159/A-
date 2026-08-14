@@ -533,7 +533,7 @@ function drawEquityCurve(canvas, curve) {
   const min = Math.min(...values), max = Math.max(...values);
   const range = (max - min) || 1;
   ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = '#1976d2';
+  ctx.strokeStyle = '#2563eb';
   ctx.lineWidth = 2;
   ctx.beginPath();
   curve.forEach((p, i) => {
@@ -545,7 +545,7 @@ function drawEquityCurve(canvas, curve) {
 }
 
 // ===== 策略生成引擎 =====
-const GEN_COLORS = ['#1976d2', '#e53935', '#1e9e5a', '#f0a020', '#8e44ad', '#16a085', '#c0392b', '#2980b9', '#d35400', '#27ae60'];
+const GEN_COLORS = ['#2563eb', '#ef4444', '#10b981', '#f59e0b', '#8e44ad', '#14b8a6', '#e0245e', '#3b82f6', '#d97706', '#059669'];
 
 function toYMD(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -804,19 +804,29 @@ async function showKline(code, name) {
   catch (err) { toast(err.message); return; }
   if (!bars || bars.length < 2) { toast('无行情数据'); return; }
   const last = bars[bars.length - 1];
+  const prev = bars[bars.length - 2];
+  const chg = prev ? (last.close - prev.close) / prev.close * 100 : 0;
+  const cls = chg >= 0 ? 'up' : 'down';
   const mask = document.createElement('div');
   mask.className = 'dialog-mask show';
   mask.id = 'kline-dialog';
   mask.innerHTML = `
-    <div class="dialog" style="width:92%">
-      <div class="dialog-title">${esc(name)} <span style="color:var(--text-sub);font-size:12px">${esc(code)}</span></div>
-      <div class="dialog-desc">最新价 ${last.close} · ${bars[0].date} ~ ${last.date}</div>
-      <canvas id="kline-chart" width="320" height="220"></canvas>
+    <div class="dialog" style="width:94%">
+      <div class="dialog-title">${esc(name)}
+        <span style="color:var(--text-sub);font-size:12px">${esc(code)}</span>
+        <span class="${cls}" style="font-size:13px;margin-left:6px">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+      </div>
+      <div class="dialog-desc">${bars[0].date} ~ ${last.date} · 最新价 ${last.close}</div>
+      <div class="kline-wrap">
+        <canvas id="kline-chart" width="346" height="300"></canvas>
+        <div class="kline-info" id="kline-info"></div>
+      </div>
       <div class="kline-legend">
-        <span><i style="background:#e53935"></i>阳线</span>
-        <span><i style="background:#1e9e5a"></i>阴线</span>
-        <span><i style="background:#f0a020"></i>MA5</span>
-        <span><i style="background:#1976d2"></i>MA20</span>
+        <span><i style="background:#ef4444"></i>阳线</span>
+        <span><i style="background:#10b981"></i>阴线</span>
+        <span><i style="background:#f59e0b"></i>MA5</span>
+        <span><i style="background:#2563eb"></i>MA10</span>
+        <span><i style="background:#a855f7"></i>MA20</span>
       </div>
       <div class="dialog-actions">
         <button class="dialog-btn primary" id="kline-close">关闭</button>
@@ -833,49 +843,157 @@ function drawKline(canvas, bars) {
   if (!bars || bars.length < 2) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
-  const padL = 6, padR = 8, padT = 8, padB = 16;
-  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const padL = 10, padR = 48, padT = 12, padB = 22;
+  const plotW = w - padL - padR;
+  const mainH = Math.round((h - padT - padB) * 0.7);
+  const volH = Math.round((h - padT - padB) * 0.3) - 14;
+  const volBase = padT + mainH + 10;
   const n = bars.length;
+  const cw = plotW / n;
+  const bw = Math.max(1, cw * 0.62);
+  const x = i => padL + i * cw + cw / 2;
+  const fmtPrice = v => v.toFixed(2);
+  const fmtVol = v => v >= 1e8 ? (v / 1e8).toFixed(2) + '亿'
+    : v >= 1e4 ? (v / 1e4).toFixed(0) + '万' : String(v);
 
   const closes = bars.map(b => b.close);
   const ma = (arr, p) => arr.map((_, i) => i < p - 1 ? null : arr.slice(i - p + 1, i + 1).reduce((a, b) => a + b, 0) / p);
-  const ma5 = ma(closes, 5), ma20 = ma(closes, 20);
+  const ma5 = ma(closes, 5), ma10 = ma(closes, 10), ma20 = ma(closes, 20);
   const allVals = [...bars.flatMap(b => [b.high, b.low]), ...ma20.filter(v => v !== null)];
   const min = Math.min(...allVals), max = Math.max(...allVals);
   const range = (max - min) || 1;
-  const x = i => padL + i / (n - 1) * plotW;
-  const y = v => padT + (max - v) / range * plotH;
-  const cw = Math.max(1, plotW / n * 0.65);
+  const maxVol = Math.max(...bars.map(b => b.volume));
+  const y = v => padT + (max - v) / range * mainH;
 
-  ctx.clearRect(0, 0, w, h);
-  bars.forEach((b, i) => {
-    const up = b.close >= b.open;
-    const color = up ? '#e53935' : '#1e9e5a';
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x(i), y(b.high));
-    ctx.lineTo(x(i), y(b.low));
-    ctx.stroke();
-    const bodyTop = y(Math.max(b.open, b.close));
-    const bodyBot = y(Math.min(b.open, b.close));
-    ctx.fillRect(x(i) - cw / 2, bodyTop, cw, Math.max(1, bodyBot - bodyTop));
-  });
+  const UP = '#ef4444', DOWN = '#10b981';
 
-  const drawLine = (arr, color) => {
-    ctx.strokeStyle = color;
+  function render(crossIdx) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = '10px -apple-system, "PingFang SC", "Helvetica Neue", sans-serif';
+    // 主图网格 + 价格轴
+    ctx.strokeStyle = '#eef0f4';
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    let started = false;
-    arr.forEach((v, i) => {
-      if (v === null) return;
-      if (!started) { ctx.moveTo(x(i), y(v)); started = true; }
-      else ctx.lineTo(x(i), y(v));
+    ctx.fillStyle = '#9aa3b2';
+    for (let g = 0; g <= 4; g++) {
+      const gy = padT + g / 4 * mainH;
+      ctx.beginPath();
+      ctx.moveTo(padL, gy);
+      ctx.lineTo(padL + plotW, gy);
+      ctx.stroke();
+      ctx.fillText(fmtPrice(max - (max - min) * g / 4), padL + plotW + 6, gy + 3);
+    }
+    // 成交量网格
+    for (let g = 0; g <= 2; g++) {
+      const gy = volBase + g / 2 * volH;
+      ctx.beginPath();
+      ctx.moveTo(padL, gy);
+      ctx.lineTo(padL + plotW, gy);
+      ctx.stroke();
+    }
+    // 蜡烛 + 量柱
+    bars.forEach((b, i) => {
+      const up = b.close >= b.open;
+      const color = up ? UP : DOWN;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x(i), y(b.high));
+      ctx.lineTo(x(i), y(b.low));
+      ctx.stroke();
+      const bt = y(Math.max(b.open, b.close));
+      const bb = y(Math.min(b.open, b.close));
+      ctx.fillRect(x(i) - bw / 2, bt, bw, Math.max(1, bb - bt));
+      const vh = Math.max(1, b.volume / maxVol * volH);
+      ctx.globalAlpha = 0.45;
+      ctx.fillRect(x(i) - bw / 2, volBase + volH - vh, bw, vh);
+      ctx.globalAlpha = 1;
     });
-    ctx.stroke();
-  };
-  drawLine(ma5, '#f0a020');
-  drawLine(ma20, '#1976d2');
+    // 均线
+    const drawLine = (arr, color) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      let started = false;
+      arr.forEach((v, i) => {
+        if (v === null) { started = false; return; }
+        if (!started) { ctx.moveTo(x(i), y(v)); started = true; }
+        else ctx.lineTo(x(i), y(v));
+      });
+      ctx.stroke();
+    };
+    drawLine(ma5, '#f59e0b');
+    drawLine(ma10, '#2563eb');
+    drawLine(ma20, '#a855f7');
+    // 十字光标
+    if (crossIdx !== null && crossIdx >= 0 && crossIdx < n) {
+      const b = bars[crossIdx];
+      const cx = x(crossIdx), cy = y(b.close);
+      ctx.strokeStyle = 'rgba(60,70,90,0.5)';
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, padT);
+      ctx.lineTo(cx, volBase + volH);
+      ctx.moveTo(padL, cy);
+      ctx.lineTo(padL + plotW, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const color = b.close >= b.open ? UP : DOWN;
+      const label = fmtPrice(b.close);
+      ctx.font = '10px -apple-system, "PingFang SC", sans-serif';
+      const lw = ctx.measureText(label).width + 8;
+      ctx.fillStyle = color;
+      ctx.fillRect(padL + plotW - lw, cy - 8, lw, 15);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, padL + plotW - lw + 4, cy + 4);
+    }
+  }
+
+  function canvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      px: (e.clientX - rect.left) * (canvas.width / rect.width),
+      py: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  }
+  function idxFromX(px) {
+    const i = Math.floor((px - padL) / cw);
+    return i >= 0 && i < n ? i : null;
+  }
+
+  const infoEl = document.getElementById('kline-info');
+  function updateInfo(i) {
+    if (!infoEl || i === null) return;
+    const b = bars[i];
+    const prev = bars[i - 1] ? bars[i - 1].close : b.open;
+    const chg = prev ? (b.close - prev) / prev * 100 : 0;
+    const cls = chg >= 0 ? 'up' : 'down';
+    const mv = (arr, i) => arr[i] ? fmtPrice(arr[i]) : '-';
+    infoEl.innerHTML =
+      `<span><b>${b.date}</b></span>` +
+      `<span>开 <b>${fmtPrice(b.open)}</b></span>` +
+      `<span>高 <b class="up">${fmtPrice(b.high)}</b></span>` +
+      `<span>低 <b class="down">${fmtPrice(b.low)}</b></span>` +
+      `<span>收 <b>${fmtPrice(b.close)}</b></span>` +
+      `<span class="${cls}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>` +
+      `<span>量 <b>${fmtVol(b.volume)}</b></span>` +
+      `<span>MA5 <b>${mv(ma5, i)}</b></span>` +
+      `<span>MA10 <b>${mv(ma10, i)}</b></span>` +
+      `<span>MA20 <b>${mv(ma20, i)}</b></span>`;
+  }
+
+  render(null);
+  if (infoEl) infoEl.innerHTML = '';
+  canvas.style.touchAction = 'none';
+  canvas.addEventListener('pointermove', e => {
+    const i = idxFromX(canvasPos(e).px);
+    render(i);
+    updateInfo(i);
+  });
+  canvas.addEventListener('pointerleave', () => {
+    render(null);
+    if (infoEl) infoEl.innerHTML = '';
+  });
 }
 
 // ===== 底部导航 =====
