@@ -156,6 +156,9 @@
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 
+# SQLite databases
+**/*.db
+
 # Compressed files
 *.zip
 *.rar

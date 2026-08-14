@@ -1,0 +1,456 @@
+:root {
+  --primary: #1976d2;
+  --primary-light: #e3f0fb;
+  --up: #e53935;
+  --down: #1e9e5a;
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --text: #000000;
+  --text-sub: #55585e;
+  --border: #e6e8ec;
+  --danger: #e53935;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  background: #e9ecf1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.stage { display: flex; align-items: center; justify-content: center; }
+
+/* 手机外框 */
+.phone {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  max-height: 94vh;
+  background: var(--bg);
+  border-radius: 48px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.35), 0 0 0 10px #1a1a1f, 0 0 0 12px #3a3a40;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 状态栏 */
+.statusbar {
+  height: 44px;
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sb-icons { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+/* 应用栏 */
+.appbar {
+  height: 52px;
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  background: var(--primary);
+  color: #fff;
+}
+.appbar-title { font-size: 19px; font-weight: 600; }
+
+/* 内容区 */
+.content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  scrollbar-width: none;
+}
+.content::-webkit-scrollbar { display: none; }
+
+/* 底部导航 */
+.bottombar {
+  flex: 0 0 64px;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid var(--border);
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-sub);
+  cursor: pointer;
+  font-size: 11px;
+}
+.tab.active { color: var(--primary); }
+.tab-icon { font-size: 21px; }
+
+/* 卡片 */
+.card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+.section-label { font-size: 13px; color: var(--text-sub); margin: 18px 2px 8px; }
+
+/* 资产卡片 */
+.asset-card {
+  background: linear-gradient(135deg, #1976d2, #42a5f5);
+  color: #fff;
+  border-radius: 16px;
+  padding: 20px 18px;
+  margin-bottom: 14px;
+}
+.asset-total-label { font-size: 13px; opacity: 0.85; }
+.asset-total { font-size: 32px; font-weight: 700; margin: 6px 0 14px; letter-spacing: 0.5px; }
+.asset-row { display: flex; justify-content: space-between; font-size: 13px; }
+.asset-row span { opacity: 0.92; }
+.asset-row .val { font-weight: 600; }
+
+/* 持仓列表 */
+.holding {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.holding:last-child { border-bottom: none; }
+.holding-name { font-size: 14px; font-weight: 600; }
+.holding-code { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+.holding-right { text-align: right; }
+.holding-pnl { font-size: 14px; font-weight: 600; }
+.holding-pct { font-size: 12px; margin-top: 2px; }
+.holding-amt { font-size: 11px; font-weight: 400; margin-left: 4px; }
+.tag.t1-lock { background: #fdeaea; color: var(--up); font-size: 10px; padding: 1px 6px; }
+.up { color: var(--up); }
+.down { color: var(--down); }
+
+/* 策略卡片 */
+.strategy-card { cursor: pointer; }
+.strategy-head { display: flex; justify-content: space-between; align-items: center; }
+.strategy-name { font-size: 15px; font-weight: 600; }
+.strategy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.strat-actions { display: flex; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.strat-action {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.strat-action.danger { background: #fdecea; color: var(--danger); }
+
+/* 回测结果 */
+.bt-metrics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.bt-metric {
+  flex: 1 1 30%;
+  background: #f5f6f8;
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.bt-metric-val { font-size: 15px; font-weight: 700; color: var(--text); }
+.bt-metric-label { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
+.bt-trades-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 16px 0 8px; }
+.bt-trades { max-height: 220px; overflow-y: auto; }
+.bt-trade {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid #f0f1f3; font-size: 12px;
+}
+.bt-trade-name { font-weight: 600; color: var(--text); flex: 0 0 auto; }
+.bt-trade-meta { color: var(--text-sub); flex: 1; }
+.bt-history { max-height: 340px; overflow-y: auto; }
+.bt-history-item {
+  padding: 12px 10px; border-bottom: 1px solid #f0f1f3; cursor: pointer;
+}
+.bt-history-item:active { background: #f5f6f8; }
+.bt-history-top { display: flex; justify-content: space-between; font-size: 13px; }
+.bt-history-range { color: var(--text); font-weight: 600; }
+.bt-history-sub { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
+.tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.tag.off { background: #f0f1f3; color: var(--text-sub); }
+
+/* 开关 */
+.switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  background: #c9ccd1;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex: 0 0 auto;
+}
+.switch.on { background: var(--primary); }
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.switch.on::after { transform: translateX(20px); }
+
+/* 列表行 */
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: none; }
+.row-left { flex: 1; }
+.row-title { font-size: 14px; font-weight: 500; }
+.row-sub { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+
+/* 按钮 */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-ghost {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.btn-danger {
+  background: #fdecea;
+  color: var(--danger);
+}
+.fab {
+  position: absolute;
+  right: 20px;
+  bottom: 82px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 28px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(25,118,210,0.4);
+  z-index: 5;
+}
+
+/* 空状态 */
+.empty { text-align: center; color: var(--text-sub); padding: 40px 20px; font-size: 13px; }
+
+/* 交易记录 */
+.trade-item { padding: 12px 2px; border-bottom: 1px solid var(--border); }
+.trade-item:last-child { border-bottom: none; }
+.trade-top { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; }
+.trade-mid { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+.badge-buy { color: var(--up); }
+.badge-sell { color: var(--down); }
+
+/* 编辑层 */
+.editor {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  z-index: 20;
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+  display: flex;
+  flex-direction: column;
+}
+.editor.open { transform: translateX(0); }
+.editor-head {
+  flex: 0 0 auto;
+  background: var(--primary);
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.editor-back { cursor: pointer; font-size: 20px; }
+.editor-title { font-size: 17px; font-weight: 600; flex: 1; }
+.editor-body { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px 90px; scrollbar-width: none; }
+.editor-body::-webkit-scrollbar { display: none; }
+.editor-foot {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+}
+
+/* 信号标签 */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 8px 15px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-sub);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s;
+}
+.chip.on {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.chip-params { margin-top: 10px; }
+.chip-param-block {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.chip-param-title { font-size: 13px; font-weight: 600; color: var(--primary); margin-bottom: 10px; }
+.chip-param-fields { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* 信号开关行 */
+.signal {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 13px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.signal-head { display: flex; justify-content: space-between; align-items: center; }
+.signal-name { font-size: 14px; font-weight: 600; }
+.signal-desc { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+.signal-params { display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
+.signal.on .signal-params { display: flex; }
+
+/* 输入框 */
+.field { flex: 1; min-width: 70px; }
+.field label { display: block; font-size: 11px; color: var(--text-sub); margin-bottom: 4px; }
+.field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+.field input:focus { border-color: var(--primary); }
+
+/* Toast */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(0,0,0,0.82);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  opacity: 0;
+  transition: all 0.25s;
+  z-index: 50;
+  pointer-events: none;
+  max-width: 80%;
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* 策略名称对话框 */
+.dialog-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.dialog-mask.show { opacity: 1; pointer-events: auto; }
+.dialog {
+  width: 82%;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  transform: scale(0.92);
+  transition: transform 0.2s;
+}
+.dialog-mask.show .dialog { transform: scale(1); }
+.dialog-title { font-size: 16px; font-weight: 700; text-align: center; }
+.dialog-desc { font-size: 13px; color: var(--text-sub); text-align: center; margin: 6px 0 16px; }
+.dialog-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+}
+.dialog-input:focus { border-color: var(--primary); }
+.dialog-actions { display: flex; gap: 10px; margin-top: 18px; }
+.dialog-btn {
+  flex: 1;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  background: #f0f1f3;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dialog-btn.primary { background: var(--primary); color: #fff; }
+
+/* 顶部 tab 过滤 */
+.filter-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.filter-tab {
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 12px;
+  background: #fff;
+  color: var(--text-sub);
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+.filter-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* K 线图 */
+#kline-chart { width: 100%; height: auto; display: block; }
+.kline-legend { display: flex; gap: 14px; justify-content: center; margin-top: 8px; font-size: 11px; color: var(--text-sub); }
+.kline-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.holding { cursor: pointer; }
