@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 
 from .database import Base
 
@@ -104,3 +104,16 @@ class ScanReport(Base):
     reject_count = Column(Integer, default=0)
     report_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DailyBarCache(Base):
+    __tablename__ = "daily_bar_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(20), nullable=False, index=True)
+    period = Column(String(10), nullable=False, default="day")
+    adjust = Column(String(10), nullable=False, default="qfq")
+    data_json = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("code", "period", "adjust", name="uq_bar_cache"),)
