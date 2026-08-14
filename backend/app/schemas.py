@@ -58,3 +58,17 @@ class StrategyUpdate(BaseModel):
 class BacktestRequest(BaseModel):
     start_date: str = Field(default="", description="YYYY-MM-DD，空则默认近一年")
     end_date: str = Field(default="", description="YYYY-MM-DD，空则默认今天")
+
+
+class TargetsInput(BaseModel):
+    scope: str = Field(description="single/custom/market")
+    codes: list[str] = Field(default_factory=list, description="股票代码列表")
+
+
+class GeneratorRequest(BaseModel):
+    targets: TargetsInput
+    start_date: str = Field(description="YYYY-MM-DD")
+    end_date: str = Field(description="YYYY-MM-DD")
+    risk_profile: str = Field(description="conservative/balanced/aggressive")
+    count: int = Field(ge=1, le=10, description="生成策略数量")
+    target_annual_return: float = Field(default=0.0, ge=0, description="目标年化收益率（%）")

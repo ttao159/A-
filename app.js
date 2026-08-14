@@ -155,9 +155,11 @@ function renderHome() {
 function renderStrategy() {
   $('#appbar-title').textContent = '策略管理';
   $('#content').innerHTML = `
-    ${strategies.length ? strategies.map(s => strategyCard(s)).join('') : '<div class="empty">暂无策略，点击右下角 + 新建</div>'}
+    <button class="btn gen-entry" id="gen-entry">✦ 策略生成引擎</button>
+    ${strategies.length ? strategies.map(s => strategyCard(s)).join('') : '<div class="empty">暂无策略，点击右下角 + 新建，或使用策略生成引擎</div>'}
     <button class="fab" id="fab-add">+</button>
   `;
+  $('#gen-entry').addEventListener('click', openGenerator);
   $('#fab-add').addEventListener('click', () => openEditor(null));
 
   document.querySelectorAll('.strategy-card').forEach(el => {
@@ -540,6 +542,258 @@ function drawEquityCurve(canvas, curve) {
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.stroke();
+}
+
+// ===== 策略生成引擎 =====
+const GEN_COLORS = ['#1976d2', '#e53935', '#1e9e5a', '#f0a020', '#8e44ad', '#16a085', '#c0392b', '#2980b9', '#d35400', '#27ae60'];
+
+function toYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function openGenerator() {
+  $('#generator').classList.add('open');
+  renderGeneratorForm();
+}
+
+function closeGenerator() {
+  $('#generator').classList.remove('open');
+}
+
+function renderGeneratorForm() {
+  const today = new Date();
+  const endDef = toYMD(today);
+  const startDef = toYMD(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+  let scope = 'single';
+  let risk = 'balanced';
+  $('#generator').innerHTML = `
+    <div class="editor-head">
+      <span class="editor-back" id="gen-back">‹</span>
+      <span class="editor-title">策略生成引擎</span>
+    </div>
+    <div class="editor-body">
+      <div class="section-label">标的范围</div>
+      <div class="chips" id="gen-scope-chips">
+        <span class="chip on" data-scope="single">单只股票</span>
+        <span class="chip" data-scope="custom">自定义组合</span>
+        <span class="chip" data-scope="market">全市场</span>
+      </div>
+      <div class="chip-params" id="gen-codes-wrap">
+        <div class="field">
+          <label>股票代码（逗号分隔）</label>
+          <input type="text" id="gen-codes" placeholder="如 600519,000001" />
+        </div>
+      </div>
+      <div class="section-label">回测区间</div>
+      <div class="gen-dates">
+        <div class="field"><label>开始日期</label><input type="date" id="gen-start" value="${startDef}" /></div>
+        <div class="field"><label>结束日期</label><input type="date" id="gen-end" value="${endDef}" /></div>
+      </div>
+      <div class="section-label">风险偏好</div>
+      <div class="chips" id="gen-risk-chips">
+        <span class="chip" data-risk="conservative">保守</span>
+        <span class="chip on" data-risk="balanced">稳健</span>
+        <span class="chip" data-risk="aggressive">激进</span>
+      </div>
+      <div class="section-label">生成数量（1-10）</div>
+      <div class="chip-params"><div class="field"><input type="number" id="gen-count" min="1" max="10" value="3" /></div></div>
+      <div class="section-label">目标年化收益率 %（0 表示不限）</div>
+      <div class="chip-params"><div class="field"><input type="number" id="gen-target" min="0" step="1" value="15" /></div></div>
+      <div class="section-label">数据源</div>
+      <div class="gen-datasource">腾讯公开行情接口（前复权真实日线），不可用时返回错误</div>
+    </div>
+    <div class="editor-foot">
+      <button class="btn btn-ghost" id="gen-cancel" style="flex:1">取消</button>
+      <button class="btn" id="gen-run" style="flex:1">开始生成</button>
+    </div>
+  `;
+
+  $('#gen-back').addEventListener('click', closeGenerator);
+  $('#gen-cancel').addEventListener('click', closeGenerator);
+  $('#gen-scope-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    scope = chip.dataset.scope;
+    $('#gen-scope-chips').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+    $('#gen-codes-wrap').style.display = scope === 'market' ? 'none' : '';
+  });
+  $('#gen-risk-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    risk = chip.dataset.risk;
+    $('#gen-risk-chips').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+  });
+  $('#gen-run').addEventListener('click', () => runGenerator(scope, risk));
+}
+
+async function runGenerator(scope, risk) {
+  const codesStr = $('#gen-codes').value.trim();
+  const startDate = $('#gen-start').value;
+  const endDate = $('#gen-end').value;
+  const count = parseInt($('#gen-count').value, 10);
+  const target = parseFloat($('#gen-target').value) || 0;
+
+  const codes = codesStr ? codesStr.split(/[,，\s]+/).filter(Boolean) : [];
+  if (scope !== 'market' && codes.length === 0) { toast('请填写股票代码'); return; }
+  if (!startDate || !endDate) { toast('请选择回测区间'); return; }
+  if (!count || count < 1 || count > 10) { toast('生成数量需在 1~10 之间'); return; }
+
+  const payload = {
+    targets: { scope, codes },
+    start_date: startDate,
+    end_date: endDate,
+    risk_profile: risk,
+    count,
+    target_annual_return: target,
+  };
+
+  $('#generator').innerHTML = `
+    <div class="editor-head">
+      <span class="editor-back" id="gen-back2">‹</span>
+      <span class="editor-title">策略生成中</span>
+    </div>
+    <div class="editor-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+      <div class="gen-loading"></div>
+      <div style="color:var(--text-sub);font-size:13px">正在获取真实行情并回测 ${count} 个候选策略，请稍候...</div>
+    </div>
+  `;
+  $('#gen-back2').addEventListener('click', () => renderGeneratorForm());
+
+  try {
+    const report = await api('/api/generator/run', { method: 'POST', body: payload });
+    renderGeneratorResult(report);
+  } catch (err) {
+    toast(err.message);
+    renderGeneratorForm();
+  }
+}
+
+function sigNames(signals) {
+  const buyNames = (signals.buy || []).map(k => { const d = SIGNAL_DEFS.buy.find(x => x.key === k); return d ? d.name : k; });
+  const sellNames = (signals.sell || []).map(k => { const d = SIGNAL_DEFS.sell.find(x => x.key === k); return d ? d.name : k; });
+  return buyNames.join('+') + ' / ' + sellNames.join('+');
+}
+
+function renderGeneratorResult(report) {
+  const req = report.request;
+  const strategies = report.strategies.slice().sort((a, b) => a.index - b.index);
+  const rec = report.recommended_index;
+  const legend = strategies.map(s => `
+    <span class="gen-legend-item"><i style="background:${GEN_COLORS[s.index % GEN_COLORS.length]}"></i>#${s.index + 1}${s.index === rec ? ' ★推荐' : ''}</span>
+  `).join('');
+
+  $('#generator').innerHTML = `
+    <div class="editor-head">
+      <span class="editor-back" id="gen-back3">‹</span>
+      <span class="editor-title">生成结果对比</span>
+    </div>
+    <div class="editor-body">
+      <div class="gen-datasource" style="margin-bottom:10px">
+        ${req.targets.scope === 'market' ? '全市场' : req.targets.scope === 'single' ? '单只 ' + (req.targets.codes[0] || '') : '自定义 ' + (req.targets.codes || []).join(',')}
+        · ${req.start_date} ~ ${req.end_date} · ${req.risk_profile === 'conservative' ? '保守' : req.risk_profile === 'aggressive' ? '激进' : '稳健'} · 目标年化 ${req.target_annual_return}%
+      </div>
+
+      ${strategies[rec] ? `
+        <div class="gen-recommend">
+          <div class="gen-recommend-title">推荐策略 #${rec + 1}</div>
+          <div class="gen-recommend-sig">${esc(sigNames(strategies[rec].signals))}</div>
+          <div class="gen-recommend-metrics">
+            <span>年化 <b class="${(strategies[rec].metrics.annual_return_pct ?? 0) >= 0 ? 'up' : 'down'}">${strategies[rec].metrics.annual_return_pct}%</b></span>
+            <span>回撤 <b class="down">${strategies[rec].metrics.max_drawdown_pct}%</b></span>
+            <span>胜率 <b>${strategies[rec].metrics.win_rate_pct}%</b></span>
+          </div>
+          <button class="btn" id="gen-save-rec" style="width:100%">保存为策略</button>
+        </div>
+      ` : ''}
+
+      <div class="card">
+        <div class="card-title">权益曲线对比</div>
+        <canvas id="gen-chart" width="300" height="170"></canvas>
+        <div class="gen-legend">${legend}</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">策略对比</div>
+        <table class="gen-table">
+          <thead><tr>
+            <th>#</th><th>信号</th><th>年化%</th><th>累计%</th><th>回撤%</th><th>胜率%</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            ${strategies.map(s => `
+              <tr>
+                <td>${s.index + 1}${s.index === rec ? ' ★' : ''}</td>
+                <td class="gen-sig-cell">${esc(sigNames(s.signals))}</td>
+                <td class="${(s.metrics.annual_return_pct ?? 0) >= 0 ? 'up' : 'down'}">${s.metrics.annual_return_pct ?? '-'}</td>
+                <td class="${(s.metrics.total_return_pct ?? 0) >= 0 ? 'up' : 'down'}">${s.metrics.total_return_pct ?? '-'}</td>
+                <td class="down">${s.metrics.max_drawdown_pct ?? '-'}</td>
+                <td>${s.metrics.win_rate_pct ?? '-'}</td>
+                <td><button class="gen-save-btn" data-idx="${s.index}">保存</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  $('#gen-back3').addEventListener('click', () => renderGeneratorForm());
+  $('#gen-save-rec').addEventListener('click', () => saveGeneratedStrategy(strategies[rec]));
+  $('#generator').querySelectorAll('.gen-save-btn').forEach(el => {
+    el.addEventListener('click', () => saveGeneratedStrategy(strategies[Number(el.dataset.idx)]));
+  });
+  drawMultiEquity($('#gen-chart'), strategies.map(s => s.equity_curve));
+}
+
+async function saveGeneratedStrategy(s) {
+  if (!s) return;
+  try {
+    await api('/api/strategies', { method: 'POST', body: {
+      name: 'AI生成策略 #' + (s.index + 1) + ' ' + sigNames(s.signals).split('/')[0],
+      enabled: true,
+      config: s.config,
+    }});
+    await refreshData();
+    toast('已保存到策略列表');
+  } catch (err) { toast(err.message); }
+}
+
+function drawMultiEquity(canvas, curves) {
+  if (!canvas || !curves || curves.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const pad = 8;
+  let all = [];
+  curves.forEach(c => { if (c) all = all.concat(c.map(p => p.equity)); });
+  if (all.length === 0) return;
+  const min = Math.min(...all), max = Math.max(...all);
+  const range = (max - min) || 1;
+  ctx.clearRect(0, 0, w, h);
+  const axisY = v => h - pad - (v - min) / range * (h - pad * 2);
+  curves.forEach((curve, idx) => {
+    if (!curve || curve.length < 2) return;
+    ctx.strokeStyle = GEN_COLORS[idx % GEN_COLORS.length];
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    curve.forEach((p, i) => {
+      const x = pad + i / (curve.length - 1) * (w - pad * 2);
+      const y = axisY(p.equity);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(pad, axisY(max));
+  ctx.lineTo(w - pad, axisY(max));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#909399';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(max.toFixed(0), w - pad - 2, axisY(max) - 3);
+  ctx.fillText(min.toFixed(0), w - pad - 2, axisY(min) + 10);
 }
 
 // ===== K 线图 =====

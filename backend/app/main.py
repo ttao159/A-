@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 from . import backtest, config
 from .account import AccountService
 from .database import Base, engine, get_db, migrate
+from .generator import run_generation
 from .market import MarketDataService
 from .models import Backtest, EquityPoint, Strategy
+from .public_data import DataUnavailableError, PublicDataService
 from .scanner import scan_and_trade
-from .schemas import BacktestRequest, StrategyCreate, StrategyUpdate
+from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
 from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
@@ -39,6 +41,7 @@ app.add_middleware(
 
 market = MarketDataService()
 accounts = AccountService()
+public_market = PublicDataService()
 
 
 def _strategy_out(s: Strategy) -> dict:
@@ -158,6 +161,18 @@ def get_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
         "metrics": json.loads(bt.metrics_json or "{}"),
         "equity_curve": [{"date": p.date, "equity": p.equity} for p in curve],
     }
+
+
+# ===== 策略生成引擎 =====
+@app.post("/api/generator/run")
+def run_strategy_generator(body: GeneratorRequest):
+    """启发式生成策略 + 公开 API 真实行情回测 + 多策略对比报告。"""
+    try:
+        return run_generation(body.model_dump(), public_market)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
 
 
 # ===== 账户 =====
