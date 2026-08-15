@@ -625,3 +625,35 @@ body {
   font-size: 11px;
   cursor: pointer;
 }
+.gen-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.gen-decision-rating {
+  background: #ffe28a;
+  color: #7a5b00;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.gen-action-use { color: #b7f5c0; font-weight: 600; }
+.gen-action-watch { color: #ffe28a; font-weight: 600; }
+.gen-action-drop { color: #ffd6d6; font-weight: 600; }
+.gen-decision-risk, .gen-decision-conf { opacity: 0.9; }
+.gen-decision-summary { flex-basis: 100%; opacity: 0.85; line-height: 1.4; }
+.gen-agents {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.gen-agents-fallback { opacity: 0.85; }
+.gen-agent { margin-bottom: 6px; }
+.gen-agent b { margin-right: 6px; }
+.gen-agent-verdict { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.25); font-weight: 600; }

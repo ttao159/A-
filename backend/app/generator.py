@@ -3,6 +3,7 @@
 import re
 
 from . import backtest
+from . import agents
 from .public_data import DataUnavailableError
 from .schemas import default_config
 
@@ -83,6 +84,25 @@ SIGNAL_TEMPLATES = [
         "buy": {"macdCross": {}},
         "sell": {"maDeathCross": {"shortPeriod": [5, 10], "longPeriod": [20, 30]},
                  "stopLoss": {"percent": [6, 8]}},
+    },
+    {
+        "name": "RSI超卖反弹",
+        "buy": {"rsiOversold": {"period": [14], "threshold": [30, 25]}},
+        "sell": {"rsiOverbought": {"period": [14], "threshold": [70, 75]},
+                 "stopLoss": {"percent": [5, 7]}},
+    },
+    {
+        "name": "KDJ低位金叉",
+        "buy": {"kdjGoldenCross": {"n": [9], "lowZone": [50, 40]}},
+        "sell": {"kdjDeathCross": {"n": [9], "highZone": [50, 60]},
+                 "stopLoss": {"percent": [5, 7]}},
+    },
+    {
+        "name": "布林下轨反弹",
+        "buy": {"bollLowerRebound": {"period": [20], "numStd": [2.0, 2.5]}},
+        "sell": {"bollBelowMid": {"period": [20], "numStd": [2.0]},
+                 "takeProfit": {"percent": [10, 15]},
+                 "stopLoss": {"percent": [5, 7]}},
     },
 ]
 
@@ -167,6 +187,33 @@ def score_strategy(metrics: dict, target_annual_return: float = 0.0) -> float:
     return round(annual + 0.4 * proximity - 0.5 * dd + 0.2 * win + 0.1 * plr, 2)
 
 
+def make_decision(metrics: dict, score: float) -> dict:
+    """基于回测指标与评分生成结构化决策结论。"""
+    if not metrics or metrics.get("trade_count", 0) == 0:
+        return {"rating": "无效", "risk_level": "无", "action": "弃用",
+                "confidence": 0, "summary": "无成交记录，无法评估"}
+    annual = metrics.get("annual_return_pct", 0.0)
+    dd = metrics.get("max_drawdown_pct", 0.0)
+    win = metrics.get("win_rate_pct", 0.0)
+    trades = metrics.get("trade_count", 0)
+
+    risk_level = "低" if dd <= 10 else ("中" if dd <= 20 else "高")
+
+    if score >= 20 and dd <= 15 and annual > 0:
+        rating, action = "优秀", "采用"
+    elif score >= 0 and annual > 0:
+        rating, action = "良好", "关注"
+    elif annual <= 0:
+        rating, action = "较差", "弃用"
+    else:
+        rating, action = "一般", "关注"
+
+    confidence = min(100, max(0, round(40 + win * 0.3 + min(trades, 20) * 1.0)))
+    summary = f"年化{annual:.1f}%、回撤{dd:.1f}%、胜率{win:.0f}%、成交{trades}次"
+    return {"rating": rating, "risk_level": risk_level, "action": action,
+            "confidence": int(confidence), "summary": summary}
+
+
 def _signal_summary(config: dict) -> dict:
     """提取启用的买卖信号名称列表，用于前端展示。"""
     buy_keys = [k for k, v in (config.get("buy") or {}).items() if v.get("enabled")]
@@ -190,6 +237,7 @@ def build_report(payload: dict, results: list, scores: dict, ranking: list) -> d
                 "signals": _signal_summary(r["config"]),
                 "config": r["config"],
                 "metrics": r.get("metrics", {}),
+                "decision": make_decision(r.get("metrics", {}), scores[r["index"]]),
                 "equity_curve": r.get("equity_curve", []),
                 "trades": r.get("trades", []),
             }
@@ -257,4 +305,24 @@ def run_generation(payload: dict, market) -> dict:
 
     scores = {r["index"]: score_strategy(r.get("metrics", {}), target) for r in results}
     ranking = sorted(results, key=lambda r: scores[r["index"]], reverse=True)
-    return build_report(payload, results, scores, ranking)
+    report = build_report(payload, results, scores, ranking)
+    _attach_agent_analysis(report, payload)
+    return report
+
+
+def _attach_agent_analysis(report: dict, payload: dict) -> None:
+    """为推荐策略附加多智能体 LLM 分析结论（未配置 LLM 时自动降级）。"""
+    rec_idx = report.get("recommended_index")
+    if rec_idx is None:
+        report["agent_analysis"] = {"available": False, "fallback": "heuristic",
+                                    "verdict": "无有效策略可分析"}
+        return
+    rec = next(s for s in report["strategies"] if s["index"] == rec_idx)
+    context = {
+        "signals": rec["signals"],
+        "metrics": rec["metrics"],
+        "decision": rec["decision"],
+        "risk_profile": payload.get("risk_profile"),
+        "target_annual_return": payload.get("target_annual_return", 0.0),
+    }
+    report["agent_analysis"] = agents.multi_agent_analysis(context)

@@ -22,6 +22,18 @@ const SIGNAL_DEFS = {
     { key: 'morningStar', name: '早晨之星', desc: '阴线+星线+阳线，见底反转', params: []},
     { key: 'threeWhiteSoldiers', name: '红三兵', desc: '连续三根阳线，收盘逐日抬高', params: []},
     { key: 'doubleBottom', name: '双底', desc: '两个相近低点后突破颈线', params: []},
+    { key: 'rsiOversold', name: 'RSI 超卖反弹', desc: 'RSI 上穿超卖阈值回升', params: [
+      { key: 'period', label: '周期', value: 14 },
+      { key: 'threshold', label: '阈值', value: 30 },
+    ]},
+    { key: 'kdjGoldenCross', name: 'KDJ 低位金叉', desc: 'K 上穿 D 且处于低位', params: [
+      { key: 'n', label: '周期', value: 9 },
+      { key: 'lowZone', label: '低位区', value: 50 },
+    ]},
+    { key: 'bollLowerRebound', name: '布林下轨反弹', desc: '收盘价从下轨下方回升', params: [
+      { key: 'period', label: '周期', value: 20 },
+      { key: 'numStd', label: '标准差倍数', value: 2 },
+    ]},
   ],
   sell: [
     { key: 'takeProfit', name: '固定止盈', desc: '盈利达到百分比卖出', params: [
@@ -49,6 +61,18 @@ const SIGNAL_DEFS = {
     { key: 'eveningStar', name: '黄昏之星', desc: '阳线+星线+阴线，见顶反转', params: []},
     { key: 'threeBlackCrows', name: '三只乌鸦', desc: '连续三根阴线，收盘逐日走低', params: []},
     { key: 'doubleTop', name: '双顶', desc: '两个相近高点后跌破颈线', params: []},
+    { key: 'rsiOverbought', name: 'RSI 超买回落', desc: 'RSI 下穿超买阈值回落', params: [
+      { key: 'period', label: '周期', value: 14 },
+      { key: 'threshold', label: '阈值', value: 70 },
+    ]},
+    { key: 'kdjDeathCross', name: 'KDJ 高位死叉', desc: 'K 下穿 D 且处于高位', params: [
+      { key: 'n', label: '周期', value: 9 },
+      { key: 'highZone', label: '高位区', value: 50 },
+    ]},
+    { key: 'bollBelowMid', name: '跌破布林中轨', desc: '收盘价从上方向下穿过中轨', params: [
+      { key: 'period', label: '周期', value: 20 },
+      { key: 'numStd', label: '标准差倍数', value: 2 },
+    ]},
   ],
 };
 
@@ -771,6 +795,35 @@ function sigNames(signals) {
   return buyNames.join('+') + ' / ' + sellNames.join('+');
 }
 
+function renderDecision(d) {
+  if (!d || !d.summary) return '';
+  const actionCls = d.action === '采用' ? 'gen-action-use' : d.action === '弃用' ? 'gen-action-drop' : 'gen-action-watch';
+  return `
+    <div class="gen-decision">
+      <span class="gen-decision-rating">${esc(d.rating)}</span>
+      <span class="${actionCls}">${esc(d.action)}</span>
+      <span class="gen-decision-risk">风险 ${esc(d.risk_level)}</span>
+      <span class="gen-decision-conf">置信 ${d.confidence}%</span>
+      <div class="gen-decision-summary">${esc(d.summary)}</div>
+    </div>
+  `;
+}
+
+function renderAgentAnalysis(a) {
+  if (!a) return '';
+  if (!a.available) {
+    return `<div class="gen-agents gen-agents-fallback">${esc(a.verdict || '')}</div>`;
+  }
+  const ops = Object.entries(a.opinions || {}).map(([k, v]) =>
+    `<div class="gen-agent"><b>${esc(k)}</b>${esc(v)}</div>`).join('');
+  return `
+    <div class="gen-agents">
+      ${ops}
+      <div class="gen-agent-verdict">综合结论：${esc(a.verdict || '')} · 建议 ${esc(a.action || '—')} · 置信 ${a.confidence ?? '—'}%</div>
+    </div>
+  `;
+}
+
 function renderGeneratorResult(report) {
   const req = report.request;
   const strategies = report.strategies.slice().sort((a, b) => a.index - b.index);
@@ -799,6 +852,8 @@ function renderGeneratorResult(report) {
             <span>回撤 <b class="down">${strategies[rec].metrics.max_drawdown_pct}%</b></span>
             <span>胜率 <b>${strategies[rec].metrics.win_rate_pct}%</b></span>
           </div>
+          ${renderDecision(strategies[rec].decision)}
+          ${renderAgentAnalysis(report.agent_analysis)}
           <button class="btn" id="gen-save-rec" style="width:100%">保存为策略</button>
         </div>
       ` : ''}
@@ -813,13 +868,14 @@ function renderGeneratorResult(report) {
         <div class="card-title">策略对比</div>
         <table class="gen-table">
           <thead><tr>
-            <th>#</th><th>信号</th><th>年化%</th><th>累计%</th><th>回撤%</th><th>胜率%</th><th>操作</th>
+            <th>#</th><th>信号</th><th>评级</th><th>年化%</th><th>累计%</th><th>回撤%</th><th>胜率%</th><th>操作</th>
           </tr></thead>
           <tbody>
             ${strategies.map(s => `
               <tr>
                 <td>${s.index + 1}${s.index === rec ? ' ★' : ''}</td>
                 <td class="gen-sig-cell">${esc(sigNames(s.signals))}</td>
+                <td>${esc((s.decision && s.decision.rating) || '—')}</td>
                 <td class="${(s.metrics.annual_return_pct ?? 0) >= 0 ? 'up' : 'down'}">${s.metrics.annual_return_pct ?? '-'}</td>
                 <td class="${(s.metrics.total_return_pct ?? 0) >= 0 ? 'up' : 'down'}">${s.metrics.total_return_pct ?? '-'}</td>
                 <td class="down">${s.metrics.max_drawdown_pct ?? '-'}</td>

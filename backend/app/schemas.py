@@ -18,6 +18,9 @@ def default_config() -> dict:
             "morningStar": {"enabled": False},
             "threeWhiteSoldiers": {"enabled": False},
             "doubleBottom": {"enabled": False},
+            "rsiOversold": {"enabled": False, "period": 14, "threshold": 30},
+            "kdjGoldenCross": {"enabled": False, "n": 9, "lowZone": 50},
+            "bollLowerRebound": {"enabled": False, "period": 20, "numStd": 2},
         },
         "sell": {
             "takeProfit": {"enabled": True, "percent": 10},
@@ -32,6 +35,9 @@ def default_config() -> dict:
             "eveningStar": {"enabled": False},
             "threeBlackCrows": {"enabled": False},
             "doubleTop": {"enabled": False},
+            "rsiOverbought": {"enabled": False, "period": 14, "threshold": 70},
+            "kdjDeathCross": {"enabled": False, "n": 9, "highZone": 50},
+            "bollBelowMid": {"enabled": False, "period": 20, "numStd": 2},
         },
         "risk": {
             "maxPositionPercent": 20,

@@ -16,6 +16,7 @@ def evaluate_buy(config: dict, bars: pd.DataFrame) -> bool:
     """判断最后一根 bar 是否满足全部启用的买入信号。"""
     buy = config.get("buy", {})
     active = [k for k in ("maCross", "macdCross", "breakHigh", "volumeBreak",
+                          "rsiOversold", "kdjGoldenCross", "bollLowerRebound",
                           *patterns.BUY_PATTERNS) if _enabled(buy, k)]
     if not active:
         return False
@@ -24,6 +25,7 @@ def evaluate_buy(config: dict, bars: pd.DataFrame) -> bool:
 
     close = bars["close"]
     high = bars["high"]
+    low = bars["low"]
     volume = bars["volume"]
 
     for key in active:
@@ -53,6 +55,30 @@ def evaluate_buy(config: dict, bars: pd.DataFrame) -> bool:
                 return False
             if not volume.iloc[-1] > ind.volume_ma(volume, n).iloc[-1] * mult:
                 return False
+        elif key == "rsiOversold":
+            period = int(buy["rsiOversold"].get("period", 14))
+            threshold = float(buy["rsiOversold"].get("threshold", 30))
+            rsi = ind.rsi(close, period)
+            if len(bars) < period + 1:
+                return False
+            if not (rsi.iloc[-2] < threshold <= rsi.iloc[-1]):
+                return False
+        elif key == "kdjGoldenCross":
+            n = int(buy["kdjGoldenCross"].get("n", 9))
+            low_zone = float(buy["kdjGoldenCross"].get("lowZone", 50))
+            k, d, _ = ind.kdj(high, low, close, n)
+            if len(bars) < n + 1:
+                return False
+            if not (k.iloc[-2] < d.iloc[-2] and k.iloc[-1] >= d.iloc[-1] and d.iloc[-1] < low_zone):
+                return False
+        elif key == "bollLowerRebound":
+            period = int(buy["bollLowerRebound"].get("period", 20))
+            num_std = float(buy["bollLowerRebound"].get("numStd", 2))
+            _, _, lower = ind.bollinger(close, period, num_std)
+            if len(bars) < period + 1:
+                return False
+            if not (close.iloc[-2] <= lower.iloc[-2] and close.iloc[-1] > lower.iloc[-1]):
+                return False
         elif key in patterns.BUY_PATTERNS:
             if not patterns.detect(bars, key):
                 return False
@@ -79,11 +105,13 @@ def evaluate_sell(config: dict, position: dict, bars: pd.DataFrame) -> Optional[
     sell = config.get("sell", {})
     active = [k for k in ("takeProfit", "stopLoss", "trailingStop", "maDeathCross",
                           "macdDeathCross", "belowMA", "maxHoldDays",
+                          "rsiOverbought", "kdjDeathCross", "bollBelowMid",
                           *patterns.SELL_PATTERNS) if _enabled(sell, k)]
     if not active:
         return None
 
     high = bars["high"]
+    low = bars["low"]
     high_since_buy = position.get("high_since_buy", price)
 
     for key in active:
@@ -117,6 +145,30 @@ def evaluate_sell(config: dict, position: dict, bars: pd.DataFrame) -> Optional[
             days = int(sell["maxHoldDays"].get("days", 20))
             if hold_days >= days:
                 return "maxHoldDays"
+        elif key == "rsiOverbought":
+            period = int(sell["rsiOverbought"].get("period", 14))
+            threshold = float(sell["rsiOverbought"].get("threshold", 70))
+            rsi = ind.rsi(close, period)
+            if len(bars) < period + 1:
+                continue
+            if rsi.iloc[-2] > threshold >= rsi.iloc[-1]:
+                return "rsiOverbought"
+        elif key == "kdjDeathCross":
+            n = int(sell["kdjDeathCross"].get("n", 9))
+            high_zone = float(sell["kdjDeathCross"].get("highZone", 50))
+            k, d, _ = ind.kdj(high, low, close, n)
+            if len(bars) < n + 1:
+                continue
+            if k.iloc[-2] > d.iloc[-2] and k.iloc[-1] <= d.iloc[-1] and d.iloc[-1] > high_zone:
+                return "kdjDeathCross"
+        elif key == "bollBelowMid":
+            period = int(sell["bollBelowMid"].get("period", 20))
+            num_std = float(sell["bollBelowMid"].get("numStd", 2))
+            mid, _, _ = ind.bollinger(close, period, num_std)
+            if len(bars) < period + 1:
+                continue
+            if close.iloc[-2] >= mid.iloc[-2] and close.iloc[-1] < mid.iloc[-1]:
+                return "bollBelowMid"
         elif key in patterns.SELL_PATTERNS:
             if patterns.detect(bars, key):
                 return key

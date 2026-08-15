@@ -13,6 +13,7 @@ from app.generator import (
     RISK_PROFILES,
     SIGNAL_TEMPLATES,
     generate_strategies,
+    make_decision,
     run_generation,
     score_strategy,
     validate_params,
@@ -182,6 +183,37 @@ class TestScoreStrategy:
         close = score_strategy(metrics, 15)
         far = score_strategy(metrics, 50)
         assert close > far
+
+
+# ===== make_decision =====
+class TestMakeDecision:
+    def test_no_trades_is_invalid(self):
+        d = make_decision({}, -100.0)
+        assert d["rating"] == "无效"
+        assert d["action"] == "弃用"
+        assert d["confidence"] == 0
+
+    def test_good_strategy_adopted(self):
+        metrics = {"trade_count": 20, "annual_return_pct": 25, "max_drawdown_pct": 10,
+                   "win_rate_pct": 60, "profit_loss_ratio": 1.5}
+        d = make_decision(metrics, 30.0)
+        assert d["action"] == "采用"
+        assert d["rating"] == "优秀"
+        assert d["risk_level"] == "低"
+
+    def test_losing_strategy_dropped(self):
+        metrics = {"trade_count": 10, "annual_return_pct": -5, "max_drawdown_pct": 30,
+                   "win_rate_pct": 30, "profit_loss_ratio": 0.5}
+        d = make_decision(metrics, -10.0)
+        assert d["action"] == "弃用"
+        assert d["risk_level"] == "高"
+
+    def test_confidence_within_range(self):
+        metrics = {"trade_count": 5, "annual_return_pct": 8, "max_drawdown_pct": 15,
+                   "win_rate_pct": 50, "profit_loss_ratio": 1.0}
+        d = make_decision(metrics, 10.0)
+        assert 0 <= d["confidence"] <= 100
+        assert "summary" in d
 
 
 # ===== run_generation =====
