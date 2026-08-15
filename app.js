@@ -881,9 +881,22 @@ function renderAgentAnalysis(a) {
   }
   const ops = Object.entries(a.opinions || {}).map(([k, v]) =>
     `<div class="gen-agent"><b>${esc(k)}</b>${esc(v)}</div>`).join('');
+  const debate = (a.bull_case || a.bear_case) ? `
+    <div class="gen-debate">
+      <div class="gen-debate-bull"><b>看涨</b>${esc(a.bull_case || '—')}</div>
+      <div class="gen-debate-bear"><b>看跌</b>${esc(a.bear_case || '—')}</div>
+    </div>` : '';
+  const trade = (a.target_price || a.stop_loss || a.position_suggestion) ? `
+    <div class="gen-trade">
+      ${a.target_price ? `<span>目标价 <b>¥${a.target_price}</b></span>` : ''}
+      ${a.stop_loss ? `<span>止损价 <b>¥${a.stop_loss}</b></span>` : ''}
+      ${a.position_suggestion ? `<span>仓位 <b>${esc(a.position_suggestion)}</b></span>` : ''}
+    </div>` : '';
   return `
     <div class="gen-agents">
       ${ops}
+      ${debate}
+      ${trade}
       <div class="gen-agent-verdict">综合结论：${esc(a.verdict || '')} · 建议 ${esc(a.action || '—')} · 置信 ${a.confidence ?? '—'}%</div>
     </div>
   `;

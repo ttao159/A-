@@ -682,3 +682,23 @@ body {
 .gen-agent { margin-bottom: 6px; }
 .gen-agent b { margin-right: 6px; }
 .gen-agent-verdict { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.25); font-weight: 600; }
+.gen-debate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.gen-debate b { margin-right: 6px; }
+.gen-debate-bull b { color: #f87171; }
+.gen-debate-bear b { color: #34d399; }
+.gen-trade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.gen-trade b { margin-left: 3px; }

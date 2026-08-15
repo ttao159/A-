@@ -27,20 +27,25 @@ def llm_available() -> bool:
     return bool(LLM_API_KEY)
 
 
-AGENT_ROLES = [
-    ("市场分析师", "从市场环境、趋势、板块轮动角度评估策略适配性"),
-    ("技术分析师", "从技术指标、信号质量、入场时机角度评估策略有效性"),
-    ("风险分析师", "从回撤、胜率、盈亏比、最大亏损角度评估策略风险"),
-]
-
-
 def _build_prompt(context: dict) -> str:
+    ref = context.get("reference_price")
+    ref_line = f"当前参考价：{ref}（用于锚定目标价/止损价）\n" if ref else ""
     return (
         "你是A股量化策略评审系统，采用多智能体辩论方式评估候选策略。\n"
-        "请依次以市场分析师、技术分析师、风险分析师三个角色各给出一句观点，"
-        "再由研究主管综合，最终只输出一个 JSON 对象（不要输出其他文字），格式：\n"
+        "请按以下流程依次完成，最终只输出一个 JSON 对象（不要输出其他文字），格式：\n"
         '{"opinions":{"市场分析师":"...","技术分析师":"...","风险分析师":"..."},'
+        '"bull_case":"...","bear_case":"...",'
+        '"target_price":数字,"stop_loss":数字,"position_suggestion":"...",'
         '"verdict":"...","action":"采用|关注|弃用","confidence":0-100}\n\n'
+        "角色流程：\n"
+        "1. 市场分析师、技术分析师、风险分析师：各给出一句话观点\n"
+        "2. 看涨研究员(bull_case)：从信号有效性、收益潜力、市场适配角度论证值得采用的理由\n"
+        "3. 看跌研究员(bear_case)：从回撤、样本量不足、过拟合、失效风险角度论证缺陷\n"
+        "4. 交易员：综合多空辩论，给出目标价(target_price)与止损价(stop_loss)，"
+        "必须为数值并基于参考价与预期涨跌空间合理估算；同时给出建议仓位"
+        "(position_suggestion，如：轻仓 20%、半仓 40%、重仓 70%)\n"
+        "5. 研究主管：综合各方做最终裁决(verdict/action/confidence)\n"
+        f"{ref_line}"
         f"待评估策略数据：\n{json.dumps(context, ensure_ascii=False)}"
     )
 
@@ -74,6 +79,13 @@ def multi_agent_analysis(context: dict, timeout: int = 60) -> dict:
         parsed = json.loads(content[start:end + 1])
         parsed["available"] = True
         parsed["model"] = LLM_MODEL
+        for key in ("target_price", "stop_loss"):
+            val = parsed.get(key)
+            if val is not None:
+                try:
+                    parsed[key] = round(float(val), 2)
+                except (TypeError, ValueError):
+                    parsed[key] = None
         return parsed
     except Exception as exc:
         return {"available": False, "fallback": "heuristic",

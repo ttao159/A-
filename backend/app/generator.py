@@ -322,11 +322,22 @@ def run_generation(payload: dict, market, progress=None) -> dict:
     ranking = sorted(results, key=lambda r: scores[r["index"]], reverse=True)
     report = build_report(payload, results, scores, ranking)
     _emit("analysis", "正在生成多智能体分析结论...")
-    _attach_agent_analysis(report, payload)
+    _attach_agent_analysis(report, payload, bars_map)
     return report
 
 
-def _attach_agent_analysis(report: dict, payload: dict) -> None:
+def _reference_price(scope: str, codes: list, bars_map: dict):
+    """估算参考价：single/custom 取标的收盘价，market 取全市场收盘价均值。"""
+    if scope == "market":
+        closes = [float(df["close"].iloc[-1]) for df in bars_map.values()
+                  if df is not None and len(df)]
+        return round(sum(closes) / len(closes), 2) if closes else None
+    code = codes[0] if codes else None
+    df = bars_map.get(code) if code else None
+    return round(float(df["close"].iloc[-1]), 2) if df is not None and len(df) else None
+
+
+def _attach_agent_analysis(report: dict, payload: dict, bars_map: dict = None) -> None:
     """为推荐策略附加多智能体 LLM 分析结论（未配置 LLM 时自动降级）。"""
     rec_idx = report.get("recommended_index")
     if rec_idx is None:
@@ -334,11 +345,14 @@ def _attach_agent_analysis(report: dict, payload: dict) -> None:
                                     "verdict": "无有效策略可分析"}
         return
     rec = next(s for s in report["strategies"] if s["index"] == rec_idx)
+    targets = payload.get("targets") or {}
     context = {
         "signals": rec["signals"],
         "metrics": rec["metrics"],
         "decision": rec["decision"],
         "risk_profile": payload.get("risk_profile"),
         "target_annual_return": payload.get("target_annual_return", 0.0),
+        "reference_price": _reference_price(
+            targets.get("scope"), targets.get("codes") or [], bars_map or {}),
     }
     report["agent_analysis"] = agents.multi_agent_analysis(context)
