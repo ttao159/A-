@@ -1,17 +1,20 @@
 """FastAPI 入口与 REST 路由。"""
 
 import json
+import queue
+import threading
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from . import backtest, config
 from .account import AccountService
-from .database import Base, engine, get_db, migrate
+from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
 from .models import Backtest, EquityPoint, GenerationReport, ScanReport, Strategy
@@ -184,6 +187,56 @@ def run_strategy_generator(body: GeneratorRequest, db: Session = Depends(get_db)
     db.refresh(g)
     report["id"] = g.id
     return report
+
+
+@app.post("/api/generator/run/stream")
+def run_strategy_generator_stream(body: GeneratorRequest):
+    """流式生成策略：NDJSON 逐行输出进度事件，末行输出完整报告。"""
+    q = queue.Queue()
+
+    def progress(stage, message, done, total):
+        q.put({"type": "progress", "stage": stage, "message": message,
+               "done": done, "total": total})
+
+    def worker():
+        try:
+            report = run_generation(body.model_dump(), market, progress=progress)
+            q.put({"type": "result", "report": report})
+        except ValueError as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 400})
+        except DataUnavailableError as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 502})
+        except Exception as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 500})
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def gen():
+        while True:
+            evt = q.get()
+            if evt["type"] == "error":
+                yield json.dumps(evt, ensure_ascii=False) + "\n"
+                break
+            if evt["type"] == "result":
+                report = evt["report"]
+                db = SessionLocal()
+                try:
+                    g = GenerationReport(
+                        request_json=json.dumps(body.model_dump(), ensure_ascii=False),
+                        report_json=json.dumps(report, ensure_ascii=False),
+                        recommended_index=report.get("recommended_index", 0) or 0,
+                    )
+                    db.add(g)
+                    db.commit()
+                    db.refresh(g)
+                    report["id"] = g.id
+                finally:
+                    db.close()
+                yield json.dumps({"type": "result", "report": report}, ensure_ascii=False) + "\n"
+                break
+            yield json.dumps(evt, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 @app.get("/api/generator/reports")

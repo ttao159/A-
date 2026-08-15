@@ -262,14 +262,22 @@ class _CachedMarket:
         return self._bars_map.get(code)
 
 
-def run_generation(payload: dict, market) -> dict:
-    """完整生成流程：校验 → 取标的与行情 → 生成策略 → 回测 → 评分排序 → 报告。"""
+def run_generation(payload: dict, market, progress=None) -> dict:
+    """完整生成流程：校验 → 取标的与行情 → 生成策略 → 回测 → 评分排序 → 报告。
+
+    progress 为可选回调 progress(stage, message, done, total)，用于流式进度上报。
+    """
+    def _emit(stage, message, done=0, total=1):
+        if progress:
+            progress(stage, message, done, total)
+
     validate_params(payload)
     start, end = payload["start_date"], payload["end_date"]
     scope = payload["targets"]["scope"]
     codes = [str(c) for c in (payload["targets"].get("codes") or [])]
 
     if scope == "market":
+        _emit("stock_list", "正在获取全市场股票列表...")
         stock_list = market.get_stock_list()
     else:
         if scope == "single":
@@ -281,6 +289,7 @@ def run_generation(payload: dict, market) -> dict:
 
     prefetch = getattr(market, "prefetch_daily_bars", None)
     if prefetch and scope == "market":
+        _emit("prefetch", "正在预取全市场日线行情...")
         prefetch([c for c, _ in stock_list], start, end)
 
     bars_map = {}
@@ -303,13 +312,16 @@ def run_generation(payload: dict, market) -> dict:
     target = float(payload.get("target_annual_return", 0.0) or 0.0)
 
     results = []
+    total = len(strategies)
     for idx, cfg in enumerate(strategies):
+        _emit("backtest", f"正在回测策略 {idx + 1}/{total} ...", idx, total)
         result = backtest.run_backtest(cfg, cached, start, end)
         results.append({"index": idx, "config": cfg, **result})
 
     scores = {r["index"]: score_strategy(r.get("metrics", {}), target) for r in results}
     ranking = sorted(results, key=lambda r: scores[r["index"]], reverse=True)
     report = build_report(payload, results, scores, ranking)
+    _emit("analysis", "正在生成多智能体分析结论...")
     _attach_agent_analysis(report, payload)
     return report
 

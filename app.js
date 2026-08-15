@@ -97,6 +97,37 @@ async function api(path, opts = {}) {
   return r.json();
 }
 
+// NDJSON 流式请求：逐行返回进度事件，最终返回 result.report。
+async function streamApi(path, opts, onProgress) {
+  const init = { headers: { 'Content-Type': 'application/json' }, ...opts };
+  if (init.body && typeof init.body !== 'string') init.body = JSON.stringify(init.body);
+  const r = await fetch(path, init);
+  if (!r.ok) {
+    let msg = '请求失败';
+    try { msg = (await r.json()).detail || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line) continue;
+      const evt = JSON.parse(line);
+      if (evt.type === 'progress') onProgress(evt);
+      else if (evt.type === 'result') return evt.report;
+      else if (evt.type === 'error') throw new Error(evt.detail);
+    }
+  }
+  throw new Error('响应中断');
+}
+
 // ===== 状态 =====
 let strategies = [];
 let currentTab = 'home';
@@ -627,6 +658,20 @@ function drawEquityCurve(canvas, curve) {
 // ===== 策略生成引擎 =====
 const GEN_COLORS = ['#2563eb', '#ef4444', '#10b981', '#f59e0b', '#8e44ad', '#14b8a6', '#e0245e', '#3b82f6', '#d97706', '#059669'];
 
+function fmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + ' 秒';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s ? m + ' 分 ' + s + ' 秒' : m + ' 分钟';
+}
+
+function estimateGenSeconds(scope, count) {
+  if (scope === 'market') return 60 + count * 45;
+  if (scope === 'custom') return 8 + count * 5;
+  return 5 + count * 5;
+}
+
 function toYMD(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
@@ -773,17 +818,37 @@ async function runGenerator(scope, risk) {
       <span class="editor-back" id="gen-back2">‹</span>
       <span class="editor-title">策略生成中</span>
     </div>
-    <div class="editor-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-      <div class="gen-loading"></div>
-      <div style="color:var(--text-sub);font-size:13px">正在获取真实行情并回测 ${count} 个候选策略，请稍候...</div>
+    <div class="editor-body" style="display:flex;align-items:stretch;justify-content:center;flex-direction:column;gap:14px;padding:32px 20px">
+      <div class="gen-loading" style="align-self:center"></div>
+      <div class="gen-progress"><div class="gen-progress-bar" id="gen-pbar"></div></div>
+      <div class="gen-progress-text" id="gen-ptext">正在准备...</div>
+      <div class="gen-progress-time" id="gen-ptime">已用时 0 秒</div>
     </div>
   `;
   $('#gen-back2').addEventListener('click', () => renderGeneratorForm());
 
+  const GEN_STAGES = { stock_list: [0, 5], prefetch: [5, 20], backtest: [20, 95], analysis: [95, 100] };
+  const estimate = estimateGenSeconds(scope, count);
+  const startTime = Date.now();
+  const pbar = $('#gen-pbar');
+  const ptext = $('#gen-ptext');
+  const ptime = $('#gen-ptime');
+  const timer = setInterval(() => {
+    ptime.textContent = '已用时 ' + fmtDuration((Date.now() - startTime) / 1000) + ' · 预计约 ' + fmtDuration(estimate);
+  }, 1000);
+
   try {
-    const report = await api('/api/generator/run', { method: 'POST', body: payload });
+    const report = await streamApi('/api/generator/run/stream', { method: 'POST', body: payload }, (evt) => {
+      const seg = GEN_STAGES[evt.stage] || [0, 100];
+      const ratio = evt.total ? evt.done / evt.total : 1;
+      const pct = Math.round(seg[0] + (seg[1] - seg[0]) * Math.min(1, ratio));
+      pbar.style.width = pct + '%';
+      ptext.textContent = evt.message;
+    });
+    clearInterval(timer);
     renderGeneratorResult(report);
   } catch (err) {
+    clearInterval(timer);
     toast(err.message);
     renderGeneratorForm();
   }
