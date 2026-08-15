@@ -15,7 +15,7 @@ from .database import Base, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
 from .models import Backtest, EquityPoint, GenerationReport, ScanReport, Strategy
-from .public_data import DataUnavailableError, PublicDataService
+from .public_data import DataUnavailableError
 from .scanner import scan_and_trade
 from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
 from .scheduler import start_scheduler
@@ -41,7 +41,6 @@ app.add_middleware(
 
 market = MarketDataService()
 accounts = AccountService()
-public_market = PublicDataService()
 
 
 def _strategy_out(s: Strategy) -> dict:
@@ -169,7 +168,7 @@ def get_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
 def run_strategy_generator(body: GeneratorRequest, db: Session = Depends(get_db)):
     """启发式生成策略 + 公开 API 真实行情回测 + 多策略对比报告，并落库历史。"""
     try:
-        report = run_generation(body.model_dump(), public_market)
+        report = run_generation(body.model_dump(), market)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except DataUnavailableError as exc:

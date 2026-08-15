@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime
 from unittest import mock
 
 import pandas as pd
@@ -253,3 +254,19 @@ class TestMarketDataServiceCache:
             svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
             svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
             assert spy.call_count == 1
+
+    def test_disk_get_returns_string_dates(self):
+        svc = MarketDataService()
+        data_json = json.dumps([
+            {"date": "2024-01-02", "open": 10.0, "high": 11.0,
+             "low": 9.0, "close": 10.5, "volume": 1000.0},
+        ])
+        fake_row = mock.Mock()
+        fake_row.updated_at = datetime.utcnow()
+        fake_row.data_json = data_json
+        fake_db = mock.MagicMock()
+        fake_db.query.return_value.filter_by.return_value.first.return_value = fake_row
+        with mock.patch("app.database.SessionLocal", return_value=fake_db):
+            df = svc._disk_get("600519", "day", "qfq")
+        assert df.iloc[0]["date"] == "2024-01-02"
+        assert str(df["date"].dtype) == "object"

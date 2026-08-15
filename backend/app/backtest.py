@@ -5,12 +5,10 @@ import pandas as pd
 from . import matching
 from .account import Portfolio, check_risk
 from .public_data import DataUnavailableError
-from .strategy_engine import evaluate_buy, evaluate_sell
+from .strategy_engine import attach_indicators, buy_signal_mask, evaluate_buy, evaluate_sell
 
-
-def _get_prev_close(df: pd.DataFrame, date: str):
-    before = df[df["date"] < date]
-    return float(before["close"].iloc[-1]) if len(before) else None
+# 信号判断所需的尾部窗口大小（覆盖 doubleBottom/doubleTop 的 60 日 lookback 及各类指标周期）
+_WINDOW = 128
 
 
 def compute_metrics(equity_curve, pf: Portfolio) -> dict:
@@ -59,13 +57,16 @@ def run_backtest(config: dict, market, start: str, end: str,
     if prefetch:
         prefetch([c for c, _ in stock_list], start, end)
     bars_map = {}
+    buy_masks = {}
     for code, name in stock_list:
         try:
             df = market.get_daily_bars(code, start, end)
         except DataUnavailableError:
             continue
         if df is not None and len(df):
-            bars_map[code] = df.reset_index(drop=True)
+            df = attach_indicators(config, df.sort_values("date").reset_index(drop=True))
+            bars_map[code] = df
+            buy_masks[code] = buy_signal_mask(config, df)
 
     if not bars_map:
         return {"metrics": {}, "equity_curve": [], "trades": []}
@@ -73,6 +74,10 @@ def run_backtest(config: dict, market, start: str, end: str,
     all_dates = sorted(set().union(*[set(df["date"]) for df in bars_map.values()]))
     if len(all_dates) < 3:
         return {"metrics": {}, "equity_curve": [], "trades": []}
+
+    # 预构建 date -> 行索引，供 O(1) 定位，避免逐日布尔切片
+    date_idx = {code: {str(d): i for i, d in enumerate(df["date"])}
+                for code, df in bars_map.items()}
 
     pf = Portfolio(initial_capital)
     equity_curve = []
@@ -84,20 +89,22 @@ def run_backtest(config: dict, market, start: str, end: str,
         # 1. 撮合上一交易日产生的订单（当日开盘价）
         for code, name, qty in pending_buy:
             df = bars_map[code]
-            rows = df[df["date"] == date]
-            if rows.empty:
+            idx = date_idx[code].get(date)
+            if idx is None:
                 continue
-            bar = rows.iloc[0]
-            fill_price, _ = matching.match_fill("buy", _get_prev_close(df, date), bar)
+            bar = df.iloc[idx]
+            prev_close = float(df.iloc[idx - 1]["close"]) if idx > 0 else None
+            fill_price, _ = matching.match_fill("buy", prev_close, bar)
             if fill_price:
                 pf.buy(code, name, fill_price, qty, date, "buy_signal")
         for code, reason in pending_sell:
             df = bars_map[code]
-            rows = df[df["date"] == date]
-            if rows.empty:
+            idx = date_idx[code].get(date)
+            if idx is None:
                 continue
-            bar = rows.iloc[0]
-            fill_price, _ = matching.match_fill("sell", _get_prev_close(df, date), bar)
+            bar = df.iloc[idx]
+            prev_close = float(df.iloc[idx - 1]["close"]) if idx > 0 else None
+            fill_price, _ = matching.match_fill("sell", prev_close, bar)
             if fill_price:
                 pos = pf.positions.get(code)
                 if pos:
@@ -108,29 +115,43 @@ def run_backtest(config: dict, market, start: str, end: str,
         # 2. 当日收盘价
         prices = {}
         for code, df in bars_map.items():
-            rows = df[df["date"] == date]
-            if not rows.empty:
-                prices[code] = float(rows.iloc[0]["close"])
+            idx = date_idx[code].get(date)
+            if idx is not None:
+                prices[code] = float(df.iloc[idx]["close"])
 
         # 3. 生成信号（用截止当日数据），次日成交
         risk = config.get("risk", {})
         max_pos_pct = float(risk.get("maxPositionPercent", 20))
         for code, name in stock_list:
             df = bars_map.get(code)
-            if df is None or code not in prices:
-                continue
-            upto = df[df["date"] <= date]
-            if len(upto) < 3:
+            idx = date_idx[code].get(date)
+            if df is None or idx is None:
                 continue
             if code in pf.positions:
+                start = idx + 1 - _WINDOW
+                if start < 0:
+                    start = 0
+                upto = df.iloc[start: idx + 1]
                 reason = evaluate_sell(config, pf.positions[code], upto)
                 if reason:
                     signal_stats["sell"][reason] = signal_stats["sell"].get(reason, 0) + 1
                     pending_sell.append((code, reason))
             else:
-                if evaluate_buy(config, upto):
-                    signal_stats["buy"] += 1
+                mask = buy_masks.get(code)
+                if mask is not None:
+                    is_buy = bool(mask[idx])
+                    close_price = float(df["close"].iloc[idx])
+                else:
+                    start = idx + 1 - _WINDOW
+                    if start < 0:
+                        start = 0
+                    upto = df.iloc[start: idx + 1]
+                    if len(upto) < 3:
+                        continue
+                    is_buy = evaluate_buy(config, upto)
                     close_price = float(upto["close"].iloc[-1])
+                if is_buy:
+                    signal_stats["buy"] += 1
                     total = pf.equity(prices)
                     qty = matching.round_lot(int(total * max_pos_pct / 100.0 / close_price))
                     if qty >= 100:

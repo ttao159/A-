@@ -189,3 +189,24 @@ def test_sell_boll_below_mid_triggers():
     lower = pd.Series([9.0] * 21)
     with mock.patch("app.strategy_engine.ind.bollinger", return_value=(mid, upper, lower)):
         assert se.evaluate_sell(cfg_only(sell_key="bollBelowMid"), position(), bars) == "bollBelowMid"
+
+
+# ===== 向量化买入信号与逐 bar 一致性 =====
+def test_buy_signal_mask_matches_evaluate_buy():
+    import numpy as np
+    closes = [10.0] * 20 + [11.0, 10.5, 10.8, 11.2]
+    highs = [10.5] * 20 + [11.0, 10.6, 10.9, 11.3]
+    bars = make_bars(closes, highs)
+    for key in ["breakHigh", "maCross", "macdCross", "volumeBreak",
+                "rsiOversold", "kdjGoldenCross", "bollLowerRebound"]:
+        cfg = cfg_only(buy_key=key)
+        mask = se.buy_signal_mask(cfg, bars)
+        assert mask is not None, f"{key} 未向量化"
+        ref = np.array([se.evaluate_buy(cfg, bars.iloc[:i + 1]) for i in range(len(bars))])
+        assert np.array_equal(mask, ref), f"{key} 向量化与逐 bar 不一致"
+
+
+def test_buy_signal_mask_returns_none_for_patterns():
+    cfg = cfg_only(buy_key="hammer")
+    bars = make_bars([10.0] * 30)
+    assert se.buy_signal_mask(cfg, bars) is None

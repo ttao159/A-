@@ -76,6 +76,8 @@ class MarketDataService(PublicDataService):
         return df
 
     def _disk_get(self, code: str, period: str, adjust: str):
+        from io import StringIO
+
         from .database import SessionLocal
         from .models import DailyBarCache
 
@@ -87,8 +89,12 @@ class MarketDataService(PublicDataService):
                 return None
             if (datetime.utcnow() - row.updated_at).total_seconds() > self.DISK_TTL:
                 return None
-            df = pd.read_json(row.data_json, orient="records")
-            return df if df is not None and len(df) else None
+            df = pd.read_json(StringIO(row.data_json), orient="records", convert_dates=False)
+            if df is not None and len(df):
+                # 统一为纯日期字符串，避免磁盘缓存读回的 datetime 与实时接口的 str 混用
+                df["date"] = df["date"].apply(lambda x: str(x)[:10])
+                return df
+            return None
         except Exception:
             return None
         finally:

@@ -279,6 +279,10 @@ def run_generation(payload: dict, market) -> dict:
     if not stock_list:
         raise DataUnavailableError("标的池为空")
 
+    prefetch = getattr(market, "prefetch_daily_bars", None)
+    if prefetch and scope == "market":
+        prefetch([c for c, _ in stock_list], start, end)
+
     bars_map = {}
     for code, name in stock_list:
         try:
