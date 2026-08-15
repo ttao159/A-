@@ -78,3 +78,4 @@ class GeneratorRequest(BaseModel):
     risk_profile: str = Field(description="conservative/balanced/aggressive")
     count: int = Field(ge=1, le=10, description="生成策略数量")
     target_annual_return: float = Field(default=0.0, ge=0, description="目标年化收益率（%）")
+    analysis_depth: Optional[str] = Field(default="standard", description="quick/standard/deep")

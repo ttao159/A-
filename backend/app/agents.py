@@ -50,16 +50,12 @@ def _build_prompt(context: dict) -> str:
     )
 
 
-def multi_agent_analysis(context: dict, timeout: int = 60) -> dict:
-    """调用多智能体 LLM 分析，未配置或失败时返回降级结果。"""
-    if not llm_available():
-        return {"available": False, "fallback": "heuristic",
-                "verdict": "未配置 LLM，使用启发式结论"}
-
+def _call_llm(prompt: str, timeout: int) -> dict:
+    """调用 LLM 并解析返回的 JSON 对象，失败时抛异常。"""
     url = LLM_BASE_URL.rstrip("/") + "/chat/completions"
     payload = {
         "model": LLM_MODEL,
-        "messages": [{"role": "user", "content": _build_prompt(context)}],
+        "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
     }
     req = urllib.request.Request(
@@ -69,24 +65,85 @@ def multi_agent_analysis(context: dict, timeout: int = 60) -> dict:
                  "Authorization": f"Bearer {LLM_API_KEY}"},
         method="POST",
     )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    content = data["choices"][0]["message"]["content"]
+    start, end = content.find("{"), content.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("响应中未找到 JSON")
+    return json.loads(content[start:end + 1])
+
+
+def _normalize(parsed: dict) -> dict:
+    parsed["available"] = True
+    parsed["model"] = LLM_MODEL
+    for key in ("target_price", "stop_loss"):
+        val = parsed.get(key)
+        if val is not None:
+            try:
+                parsed[key] = round(float(val), 2)
+            except (TypeError, ValueError):
+                parsed[key] = None
+    return parsed
+
+
+def quick_analysis(context: dict) -> dict:
+    """快速档：不调用 LLM，直接返回启发式降级结论。"""
+    decision = context.get("decision") or {}
+    return {"available": False, "fallback": "quick",
+            "verdict": f"{decision.get('summary', '')}，建议{decision.get('action', '关注')}"}
+
+
+def multi_agent_analysis(context: dict, timeout: int = 60) -> dict:
+    """标准档：单次多智能体分析（含多空观点与交易建议）。"""
+    if not llm_available():
+        return {"available": False, "fallback": "heuristic",
+                "verdict": "未配置 LLM，使用启发式结论"}
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        content = data["choices"][0]["message"]["content"]
-        start, end = content.find("{"), content.rfind("}")
-        if start < 0 or end < start:
-            raise ValueError("响应中未找到 JSON")
-        parsed = json.loads(content[start:end + 1])
-        parsed["available"] = True
-        parsed["model"] = LLM_MODEL
-        for key in ("target_price", "stop_loss"):
-            val = parsed.get(key)
-            if val is not None:
-                try:
-                    parsed[key] = round(float(val), 2)
-                except (TypeError, ValueError):
-                    parsed[key] = None
-        return parsed
+        return _normalize(_call_llm(_build_prompt(context), timeout))
+    except Exception as exc:
+        return {"available": False, "fallback": "heuristic",
+                "verdict": f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"}
+
+
+def _build_debate_prompt(context: dict) -> str:
+    ref = context.get("reference_price")
+    ref_line = f"当前参考价：{ref}\n" if ref else ""
+    return (
+        "你是A股量化策略评审系统，请让看涨研究员与看跌研究员进行一轮交锋辩论，"
+        "评估以下候选策略。只输出一个 JSON 对象（不要输出其他文字），格式：\n"
+        '{"bull_case":"看涨研究员的详细论证","bear_case":"看跌研究员的详细论证"}\n'
+        f"{ref_line}"
+        f"待评估策略数据：\n{json.dumps(context, ensure_ascii=False)}"
+    )
+
+
+def _build_final_prompt(context: dict, debate: dict) -> str:
+    ref = context.get("reference_price")
+    ref_line = f"当前参考价：{ref}（用于锚定目标价/止损价）\n" if ref else ""
+    return (
+        "你是A股量化策略评审系统。以下是看涨与看跌研究员的辩论结果：\n"
+        f"看涨：{debate.get('bull_case', '')}\n看跌：{debate.get('bear_case', '')}\n\n"
+        "请由交易员综合辩论给出目标价、止损价、建议仓位，再由研究主管做最终裁决。"
+        "只输出一个 JSON 对象（不要输出其他文字），格式：\n"
+        '{"target_price":数字,"stop_loss":数字,"position_suggestion":"...",'
+        '"verdict":"...","action":"采用|关注|弃用","confidence":0-100}\n'
+        f"{ref_line}"
+        f"待评估策略数据：\n{json.dumps(context, ensure_ascii=False)}"
+    )
+
+
+def deep_analysis(context: dict, timeout: int = 60) -> dict:
+    """深度档：两轮 LLM（先多空辩论，再交易员+主管综合）。"""
+    if not llm_available():
+        return {"available": False, "fallback": "heuristic",
+                "verdict": "未配置 LLM，使用启发式结论"}
+    try:
+        debate = _call_llm(_build_debate_prompt(context), timeout)
+        final = _normalize(_call_llm(_build_final_prompt(context, debate), timeout))
+        final.setdefault("bull_case", debate.get("bull_case", ""))
+        final.setdefault("bear_case", debate.get("bear_case", ""))
+        return final
     except Exception as exc:
         return {"available": False, "fallback": "heuristic",
                 "verdict": f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"}

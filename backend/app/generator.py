@@ -140,6 +140,9 @@ def validate_params(payload: dict) -> None:
         for c in codes:
             if not re.fullmatch(r"\d{6}", str(c)):
                 raise ValueError(f"无效股票代码: {c}")
+    depth = payload.get("analysis_depth", "standard")
+    if depth not in ("quick", "standard", "deep"):
+        raise ValueError("analysis_depth 必须是 quick/standard/deep 之一")
 
 
 def _build_config(tpl: dict, variant: int, risk: dict) -> dict:
@@ -355,4 +358,10 @@ def _attach_agent_analysis(report: dict, payload: dict, bars_map: dict = None) -
         "reference_price": _reference_price(
             targets.get("scope"), targets.get("codes") or [], bars_map or {}),
     }
-    report["agent_analysis"] = agents.multi_agent_analysis(context)
+    depth = payload.get("analysis_depth", "standard")
+    if depth == "quick":
+        report["agent_analysis"] = agents.quick_analysis(context)
+    elif depth == "deep":
+        report["agent_analysis"] = agents.deep_analysis(context)
+    else:
+        report["agent_analysis"] = agents.multi_agent_analysis(context)

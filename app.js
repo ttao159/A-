@@ -691,6 +691,7 @@ function renderGeneratorForm() {
   const startDef = toYMD(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
   let scope = 'single';
   let risk = 'balanced';
+  let depth = 'standard';
   $('#generator').innerHTML = `
     <div class="editor-head">
       <span class="editor-back" id="gen-back">‹</span>
@@ -724,6 +725,12 @@ function renderGeneratorForm() {
       <div class="chip-params"><div class="field"><input type="number" id="gen-count" min="1" max="10" value="3" /></div></div>
       <div class="section-label">目标年化收益率 %（0 表示不限）</div>
       <div class="chip-params"><div class="field"><input type="number" id="gen-target" min="0" step="1" value="15" /></div></div>
+      <div class="section-label">分析深度</div>
+      <div class="chips" id="gen-depth-chips">
+        <span class="chip" data-depth="quick">快速（跳过AI）</span>
+        <span class="chip on" data-depth="standard">标准（单次分析）</span>
+        <span class="chip" data-depth="deep">深度（多空辩论）</span>
+      </div>
       <div class="section-label">数据源</div>
       <div class="gen-datasource">腾讯公开行情接口（前复权真实日线），不可用时返回错误</div>
     </div>
@@ -750,7 +757,13 @@ function renderGeneratorForm() {
     risk = chip.dataset.risk;
     $('#gen-risk-chips').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
   });
-  $('#gen-run').addEventListener('click', () => runGenerator(scope, risk));
+  $('#gen-depth-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    depth = chip.dataset.depth;
+    $('#gen-depth-chips').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+  });
+  $('#gen-run').addEventListener('click', () => runGenerator(scope, risk, depth));
 }
 
 function genReqSummary(req) {
@@ -792,7 +805,7 @@ async function renderGeneratorHistory() {
   });
 }
 
-async function runGenerator(scope, risk) {
+async function runGenerator(scope, risk, depth) {
   const codesStr = $('#gen-codes').value.trim();
   const startDate = $('#gen-start').value;
   const endDate = $('#gen-end').value;
@@ -811,6 +824,7 @@ async function runGenerator(scope, risk) {
     risk_profile: risk,
     count,
     target_annual_return: target,
+    analysis_depth: depth,
   };
 
   $('#generator').innerHTML = `
