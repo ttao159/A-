@@ -55,6 +55,26 @@
           <div class="muted">交易笔数</div>
           <div>{{ result.metrics.trade_count }}</div>
         </div>
+        <div class="metric">
+          <div class="muted">夏普比率</div>
+          <div :class="val(result.metrics.sharpe_ratio)">{{ result.metrics.sharpe_ratio?.toFixed(2) ?? '--' }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">卡玛比率</div>
+          <div :class="val(result.metrics.calmar_ratio)">{{ result.metrics.calmar_ratio?.toFixed(2) ?? '--' }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">索提诺比率</div>
+          <div :class="val(result.metrics.sortino_ratio)">{{ result.metrics.sortino_ratio?.toFixed(2) ?? '--' }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">年化波动率</div>
+          <div>{{ result.metrics.annual_volatility_pct != null ? fmtPct(result.metrics.annual_volatility_pct) : '--' }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">最长回撤天数</div>
+          <div>{{ result.metrics.max_drawdown_days ?? '--' }}</div>
+        </div>
       </div>
       <div v-if="signalStats" class="card" style="margin-top: 0">
         <div class="card-title">信号统计</div>

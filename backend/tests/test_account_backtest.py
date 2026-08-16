@@ -122,6 +122,30 @@ def test_compute_metrics_basic():
     assert m["win_rate_pct"] == pytest.approx(50.0)
 
 
+def test_compute_metrics_includes_risk_metrics():
+    pf = Portfolio(1_000_000.0)
+    curve = []
+    eq = 1_000_000.0
+    rets = [0.005, 0.015, 0.008, 0.012, 0.02]
+    for i in range(30):
+        eq *= 1 + rets[i % len(rets)]
+        curve.append({"date": f"2026-01-{i + 1:02d}", "equity": eq})
+    m = backtest.compute_metrics(curve, pf)
+    assert "sharpe_ratio" in m
+    assert "calmar_ratio" in m
+    assert "sortino_ratio" in m
+    assert "annual_volatility_pct" in m
+    # 单调上涨，无回撤
+    assert m["max_drawdown_days"] == 0
+    # 正收益且有波动，夏普为正
+    assert m["sharpe_ratio"] > 0
+
+
+def test_max_drawdown_duration():
+    equities = [100, 110, 105, 102, 101, 120]
+    assert backtest._max_drawdown_duration(equities) == 3
+
+
 def test_roll_daily_increments_hold_days_once_per_day():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)

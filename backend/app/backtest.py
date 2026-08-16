@@ -1,5 +1,7 @@
 """回测引擎：历史行情重放，产出权益曲线与统计指标。"""
 
+import math
+
 import pandas as pd
 
 from . import matching
@@ -9,6 +11,23 @@ from .strategy_engine import attach_indicators, buy_signal_mask, evaluate_buy, e
 
 # 信号判断所需的尾部窗口大小（覆盖 doubleBottom/doubleTop 的 60 日 lookback 及各类指标周期）
 _WINDOW = 128
+
+
+def _max_drawdown_duration(equities: list) -> int:
+    """最长回撤周期：净值未创新高的连续交易日天数。"""
+    if not equities:
+        return 0
+    high_water = equities[0]
+    cur_duration = 0
+    max_duration = 0
+    for eq in equities:
+        if eq >= high_water:
+            high_water = eq
+            cur_duration = 0
+        else:
+            cur_duration += 1
+            max_duration = max(max_duration, cur_duration)
+    return max_duration
 
 
 def compute_metrics(equity_curve, pf: Portfolio) -> dict:
@@ -28,6 +47,31 @@ def compute_metrics(equity_curve, pf: Portfolio) -> dict:
         if peak > 0:
             max_dd = max(max_dd, (peak - eq) / peak * 100.0)
 
+    # 风险调整指标：基于日收益序列
+    equities = [p["equity"] for p in equity_curve]
+    returns = []
+    for i in range(1, len(equities)):
+        if equities[i - 1] > 0:
+            returns.append(equities[i] / equities[i - 1] - 1.0)
+    sharpe = 0.0
+    sortino = 0.0
+    annual_vol = 0.0
+    if returns:
+        mean_r = sum(returns) / len(returns)
+        var = sum((r - mean_r) ** 2 for r in returns) / len(returns)
+        std = math.sqrt(var)
+        annual_vol = std * math.sqrt(252) * 100.0
+        if std > 0:
+            sharpe = mean_r / std * math.sqrt(252)
+        downside = [r for r in returns if r < 0]
+        dvar = sum(r * r for r in downside) / len(returns)
+        dstd = math.sqrt(dvar)
+        if dstd > 0:
+            sortino = mean_r / dstd * math.sqrt(252)
+
+    calmar = annual_return / max_dd if max_dd > 0 else 0.0
+    max_dd_duration = _max_drawdown_duration(equities)
+
     sell_trades = [t for t in pf.trades if t["direction"] == "sell"]
     wins = [t for t in sell_trades if t["pnl"] > 0]
     losses = [t for t in sell_trades if t["pnl"] < 0]
@@ -42,6 +86,11 @@ def compute_metrics(equity_curve, pf: Portfolio) -> dict:
         "total_return_pct": round(total_return, 2),
         "annual_return_pct": round(annual_return, 2),
         "max_drawdown_pct": round(max_dd, 2),
+        "max_drawdown_days": max_dd_duration,
+        "annual_volatility_pct": round(annual_vol, 2),
+        "sharpe_ratio": round(sharpe, 2),
+        "sortino_ratio": round(sortino, 2),
+        "calmar_ratio": round(calmar, 2),
         "win_rate_pct": round(win_rate, 2),
         "profit_loss_ratio": round(profit_loss_ratio, 2),
         "trade_count": len(pf.trades),

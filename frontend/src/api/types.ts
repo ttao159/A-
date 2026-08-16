@@ -77,6 +77,11 @@ export interface BacktestMetrics {
   total_return_pct?: number
   annual_return_pct?: number
   max_drawdown_pct?: number
+  max_drawdown_days?: number
+  annual_volatility_pct?: number
+  sharpe_ratio?: number
+  sortino_ratio?: number
+  calmar_ratio?: number
   win_rate_pct?: number
   profit_loss_ratio?: number
   trade_count?: number
