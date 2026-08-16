@@ -44,7 +44,7 @@
         </div>
         <div v-if="reports.scan_schedule" class="muted status-line">
           策略引擎运行中 · 每交易日 {{ pad(reports.scan_schedule.hour) }}:{{ pad(reports.scan_schedule.minute) }} 自动扫描
-          · {{ reports.scan_schedule.broker_type === 'live' ? '实盘' : '模拟盘' }}
+          · {{ reports.scan_schedule.broker_type === 'live' ? '实盘' : '模拟盘' }} · {{ countdownText }}
         </div>
       </template>
     </div>
@@ -57,8 +57,17 @@
         <span class="stat">拒绝 <b>{{ lastResult.rejected.length }}</b></span>
         <span class="stat">策略 <b>{{ lastResult.strategy_count }}</b></span>
       </div>
-      <div v-if="lastResult.rejected.length" class="muted" style="margin-top: 8px">
-        拒绝：{{ lastResult.rejected.map((r) => (r as { code?: string }).code ?? '').join('、') }}
+      <div v-if="lastResult.buys.length" class="scan-detail-block">
+        <div class="scan-detail-title">买入</div>
+        <div v-for="(b, i) in lastResult.buys" :key="i" class="scan-detail-item up">{{ tradeLabel(b) }}</div>
+      </div>
+      <div v-if="lastResult.sells.length" class="scan-detail-block">
+        <div class="scan-detail-title">卖出</div>
+        <div v-for="(s, i) in lastResult.sells" :key="i" class="scan-detail-item down">{{ tradeLabel(s) }}</div>
+      </div>
+      <div v-if="lastResult.rejected.length" class="scan-detail-block">
+        <div class="scan-detail-title">拒绝</div>
+        <div v-for="(r, i) in lastResult.rejected" :key="i" class="scan-detail-item muted">{{ rejectedLabel(r) }}</div>
       </div>
     </div>
 
@@ -70,12 +79,17 @@
       <div v-else-if="!reports.items.length" class="empty">暂无记录</div>
       <div v-for="r in visibleReports" :key="r.id" class="scan-item">
         <div class="scan-item-top">
-          <span class="scan-time">{{ fmtDateTime(r.created_at) }}</span>
-          <span class="muted">
-            买 <b class="up">{{ r.buy_count }}</b> · 卖 <b class="down">{{ r.sell_count }}</b> · 拒 <b>{{ r.reject_count }}</b>
-          </span>
+          <div class="scan-item-left">
+            <div class="scan-time">{{ fmtDateTime(r.created_at) }}</div>
+            <div class="scan-item-sub">{{ r.source === 'auto' ? '自动扫描' : '手动扫描' }} · {{ r.strategy_count }} 策略</div>
+          </div>
+          <div class="scan-item-right">
+            <span class="scan-counts">
+              买 <b class="up">{{ r.buy_count }}</b> · 卖 <b class="down">{{ r.sell_count }}</b> · 拒 <b>{{ r.reject_count }}</b>
+            </span>
+            <button class="btn ghost small" @click="viewScanDetail(r.id)">查看</button>
+          </div>
         </div>
-        <div class="scan-item-sub">启用策略 {{ r.strategy_count }} 个 · {{ r.source === 'auto' ? '自动扫描' : '手动扫描' }}</div>
       </div>
       <button
         v-if="reports.items.length > SCAN_VISIBLE"
@@ -210,6 +224,34 @@
     </div>
     </template>
 
+    <div v-if="detailReport || detailLoading || detailError" class="scan-mask" @click.self="closeDetail">
+      <div class="box scan-detail-box">
+        <h3 style="margin: 0 0 10px">扫描详情</h3>
+        <div v-if="detailLoading" class="empty">加载中...</div>
+        <div v-else-if="detailError" class="error-box">
+          {{ detailError }}<br /><button class="retry-btn" @click="viewScanDetail(detailId ?? 0)">重试</button>
+        </div>
+        <template v-else-if="detailReport">
+          <div class="scan-detail-block">
+            <div class="scan-detail-title">买入（{{ detailReport.buys.length }}）</div>
+            <div v-if="!detailReport.buys.length" class="muted">无</div>
+            <div v-for="(b, i) in detailReport.buys" :key="i" class="scan-detail-item up">{{ tradeLabel(b) }}</div>
+          </div>
+          <div class="scan-detail-block">
+            <div class="scan-detail-title">卖出（{{ detailReport.sells.length }}）</div>
+            <div v-if="!detailReport.sells.length" class="muted">无</div>
+            <div v-for="(s, i) in detailReport.sells" :key="i" class="scan-detail-item down">{{ tradeLabel(s) }}</div>
+          </div>
+          <div class="scan-detail-block">
+            <div class="scan-detail-title">拒绝（{{ detailReport.rejected.length }}）</div>
+            <div v-if="!detailReport.rejected.length" class="muted">无</div>
+            <div v-for="(r, i) in detailReport.rejected" :key="i" class="scan-detail-item muted">{{ rejectedLabel(r) }}</div>
+          </div>
+        </template>
+        <button class="btn block" style="margin-top: 12px" @click="closeDetail">关闭</button>
+      </div>
+    </div>
+
     <div v-if="scanning || generating" class="scan-mask">
       <div class="box">
         <div class="spinner"></div>
@@ -224,7 +266,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { generatorApi, scanApi } from '../api'
 import type {
   GenerationReport,
@@ -237,13 +279,16 @@ import type {
 } from '../api/types'
 import type { StreamEvent } from '../api/http'
 import { useStrategyStore } from '../stores/strategy'
+import { useAccountStore } from '../stores/account'
 import { sigNames } from '../utils/signals'
 import { toast } from '../utils/toast'
+import { confirmDialog } from '../utils/confirm'
 import { fmtDateTime, pnlClass } from '../utils/format'
 import { defaultDateRange } from '../utils/date'
 import Skeleton from '../components/Skeleton.vue'
 
 const strategyStore = useStrategyStore()
+const accountStore = useAccountStore()
 
 const activeTab = ref<'scan' | 'gen'>('scan')
 const scanning = ref(false)
@@ -275,6 +320,13 @@ const genError = ref('')
 const genResult = ref<GenerationReport | null>(null)
 const genHistory = ref<GenerationReportItem[]>([])
 
+const detailReport = ref<ScanResult | null>(null)
+const detailId = ref<number | null>(null)
+const detailLoading = ref(false)
+const detailError = ref('')
+const countdownText = ref('')
+let countdownTimer: number | undefined
+
 const RISK_LABELS: Record<string, string> = { conservative: '保守', balanced: '均衡', aggressive: '激进' }
 
 const sortedStrategies = computed(() =>
@@ -301,6 +353,11 @@ const genRequestText = computed(() => {
 onMounted(() => {
   loadReports()
   loadGenHistory()
+  countdownTimer = window.setInterval(computeCountdown, 1000)
+})
+
+onUnmounted(() => {
+  if (countdownTimer) window.clearInterval(countdownTimer)
 })
 
 async function loadReports() {
@@ -311,6 +368,7 @@ async function loadReports() {
     reports.scan_schedule = r.scan_schedule
     reports.stats = r.stats
     reports.items = r.items
+    computeCountdown()
   } catch (e) {
     if (!reports.items.length) reportsError.value = '扫描数据加载失败'
   } finally {
@@ -329,6 +387,62 @@ async function loadGenHistory() {
 
 function pad(n: number) {
   return String(n).padStart(2, '0')
+}
+
+function computeCountdown() {
+  const s = reports.scan_schedule
+  if (!s) {
+    countdownText.value = ''
+    return
+  }
+  const now = new Date()
+  const next = new Date(now)
+  next.setHours(s.hour, s.minute, 0, 0)
+  if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1)
+  while (next.getDay() === 0 || next.getDay() === 6) {
+    next.setDate(next.getDate() + 1)
+  }
+  const diff = next.getTime() - now.getTime()
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const sec = Math.floor((diff % 60000) / 1000)
+  countdownText.value = `距下次扫描 ${pad(h)}:${pad(m)}:${pad(sec)}`
+}
+
+async function viewScanDetail(id: number) {
+  detailId.value = id
+  detailLoading.value = true
+  detailError.value = ''
+  detailReport.value = null
+  try {
+    detailReport.value = await scanApi.report(id)
+  } catch (e) {
+    detailError.value = '详情加载失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function closeDetail() {
+  detailReport.value = null
+  detailError.value = ''
+  detailId.value = null
+}
+
+function tradeLabel(t: Record<string, unknown>) {
+  const name = String(t.name || t.code || '')
+  const code = String(t.code || '')
+  const price = t.price != null ? ` @${Number(t.price).toFixed(2)}` : ''
+  const qty = t.qty != null ? ` ×${t.qty}` : ''
+  const reason = t.reason ? ` · ${t.reason}` : ''
+  return `${name}(${code})${price}${qty}${reason}`
+}
+
+function rejectedLabel(r: Record<string, unknown>) {
+  const name = String(r.name || r.code || '')
+  const code = String(r.code || '')
+  const reason = r.reason ? ` · ${r.reason}` : ''
+  return `${name}(${code})${reason}`
 }
 
 function actionClass(a: string) {
@@ -385,6 +499,16 @@ function handleGenEvent(e: StreamEvent) {
 }
 
 async function startScan() {
+  const live = accountStore.isLive
+  const ok = await confirmDialog({
+    title: live ? '实盘扫描确认' : '开始扫描',
+    message: live
+      ? '将对全市场按策略信号执行扫描，命中即自动下达实盘委托。请确认已开启风控并核对策略。'
+      : '将对全市场按策略信号执行扫描，命中即在模拟盘自动成交。',
+    confirmText: live ? '确认扫描' : '开始',
+    danger: live,
+  })
+  if (!ok) return
   scanning.value = true
   progressMsg.value = '扫描中...'
   progressDone.value = 0
@@ -542,6 +666,47 @@ async function saveGenStrategy(s: GenStrategy) {
   margin-top: 2px;
   color: var(--text-2);
   font-size: 12px;
+}
+
+.scan-item-left {
+  min-width: 0;
+}
+
+.scan-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-counts {
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.scan-detail-box {
+  max-height: 72vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+}
+
+.scan-detail-block {
+  margin-top: 8px;
+}
+
+.scan-detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+
+.scan-detail-item {
+  font-size: 13px;
+  padding: 3px 0;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .gen-recommend {

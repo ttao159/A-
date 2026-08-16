@@ -112,6 +112,7 @@ export const scanApi = {
   run: () => http.post<ScanResult>('/scan'),
   stream: (onEvent: (e: StreamEvent) => void) => streamNDJSON('/scan/stream', {}, onEvent),
   reports: () => http.get<ScanReports>('/scan/reports'),
+  report: (id: number) => http.get<ScanResult>(`/scan/reports/${id}`),
 }
 
 export const backtestApi = {

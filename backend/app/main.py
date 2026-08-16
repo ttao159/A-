@@ -725,6 +725,15 @@ def list_scan_reports(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/scan/reports/{rid}")
+def get_scan_report(rid: int, db: Session = Depends(get_db)):
+    """查询某次扫描的完整报告（买入/卖出/拒绝明细与理由）。"""
+    r = db.query(ScanReport).filter(ScanReport.id == rid).first()
+    if not r:
+        raise HTTPException(404, "扫描报告不存在")
+    return json.loads(r.report_json or "{}")
+
+
 @app.post("/api/account/reset")
 def reset_account(db: Session = Depends(get_db)):
     """重置模拟账户：清空持仓、订单与成交，各策略资金恢复其分配本金。"""
