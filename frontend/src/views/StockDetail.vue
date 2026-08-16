@@ -32,13 +32,19 @@
           :height="H"
           class="chart-canvas"
           style="width: 100%; height: auto"
-          @touchstart.prevent="onTouchStart"
-          @touchmove.prevent="onTouchMove"
-          @touchend="onTouchEnd"
+          @pointerdown.prevent="onPointerDown"
+          @pointermove.prevent="onPointerMove"
+          @pointerup="onPointerEnd"
+          @pointercancel="onPointerEnd"
+          @pointerleave="onPointerEnd"
         ></canvas>
         <div class="legend">
           <span v-if="mode === 'minute'">{{ minuteInfo }}</span>
           <span v-else>{{ legendText }}</span>
+          <label v-if="mode !== 'minute'" class="ma-toggle">
+            <input type="checkbox" v-model="showMA" />
+            均线
+          </label>
         </div>
       </div>
     </div>
@@ -100,6 +106,7 @@ const MAX_VISIBLE = 240
 
 const visibleCount = ref(120)
 const crossIndex = ref<number | null>(null)
+const showMA = ref(true)
 
 const stockMeta = computed(() => (mode.value === 'minute' ? '当日分时' : `${bars.value.length} 根K线`))
 const legendText = computed(() => {
@@ -281,30 +288,32 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     { n: 20, color: '#9254de' },
   ]
   const offset = all.length - data.length
-  for (const { n: period, color } of maPeriods) {
-    if (all.length < period) continue
-    ctx.strokeStyle = color
-    ctx.lineWidth = 1.1
-    ctx.beginPath()
-    let started = false
-    let sum = 0
-    for (let j = 0; j < all.length; j++) {
-      sum += all[j].close
-      if (j >= period - 1) {
-        const ma = sum / period
-        sum -= all[j - period + 1].close
-        if (j < offset) continue
-        const px = PAD_L + step * (j - offset) + step / 2
-        const py = y(ma)
-        if (!started) {
-          ctx.moveTo(px, py)
-          started = true
-        } else {
-          ctx.lineTo(px, py)
+  if (showMA.value) {
+    for (const { n: period, color } of maPeriods) {
+      if (all.length < period) continue
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1.1
+      ctx.beginPath()
+      let started = false
+      let sum = 0
+      for (let j = 0; j < all.length; j++) {
+        sum += all[j].close
+        if (j >= period - 1) {
+          const ma = sum / period
+          sum -= all[j - period + 1].close
+          if (j < offset) continue
+          const px = PAD_L + step * (j - offset) + step / 2
+          const py = y(ma)
+          if (!started) {
+            ctx.moveTo(px, py)
+            started = true
+          } else {
+            ctx.lineTo(px, py)
+          }
         }
       }
+      ctx.stroke()
     }
-    ctx.stroke()
   }
   ctx.lineWidth = 1
 
@@ -455,17 +464,35 @@ function drawCrossLabel(ctx: CanvasRenderingContext2D, time: string, detail: str
 let pinchStartDist = 0
 let pinchStartCount = 120
 
-function updateCross(touch: Touch) {
+const pointers = new Map<number, { x: number; y: number }>()
+
+function canvasPoint(e: PointerEvent) {
   const el = canvas.value
-  if (!el) return
+  if (!el) return { x: 0, y: 0 }
   const rect = el.getBoundingClientRect()
-  if (!rect.width) return
-  const px = ((touch.clientX - rect.left) / rect.width) * W
+  return {
+    x: rect.width ? ((e.clientX - rect.left) / rect.width) * W : 0,
+    y: rect.height ? ((e.clientY - rect.top) / rect.height) * H : 0,
+  }
+}
+
+function twoFingerDist(): number {
+  const pts = [...pointers.values()]
+  if (pts.length < 2) return 0
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+}
+
+function updateCrossAt(px: number, toggle = false) {
   const data =
     mode.value === 'minute'
       ? (minuteData.value?.bars ?? []).slice(-visibleCount.value)
       : bars.value.slice(-visibleCount.value)
   if (!data.length) return
+  if (px < PAD_L || px > W - PAD_R) {
+    crossIndex.value = null
+    draw()
+    return
+  }
   const n = data.length
   const plotW = W - PAD_L - PAD_R
   let idx: number
@@ -476,32 +503,40 @@ function updateCross(touch: Touch) {
     const step = plotW / n
     idx = Math.floor((px - PAD_L) / step)
   }
-  crossIndex.value = Math.max(0, Math.min(n - 1, idx))
+  const clamped = Math.max(0, Math.min(n - 1, idx))
+  if (toggle && crossIndex.value === clamped) {
+    crossIndex.value = null
+  } else {
+    crossIndex.value = clamped
+  }
   draw()
 }
 
-function twoFingerDist(e: TouchEvent): number {
-  const a = e.touches[0]
-  const b = e.touches[1]
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
-}
-
-function onTouchStart(e: TouchEvent) {
-  if (e.touches.length === 1) {
-    updateCross(e.touches[0])
-  } else if (e.touches.length === 2) {
-    pinchStartDist = twoFingerDist(e)
+function onPointerDown(e: PointerEvent) {
+  e.preventDefault()
+  try {
+    canvas.value?.setPointerCapture?.(e.pointerId)
+  } catch {
+    // 忽略指针捕获失败
+  }
+  pointers.set(e.pointerId, canvasPoint(e))
+  if (pointers.size === 1) {
+    updateCrossAt(canvasPoint(e).x, true)
+  } else if (pointers.size === 2) {
+    pinchStartDist = twoFingerDist()
     pinchStartCount = visibleCount.value
     crossIndex.value = null
     draw()
   }
 }
 
-function onTouchMove(e: TouchEvent) {
-  if (e.touches.length === 1) {
-    updateCross(e.touches[0])
-  } else if (e.touches.length === 2) {
-    const d = twoFingerDist(e)
+function onPointerMove(e: PointerEvent) {
+  if (!pointers.has(e.pointerId)) return
+  pointers.set(e.pointerId, canvasPoint(e))
+  if (pointers.size === 1) {
+    updateCrossAt(canvasPoint(e).x)
+  } else if (pointers.size === 2) {
+    const d = twoFingerDist()
     if (pinchStartDist > 0) {
       const ratio = d / pinchStartDist
       const next = Math.round(pinchStartCount / ratio)
@@ -511,13 +546,11 @@ function onTouchMove(e: TouchEvent) {
   }
 }
 
-function onTouchEnd(e: TouchEvent) {
-  if (e.touches.length === 0) {
-    crossIndex.value = null
-    pinchStartDist = 0
-    draw()
-  }
+function onPointerEnd(e: PointerEvent) {
+  pointers.delete(e.pointerId)
+  if (pointers.size < 2) pinchStartDist = 0
 }
+
 </script>
 
 <style scoped>
@@ -552,6 +585,22 @@ function onTouchEnd(e: TouchEvent) {
   margin-top: 8px;
   font-size: 12px;
   color: var(--text-2, #909399);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ma-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.ma-toggle input {
+  margin: 0;
 }
 
 .chart-canvas {
