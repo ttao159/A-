@@ -1,6 +1,7 @@
 """自动扫描交易：基于最新行情运行策略并自动下单。"""
 
 import json
+import threading
 from datetime import date, timedelta
 
 from . import config, matching
@@ -10,6 +11,8 @@ from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
 LOOKBACK_DAYS = 120
+
+scan_lock = threading.Lock()
 
 
 def _position_dict(p: Position) -> dict:
@@ -34,11 +37,16 @@ def _latest_price(market, code: str, start: str, end: str) -> float:
     return None
 
 
-def scan_and_trade(db, market, accounts: AccountService = None, source: str = "manual") -> dict:
+def scan_and_trade(db, market, accounts: AccountService = None, source: str = "manual", progress=None) -> dict:
     """执行一次全市场扫描并自动交易，返回扫描报告。
 
     source: manual（手动触发）/ auto（定时任务）。
+    progress: 可选回调 progress(stage, message, done, total)，用于流式进度上报。
     """
+    def emit(stage, message, done, total):
+        if progress:
+            progress(stage, message, done, total)
+
     accounts = accounts or AccountService()
     strategies = db.query(Strategy).filter(Strategy.enabled == 1).all()
     if not strategies:
@@ -46,21 +54,27 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
 
     acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
     accounts.roll_daily(db)
+    accounts.ensure_strategy_capital(db, acct, strategies)
 
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat()
 
     # 并发预取全市场日线，填充缓存，随后各策略循环命中缓存
     stock_list = market.get_stock_list()
+    total_stocks = len(stock_list) * len(strategies)
+    emit("prefetch", f"预取 {len(stock_list)} 只股票日线数据...", 0, total_stocks)
     prefetch = getattr(market, "prefetch_daily_bars", None)
     if prefetch:
         prefetch([c for c, _ in stock_list], start, end)
+    emit("prefetch", "日线数据就绪", 1, 1)
 
     report = {"buys": [], "sells": [], "rejected": [], "strategy_count": len(strategies)}
 
+    processed = 0
     for strategy in strategies:
         cfg = json.loads(strategy.config_json)
-        positions = db.query(Position).filter(Position.account_id == acct.id).all()
+        positions = db.query(Position).filter(
+            Position.account_id == acct.id, Position.strategy_id == strategy.id).all()
         held = {p.code: p for p in positions}
 
         # 持仓最新价（用于风控权益计算，缺省回退成本价）
@@ -70,18 +84,21 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
             if latest is not None:
                 prices[p.code] = latest
 
-        # 组合状态（用于风控与持仓市值）
+        # 组合状态（按策略独立资金与持仓）
         state = {
-            "initial_capital": acct.initial_capital,
-            "cash": acct.available_cash,
+            "initial_capital": strategy.initial_capital,
+            "cash": strategy.available_cash,
             "positions": {p.code: _position_dict(p) for p in positions},
-            "high_water": acct.initial_capital,
+            "high_water": strategy.initial_capital,
         }
-        equity = acct.available_cash + sum(p.qty * prices.get(p.code, p.avg_cost)
-                                           for p in positions)
-        state["high_water"] = max(acct.initial_capital, equity)
+        equity = strategy.available_cash + sum(p.qty * prices.get(p.code, p.avg_cost)
+                                               for p in positions)
+        state["high_water"] = max(strategy.initial_capital, equity)
 
         for code, name in stock_list:
+            processed += 1
+            if processed % 50 == 0:
+                emit("scan", f"{strategy.name} 扫描中 {processed}/{total_stocks}", processed, total_stocks)
             try:
                 bars = market.get_daily_bars(code, start, end)
             except DataUnavailableError:
@@ -95,17 +112,18 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
                 p = held[code]
                 reason = evaluate_sell(cfg, _position_dict(p), bars)
                 if reason:
-                    order = accounts.place_order(db, acct, code, name, "sell", price, p.qty, reason)
+                    order = accounts.place_order(db, acct, code, name, "sell", price, p.qty, reason, strategy=strategy)
                     if order.status == "filled":
                         report["sells"].append({
                             "code": code, "name": name, "price": round(price, 3),
                             "qty": p.qty, "reason": reason,
                         })
                         # 卖出后同步组合状态，避免后续风控用过期数据
-                        positions = db.query(Position).filter(Position.account_id == acct.id).all()
+                        positions = db.query(Position).filter(
+                            Position.account_id == acct.id, Position.strategy_id == strategy.id).all()
                         held = {p.code: p for p in positions}
                         state["positions"] = {p.code: _position_dict(p) for p in positions}
-                        state["cash"] = acct.available_cash
+                        state["cash"] = strategy.available_cash
             else:
                 if not evaluate_buy(cfg, bars):
                     continue
@@ -121,22 +139,24 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
                 if not ok:
                     report["rejected"].append({"code": code, "name": name, "reason": why})
                     continue
-                order = accounts.place_order(db, acct, code, name, "buy", price, qty, "buy_signal")
+                order = accounts.place_order(db, acct, code, name, "buy", price, qty, "buy_signal", strategy=strategy)
                 if order.status == "filled":
                     report["buys"].append({
                         "code": code, "name": name, "price": round(price, 3),
                         "qty": qty, "reason": "buy_signal",
                     })
-                    positions = db.query(Position).filter(Position.account_id == acct.id).all()
+                    positions = db.query(Position).filter(
+                        Position.account_id == acct.id, Position.strategy_id == strategy.id).all()
                     held = {p.code: p for p in positions}
                     state["positions"] = {p.code: _position_dict(p) for p in positions}
-                    state["cash"] = acct.available_cash
+                    state["cash"] = strategy.available_cash
                     equity = state["cash"] + sum(
                         pp["qty"] * prices.get(pp["code"], pp["avg_cost"])
                         for pp in state["positions"].values()
                     )
                     state["high_water"] = max(state["high_water"], equity)
 
+    emit("scan", "扫描完成，正在写入报告...", total_stocks, total_stocks)
     db.add(ScanReport(
         strategy_count=len(strategies),
         buy_count=len(report["buys"]),
@@ -147,4 +167,14 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
     ))
     db.commit()
 
+    _prune_scan_reports(db, keep=50)
+
     return report
+
+
+def _prune_scan_reports(db, keep: int = 50) -> None:
+    """清理扫描历史，仅保留最近 `keep` 条，避免数据无限累积。"""
+    cutoff = db.query(ScanReport.id).order_by(ScanReport.id.desc()).offset(keep).first()
+    if cutoff is not None:
+        db.query(ScanReport).filter(ScanReport.id <= cutoff[0]).delete(synchronize_session=False)
+        db.commit()

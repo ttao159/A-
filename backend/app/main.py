@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import backtest, config
@@ -19,7 +20,7 @@ from .generator import run_generation
 from .market import MarketDataService
 from .models import Backtest, EquityPoint, GenerationReport, ScanReport, Strategy
 from .public_data import DataUnavailableError
-from .scanner import scan_and_trade
+from .scanner import scan_and_trade, scan_lock
 from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
 from .scheduler import start_scheduler
 
@@ -52,6 +53,8 @@ def _strategy_out(s: Strategy) -> dict:
         "name": s.name,
         "enabled": bool(s.enabled),
         "config": json.loads(s.config_json),
+        "initial_capital": round(s.initial_capital or 0.0, 2),
+        "available_cash": round(s.available_cash or 0.0, 2),
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
@@ -65,8 +68,10 @@ def list_strategies(db: Session = Depends(get_db)):
 
 @app.post("/api/strategies")
 def create_strategy(body: StrategyCreate, db: Session = Depends(get_db)):
+    capital = body.initial_capital if body.initial_capital is not None else config.DEFAULT_INITIAL_CAPITAL
     s = Strategy(name=body.name, enabled=int(body.enabled),
-                 config_json=json.dumps(body.config, ensure_ascii=False))
+                 config_json=json.dumps(body.config, ensure_ascii=False),
+                 initial_capital=capital, available_cash=capital)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -84,6 +89,14 @@ def update_strategy(sid: int, body: StrategyUpdate, db: Session = Depends(get_db
         s.enabled = int(body.enabled)
     if body.config is not None:
         s.config_json = json.dumps(body.config, ensure_ascii=False)
+    if body.initial_capital is not None:
+        invested = 0.0
+        for p in db.query(Position).filter(Position.strategy_id == s.id).all():
+            invested += p.avg_cost * p.qty
+        if body.initial_capital < invested:
+            raise HTTPException(400, "分配金额不能低于当前持仓成本")
+        s.initial_capital = body.initial_capital
+        s.available_cash = body.initial_capital - invested
     db.commit()
     db.refresh(s)
     return _strategy_out(s)
@@ -276,19 +289,23 @@ def get_account(db: Session = Depends(get_db)):
         except Exception:
             pass
         market_value += p.qty * price
-    total = acct.available_cash + market_value
+    strategies = db.query(Strategy).all()
+    cash = sum(s.available_cash or 0.0 for s in strategies)
+    capital = sum(s.initial_capital or 0.0 for s in strategies)
+    total = cash + market_value
     return {
-        "initial_capital": acct.initial_capital,
-        "available_cash": round(acct.available_cash, 2),
+        "initial_capital": round(capital, 2),
+        "available_cash": round(cash, 2),
         "market_value": round(market_value, 2),
         "total_asset": round(total, 2),
-        "total_pnl": round(total - acct.initial_capital, 2),
+        "total_pnl": round(total - capital, 2),
     }
 
 
 @app.get("/api/positions")
 def get_positions(db: Session = Depends(get_db)):
     _, positions, _ = accounts.get_snapshot(db)
+    strategy_names = {s.id: s.name for s in db.query(Strategy).all()}
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=10)).isoformat()
     result = []
@@ -307,6 +324,8 @@ def get_positions(db: Session = Depends(get_db)):
             "pnl_pct": round(pnl_pct, 2),
             "pnl": round((price - p.avg_cost) * p.qty, 2),
             "hold_days": p.hold_days or 0,
+            "strategy_id": p.strategy_id,
+            "strategy_name": strategy_names.get(p.strategy_id) if p.strategy_id else None,
         })
     return result
 
@@ -367,28 +386,90 @@ def get_stock_minute(code: str):
 @app.post("/api/scan")
 def trigger_scan(db: Session = Depends(get_db)):
     """手动触发一次全市场扫描交易。"""
-    report = scan_and_trade(db, market, accounts)
-    return report
+    if not scan_lock.acquire(blocking=False):
+        raise HTTPException(409, "已有扫描正在进行，请稍后再试")
+    try:
+        report = scan_and_trade(db, market, accounts)
+        return report
+    finally:
+        scan_lock.release()
+
+
+@app.post("/api/scan/stream")
+def trigger_scan_stream():
+    """流式扫描交易：NDJSON 逐行输出进度事件，末行输出完整报告。"""
+    q = queue.Queue()
+
+    def progress(stage, message, done, total):
+        q.put({"type": "progress", "stage": stage, "message": message,
+               "done": done, "total": total})
+
+    def busy_gen():
+        yield json.dumps({"type": "error", "detail": "已有扫描正在进行，请稍后再试",
+                          "status": 409}, ensure_ascii=False) + "\n"
+
+    if not scan_lock.acquire(blocking=False):
+        return StreamingResponse(busy_gen(), media_type="application/x-ndjson")
+
+    def worker():
+        db = SessionLocal()
+        try:
+            report = scan_and_trade(db, market, accounts, source="manual", progress=progress)
+            q.put({"type": "result", "report": report})
+        except Exception as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 500})
+        finally:
+            db.close()
+            scan_lock.release()
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def gen():
+        while True:
+            evt = q.get()
+            if evt["type"] == "error":
+                yield json.dumps(evt, ensure_ascii=False) + "\n"
+                break
+            if evt["type"] == "result":
+                yield json.dumps(evt, ensure_ascii=False) + "\n"
+                break
+            yield json.dumps(evt, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 @app.get("/api/scan/reports")
 def list_scan_reports(db: Session = Depends(get_db)):
-    """查询扫描历史报告（最近 20 条）。"""
+    """查询扫描统计与历史报告（统计为全量累计，明细为最近 20 条）。"""
+    total_scans, total_buys, total_sells, total_rejects = db.query(
+        func.count(ScanReport.id),
+        func.coalesce(func.sum(ScanReport.buy_count), 0),
+        func.coalesce(func.sum(ScanReport.sell_count), 0),
+        func.coalesce(func.sum(ScanReport.reject_count), 0),
+    ).one()
     items = db.query(ScanReport).order_by(ScanReport.id.desc()).limit(20).all()
-    return [{
-        "id": r.id,
-        "strategy_count": r.strategy_count,
-        "buy_count": r.buy_count,
-        "sell_count": r.sell_count,
-        "reject_count": r.reject_count,
-        "source": r.source or "manual",
-        "created_at": r.created_at.isoformat() if r.created_at else None,
-    } for r in items]
+    return {
+        "stats": {
+            "total_scans": total_scans,
+            "total_buys": total_buys,
+            "total_sells": total_sells,
+            "total_rejects": total_rejects,
+        },
+        "items": [{
+            "id": r.id,
+            "strategy_count": r.strategy_count,
+            "buy_count": r.buy_count,
+            "sell_count": r.sell_count,
+            "reject_count": r.reject_count,
+            "source": r.source or "manual",
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in items],
+    }
 
 
 @app.post("/api/account/reset")
 def reset_account(db: Session = Depends(get_db)):
-    """重置模拟账户：清空持仓、订单与成交，资金恢复初始值。"""
+    """重置模拟账户：清空持仓、订单与成交，各策略资金恢复其分配本金。"""
     from .models import Order, Position, Trade
 
     acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
@@ -396,6 +477,10 @@ def reset_account(db: Session = Depends(get_db)):
     db.query(Trade).filter(Trade.account_id == acct.id).delete()
     db.query(Order).filter(Order.account_id == acct.id).delete()
     acct.available_cash = acct.initial_capital
+    for s in db.query(Strategy).all():
+        capital = s.initial_capital or config.DEFAULT_INITIAL_CAPITAL
+        s.initial_capital = capital
+        s.available_cash = capital
     db.commit()
     return {"ok": True}
 

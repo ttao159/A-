@@ -135,6 +135,9 @@ let editingId = null;
 let accountData = null;
 let positionsData = [];
 let tradesData = [];
+let tradeFilter = 'all';
+let activeStrategyId = null;
+const TRADE_VISIBLE = 10;
 
 // ===== 工具 =====
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -156,7 +159,7 @@ function defaultStrategy() {
   buy.breakHigh.enabled = true;
   sell.takeProfit.enabled = true;
   sell.stopLoss.enabled = true;
-  return { id: null, name: '新策略', enabled: true, config: { buy, sell, risk } };
+  return { id: null, name: '新策略', enabled: true, initial_capital: 1000000, config: { buy, sell, risk } };
 }
 
 function toast(msg) {
@@ -177,30 +180,150 @@ function updateClock() {
 function renderHome() {
   $('#appbar-title').textContent = '账户总览';
   const acct = accountData || { available_cash: 0, market_value: 0, total_asset: 0, total_pnl: 0, initial_capital: 0 };
+  const totalPnlPct = acct.initial_capital ? (acct.total_pnl / acct.initial_capital * 100) : 0;
+  const positions = [...positionsData].map(p => ({ ...p, mv: (p.qty || 0) * (p.price || 0) }))
+    .sort((a, b) => (b.pnl || 0) - (a.pnl || 0));
+  const profitCount = positions.filter(p => (p.pnl || 0) > 0).length;
+  const lossCount = positions.filter(p => (p.pnl || 0) < 0).length;
+  const floatPnl = positions.reduce((s, p) => s + (p.pnl || 0), 0);
+
+  const groups = (strategies || []).filter(s => s.enabled).map(s => {
+    const ps = positions.filter(p => p.strategy_id === s.id);
+    const mv = ps.reduce((sum, p) => sum + p.mv, 0);
+    const capital = s.initial_capital || 0;
+    const cash = s.available_cash || 0;
+    const retPct = capital ? (cash + mv - capital) / capital * 100 : 0;
+    return { ...s, positions: ps, mv, cash, capital, retPct };
+  });
+  const orphan = positions.filter(p => !p.strategy_id);
+  if (groups.length && !groups.some(g => g.id === activeStrategyId)) {
+    activeStrategyId = groups[0].id;
+  }
+  const active = groups.find(g => g.id === activeStrategyId) || groups[0];
+
   $('#content').innerHTML = `
     <div class="asset-card">
       <div class="asset-total-label">总资产 (元)</div>
       <div class="asset-total">${fmtMoney(acct.total_asset)}</div>
+      <div class="asset-pnl-line">
+        <span class="asset-pnl ${pnlClass(acct.total_pnl)}">${sign(acct.total_pnl)}${fmtMoney2(acct.total_pnl)}</span>
+        <span class="asset-pnl ${pnlClass(totalPnlPct)}">${sign(totalPnlPct)}${totalPnlPct.toFixed(2)}%</span>
+      </div>
       <div class="asset-row"><span>可用资金</span><span class="val">${fmtMoney2(acct.available_cash)}</span></div>
       <div class="asset-row"><span>持仓市值</span><span class="val">${fmtMoney2(acct.market_value)}</span></div>
-      <div class="asset-row"><span>累计盈亏</span><span class="val ${pnlClass(acct.total_pnl)}">${sign(acct.total_pnl)}${fmtMoney2(acct.total_pnl)}</span></div>
+      <div class="asset-row"><span>初始资金</span><span class="val">${fmtMoney2(acct.initial_capital)}</span></div>
     </div>
     <div class="card">
-      <div class="card-title">当前持仓</div>
-      ${positionsData.length ? positionsData.map(p => `
-        <div class="holding" data-code="${esc(p.code)}" data-name="${esc(p.name)}">
-          <div>
-            <div class="holding-name">${esc(p.name)}</div>
-            <div class="holding-code">${esc(p.code)} · ${p.qty} 股${p.hold_days === 0 ? ' · <span class="tag t1-lock">T+1 锁定</span>' : ' · 持 ${p.hold_days} 天'}</div>
-          </div>
-          <div class="holding-right">
-            <div class="holding-pnl ${pnlClass(p.pnl_pct)}">${sign(p.pnl_pct)}${p.pnl_pct}% <span class="holding-amt">${sign(p.pnl)}${fmtMoney2(p.pnl)}</span></div>
-            <div class="holding-pct">成本 ${p.avg_cost} / 现价 ${p.price}</div>
-          </div>
-        </div>
-      `).join('') : '<div class="empty">暂无持仓</div>'}
+      <div class="card-title">持仓概览</div>
+      <div class="scan-stats">
+        <div class="scan-stat"><div class="scan-stat-val">${positions.length}</div><div class="scan-stat-label">持仓数</div></div>
+        <div class="scan-stat"><div class="scan-stat-val up">${profitCount}</div><div class="scan-stat-label">盈利</div></div>
+        <div class="scan-stat"><div class="scan-stat-val down">${lossCount}</div><div class="scan-stat-label">亏损</div></div>
+        <div class="scan-stat"><div class="scan-stat-val ${pnlClass(floatPnl)}">${sign(floatPnl)}${fmtMoney2(floatPnl)}</div><div class="scan-stat-label">浮动盈亏</div></div>
+      </div>
+    </div>
+    ${groups.length ? `
+      <div class="strategy-tabs">
+        ${groups.map(g => `<div class="strategy-tab ${g.id === active.id ? 'active' : ''}" data-strategy="${g.id}"><span>${esc(g.name)}</span><span class="strategy-tab-count">${g.positions.length}</span></div>`).join('')}
+      </div>
+      ${strategyDetailHtml(active)}
+    ` : ''}
+    ${orphan.length ? `<div class="card"><div class="card-title">历史持仓（未归属策略）</div>${orphan.map(p => holdingHtml(p, 0)).join('')}</div>` : ''}
+  `;
+  bindHolding();
+  document.querySelectorAll('.strategy-tab').forEach(el => {
+    el.addEventListener('click', () => {
+      activeStrategyId = Number(el.dataset.strategy);
+      renderHome();
+    });
+  });
+  document.querySelectorAll('.strategy-preview-btn').forEach(el => {
+    el.addEventListener('click', () => openStrategyPreview(el.dataset.preview));
+  });
+}
+
+function strategyDetailHtml(g) {
+  return `
+    <div class="card strategy-detail">
+      <div class="strategy-group-name">${esc(g.name)}</div>
+      <div class="strategy-group-ret ${pnlClass(g.retPct)}">${sign(g.retPct)}${g.retPct.toFixed(2)}%</div>
+      <div class="strategy-panel-stats">
+        <div class="sp-stat"><span>本金</span><b>${fmtMoney2(g.capital)}</b></div>
+        <div class="sp-stat"><span>现金</span><b>${fmtMoney2(g.cash)}</b></div>
+        <div class="sp-stat"><span>市值</span><b>${fmtMoney2(g.mv)}</b></div>
+      </div>
+      <div class="card-title" style="margin-top:12px">持仓</div>
+      ${g.positions.length ? g.positions.map(p => holdingHtml(p, g.mv ? p.mv / g.mv * 100 : 0)).join('') : '<div class="empty">暂无持仓</div>'}
+      <button class="strategy-preview-btn" data-preview="${g.id}">预览策略详情</button>
     </div>
   `;
+}
+
+function openStrategyPreview(id) {
+  const s = strategies.find(x => x.id === Number(id));
+  if (!s) return;
+  const ps = positionsData.filter(p => p.strategy_id === s.id);
+  const mv = ps.reduce((sum, p) => sum + (p.qty || 0) * (p.price || 0), 0);
+  const capital = s.initial_capital || 0;
+  const cash = s.available_cash || 0;
+  const retPct = capital ? (cash + mv - capital) / capital * 100 : 0;
+  const buys = SIGNAL_DEFS.buy.filter(d => s.config.buy[d.key] && s.config.buy[d.key].enabled);
+  const sells = SIGNAL_DEFS.sell.filter(d => s.config.sell[d.key] && s.config.sell[d.key].enabled);
+  const signalRow = (d, cfg) => {
+    const params = (d.params || []).map(p => `${p.label} ${cfg[p.key]}`).join(' · ');
+    return `<div class="pv-signal"><span class="pv-signal-name">${esc(d.name)}</span><span class="pv-signal-desc">${params ? esc(params) : esc(d.desc)}</span></div>`;
+  };
+  const buyHtml = buys.length ? buys.map(d => signalRow(d, s.config.buy[d.key])).join('') : '<div class="pv-empty">未启用买入信号</div>';
+  const sellHtml = sells.length ? sells.map(d => signalRow(d, s.config.sell[d.key])).join('') : '<div class="pv-empty">未启用卖出信号</div>';
+  const riskHtml = RISK_DEFS.map(r => `<div class="pv-risk"><span>${esc(r.label)}</span><b>${s.config.risk[r.key] ?? r.value}</b></div>`).join('');
+  const posHtml = ps.length ? ps.map(p => `<div class="pv-pos"><span class="pv-pos-name">${esc(p.name)}</span><span class="pv-pos-code">${esc(p.code)}</span><span class="pv-pos-pnl ${pnlClass(p.pnl_pct)}">${sign(p.pnl_pct)}${p.pnl_pct}%</span></div>`).join('') : '<div class="pv-empty">暂无持仓</div>';
+
+  const mask = document.createElement('div');
+  mask.className = 'dialog-mask show';
+  mask.id = 'strategy-preview-dialog';
+  mask.innerHTML = `
+    <div class="dialog" style="width:90%;max-height:82%;overflow-y:auto">
+      <div class="dialog-title">${esc(s.name)}</div>
+      <div class="dialog-desc">累计收益率 ${sign(retPct)}${retPct.toFixed(2)}%${s.enabled ? '' : ' · 已停用'}</div>
+      <div class="strategy-panel-stats">
+        <div class="sp-stat"><span>本金</span><b>${fmtMoney2(capital)}</b></div>
+        <div class="sp-stat"><span>现金</span><b>${fmtMoney2(cash)}</b></div>
+        <div class="sp-stat"><span>市值</span><b>${fmtMoney2(mv)}</b></div>
+      </div>
+      <div class="pv-section">买入信号</div>
+      ${buyHtml}
+      <div class="pv-section">卖出信号</div>
+      ${sellHtml}
+      <div class="pv-section">风控参数</div>
+      <div class="pv-risk-list">${riskHtml}</div>
+      <div class="pv-section">持仓 (${ps.length})</div>
+      ${posHtml}
+      <div class="dialog-actions"><button class="dialog-btn primary" id="pv-close">关闭</button></div>
+    </div>
+  `;
+  const host = document.querySelector('.phone') || document.body;
+  host.appendChild(mask);
+  mask.addEventListener('click', e => { if (e.target === mask) mask.remove(); });
+  $('#pv-close').addEventListener('click', () => mask.remove());
+}
+
+function holdingHtml(p, pct) {
+  return `
+    <div class="holding" data-code="${esc(p.code)}" data-name="${esc(p.name)}">
+      <div class="holding-main">
+        <div class="holding-name">${esc(p.name)}</div>
+        <div class="holding-code">${esc(p.code)} · ${p.qty} 股${p.hold_days === 0 ? ' · <span class="tag t1-lock">T+1 锁定</span>' : ' · 持 ' + p.hold_days + ' 天'}</div>
+        ${pct > 0 ? `<div class="holding-bar"><div class="holding-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
+      </div>
+      <div class="holding-right">
+        <div class="holding-pnl ${pnlClass(p.pnl_pct)}">${sign(p.pnl_pct)}${p.pnl_pct}% <span class="holding-amt">${sign(p.pnl)}${fmtMoney2(p.pnl)}</span></div>
+        <div class="holding-pct">成本 ${p.avg_cost} / 现价 ${p.price}</div>
+      </div>
+    </div>
+  `;
+}
+
+function bindHolding() {
   document.querySelectorAll('.holding').forEach(el => {
     el.addEventListener('click', () => showKline(el.dataset.code, el.dataset.name));
   });
@@ -265,6 +388,7 @@ function strategyCard(s) {
       <div class="strategy-tags">
         ${tags.length ? tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') : '<span class="tag off">未配置信号</span>'}
       </div>
+      <div class="strategy-meta">分配金额 ${fmtMoney2(s.initial_capital || 0)} · 可用 ${fmtMoney2(s.available_cash || 0)}</div>
       <div class="strat-actions">
         <button class="strat-action" data-action="backtest" data-id="${s.id}">回测</button>
         <button class="strat-action" data-action="history" data-id="${s.id}">历史</button>
@@ -278,31 +402,80 @@ function strategyCard(s) {
 // ===== 渲染：交易 =====
 function renderTrade() {
   $('#appbar-title').textContent = '交易记录';
+  const sorted = [...tradesData].sort((a, b) => (b.traded_at || '').localeCompare(a.traded_at || ''));
+  const stats = {
+    total: sorted.length,
+    buys: sorted.filter(t => t.direction === 'buy').length,
+    sells: sorted.filter(t => t.direction === 'sell').length,
+    pnl: sorted.reduce((s, t) => s + (t.pnl || 0), 0),
+  };
+  const filtered = tradeFilter === 'all' ? sorted : sorted.filter(t => t.direction === tradeFilter);
+  const overflow = filtered.length > TRADE_VISIBLE;
   $('#content').innerHTML = `
+    <div class="card">
+      <div class="card-title">交易统计</div>
+      ${tradeStatsHtml(stats)}
+    </div>
     <div class="filter-tabs">
-      <span class="filter-tab active" data-f="all">全部</span>
-      <span class="filter-tab" data-f="buy">买入</span>
-      <span class="filter-tab" data-f="sell">卖出</span>
+      <span class="filter-tab ${tradeFilter === 'all' ? 'active' : ''}" data-f="all">全部</span>
+      <span class="filter-tab ${tradeFilter === 'buy' ? 'active' : ''}" data-f="buy">买入</span>
+      <span class="filter-tab ${tradeFilter === 'sell' ? 'active' : ''}" data-f="sell">卖出</span>
     </div>
     <div class="card">
-      ${tradesData.length ? tradesData.map(t => `
-        <div class="trade-item">
-          <div class="trade-top">
-            <span>${esc(t.name)} <span class="badge-${t.direction === 'buy' ? 'buy' : 'sell'}">${t.direction === 'buy' ? '买入' : '卖出'}</span></span>
-            <span>${t.qty} 股</span>
-          </div>
-          <div class="trade-mid"><span>${esc(t.code)}</span><span>成交价 ${t.price}</span></div>
-          <div class="trade-mid"><span style="color:#c0c4cc">${(t.traded_at || '').slice(0, 19).replace('T', ' ')}</span></div>
-        </div>
-      `).join('') : '<div class="empty">暂无交易记录</div>'}
+      ${filtered.length
+        ? filtered.slice(0, TRADE_VISIBLE).map(tradeItemHtml).join('')
+          + (overflow ? `<div id="trade-extra" style="display:none">${filtered.slice(TRADE_VISIBLE).map(tradeItemHtml).join('')}</div><div class="scan-more" id="trade-more">展开全部 ${filtered.length} 条记录</div>` : '')
+        : '<div class="empty">暂无交易记录</div>'}
     </div>
   `;
   document.querySelectorAll('.filter-tab').forEach(el => {
     el.addEventListener('click', () => {
-      document.querySelectorAll('.filter-tab').forEach(x => x.classList.remove('active'));
-      el.classList.add('active');
+      tradeFilter = el.dataset.f;
+      renderTrade();
     });
   });
+  if (overflow) {
+    $('#trade-more').addEventListener('click', () => {
+      const box = $('#trade-extra');
+      const open = box.style.display !== 'none';
+      box.style.display = open ? 'none' : 'block';
+      $('#trade-more').textContent = open ? `展开全部 ${filtered.length} 条记录` : '收起';
+    });
+  }
+}
+
+function tradeStatsHtml(stats) {
+  const cells = [
+    ['累计成交', stats.total, ''],
+    ['买入', stats.buys, 'up'],
+    ['卖出', stats.sells, 'down'],
+    ['已实现盈亏', (stats.pnl >= 0 ? '+' : '') + stats.pnl.toFixed(2), stats.pnl >= 0 ? 'up' : 'down'],
+  ];
+  return `
+    <div class="scan-stats">
+      ${cells.map(c => `
+        <div class="scan-stat">
+          <div class="scan-stat-val ${c[2]}">${c[1]}</div>
+          <div class="scan-stat-label">${c[0]}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function tradeItemHtml(t) {
+  const isBuy = t.direction === 'buy';
+  const pnl = t.pnl ? `<span class="${t.pnl >= 0 ? 'up' : 'down'}">盈亏 ${t.pnl >= 0 ? '+' : ''}${t.pnl}</span>` : '';
+  return `
+    <div class="trade-item">
+      <div class="trade-top">
+        <span>${esc(t.name)} <span class="badge-${isBuy ? 'buy' : 'sell'}">${isBuy ? '买入' : '卖出'}</span></span>
+        <span>${t.qty} 股</span>
+      </div>
+      <div class="trade-mid"><span>${esc(t.code)}</span><span>成交价 ${t.price}</span></div>
+      <div class="trade-mid"><span style="color:#c0c4cc">${(t.traded_at || '').slice(0, 16).replace('T', ' ')}</span>${pnl}</div>
+    </div>
+  `;
 }
 
 // ===== 渲染：我的 =====
@@ -332,40 +505,134 @@ function renderMine() {
   loadScanHistory();
 }
 
+const SCAN_VISIBLE = 5;
+
 async function loadScanHistory() {
   const el = $('#scan-history-card');
   if (!el) return;
-  let items;
-  try { items = await api('/api/scan/reports'); }
-  catch (e) { el.innerHTML = '<div class="card-title">扫描历史</div><div class="empty">加载失败</div>'; return; }
-  if (!items.length) {
-    el.innerHTML = '<div class="card-title">扫描历史</div><div class="empty">暂无扫描记录</div>';
-    return;
-  }
+  let data;
+  try { data = await api('/api/scan/reports'); }
+  catch (e) { el.innerHTML = '<div class="card-title">扫描统计</div><div class="empty">加载失败</div>'; return; }
+  const items = data.items || [];
+  const stats = data.stats || {};
   el.innerHTML = `
-    <div class="card-title">扫描历史</div>
-    ${items.map(it => `
-      <div class="scan-item">
-        <div class="scan-item-top">
-          <span class="scan-time">${(it.created_at || '').slice(5, 16).replace('T', ' ')}</span>
-          <span class="scan-counts">买 <b class="up">${it.buy_count}</b> · 卖 <b class="down">${it.sell_count}</b> · 拒 <b>${it.reject_count}</b></span>
+    <div class="card-title">扫描统计</div>
+    ${scanStatsHtml(stats)}
+    ${items.length ? `
+      <div class="scan-more" id="scan-more">查看历史明细（${items.length} 条）</div>
+      <div class="scan-collapsed" id="scan-collapsed" style="display:none">
+        ${items.slice(0, SCAN_VISIBLE).map(scanItemHtml).join('')}
+        <div id="scan-extra" style="display:none">
+          ${items.slice(SCAN_VISIBLE).map(scanItemHtml).join('')}
         </div>
-        <div class="scan-item-sub">启用策略 ${it.strategy_count} 个 · ${it.source === 'auto' ? '自动扫描' : '手动扫描'}</div>
+        ${items.length > SCAN_VISIBLE ? `<div class="scan-more" id="scan-expand">展开全部 ${items.length} 条记录</div>` : ''}
       </div>
-    `).join('')}
+    ` : '<div class="empty">暂无扫描记录</div>'}
+  `;
+  const more = $('#scan-more');
+  const collapsed = $('#scan-collapsed');
+  if (more && collapsed) {
+    more.addEventListener('click', () => {
+      const open = collapsed.style.display !== 'none';
+      collapsed.style.display = open ? 'none' : 'block';
+      more.textContent = open ? `查看历史明细（${items.length} 条）` : '收起明细';
+    });
+  }
+  const expand = $('#scan-expand');
+  if (expand) {
+    expand.addEventListener('click', () => {
+      const extra = $('#scan-extra');
+      const open = extra.style.display !== 'none';
+      extra.style.display = open ? 'none' : 'block';
+      expand.textContent = open ? `展开全部 ${items.length} 条记录` : '收起';
+    });
+  }
+}
+
+function scanStatsHtml(stats) {
+  const cells = [
+    ['累计扫描', stats.total_scans ?? 0, ''],
+    ['累计买入', stats.total_buys ?? 0, 'up'],
+    ['累计卖出', stats.total_sells ?? 0, 'down'],
+    ['风控拦截', stats.total_rejects ?? 0, ''],
+  ];
+  return `
+    <div class="scan-stats">
+      ${cells.map(c => `
+        <div class="scan-stat">
+          <div class="scan-stat-val ${c[2]}">${c[1]}</div>
+          <div class="scan-stat-label">${c[0]}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function scanItemHtml(it) {
+  return `
+    <div class="scan-item">
+      <div class="scan-item-top">
+        <span class="scan-time">${(it.created_at || '').slice(5, 16).replace('T', ' ')}</span>
+        <span class="scan-counts">买 <b class="up">${it.buy_count}</b> · 卖 <b class="down">${it.sell_count}</b> · 拒 <b>${it.reject_count}</b></span>
+      </div>
+      <div class="scan-item-sub">启用策略 ${it.strategy_count} 个 · ${it.source === 'auto' ? '自动扫描' : '手动扫描'}</div>
+    </div>
   `;
 }
 
 async function scanNow() {
-  toast('扫描中，请稍候...');
+  const mask = showScanMask();
+  const startTime = Date.now();
+  const SCAN_STAGES = { prefetch: [0, 30], scan: [30, 100] };
   try {
-    const r = await api('/api/scan', { method: 'POST' });
+    const r = await streamApi('/api/scan/stream', { method: 'POST' }, (evt) => {
+      const seg = SCAN_STAGES[evt.stage] || [0, 100];
+      const ratio = evt.total ? evt.done / evt.total : 0;
+      const pct = Math.round(seg[0] + (seg[1] - seg[0]) * Math.min(1, ratio));
+      const pbar = $('#scan-pbar');
+      const ptext = $('#scan-ptext');
+      if (pbar) pbar.style.width = pct + '%';
+      if (ptext) ptext.textContent = evt.message || '';
+    });
     await refreshData();
-    const msg = '扫描完成：买入 ' + r.buys.length + ' 笔，卖出 ' + r.sells.length + ' 笔'
-      + (r.rejected && r.rejected.length ? '，' + r.rejected.length + ' 笔被风控拦截' : '');
+    const buys = r.buys ? r.buys.length : 0;
+    const sells = r.sells ? r.sells.length : 0;
+    const rejected = r.rejected ? r.rejected.length : 0;
+    const msg = '扫描完成：买入 ' + buys + ' 笔，卖出 ' + sells + ' 笔'
+      + (rejected ? '，' + rejected + ' 笔被风控拦截' : '');
+    hideScanMask(mask);
     toast(msg);
     switchTab('home');
-  } catch (err) { toast(err.message); }
+  } catch (err) {
+    hideScanMask(mask);
+    toast(err.message);
+  }
+}
+
+function showScanMask() {
+  const mask = document.createElement('div');
+  mask.className = 'scan-mask';
+  mask.innerHTML = `
+    <div class="scan-dialog">
+      <div class="gen-loading"></div>
+      <div class="scan-progress-text" id="scan-ptext">正在准备扫描...</div>
+      <div class="scan-progress gen-progress"><div class="gen-progress-bar" id="scan-pbar"></div></div>
+      <div class="scan-progress-time" id="scan-ptime">已用时 0 秒</div>
+    </div>
+  `;
+  const host = document.querySelector('.phone') || document.body;
+  host.appendChild(mask);
+  const start = Date.now();
+  mask._timer = setInterval(() => {
+    const el = $('#scan-ptime');
+    if (el) el.textContent = '已用时 ' + fmtDuration((Date.now() - start) / 1000);
+  }, 1000);
+  return mask;
+}
+
+function hideScanMask(mask) {
+  if (mask && mask._timer) clearInterval(mask._timer);
+  if (mask) mask.remove();
 }
 
 async function resetAccount() {
@@ -404,6 +671,7 @@ function openEditor(id) {
     const v = parseFloat(inp.value);
     if (inp.dataset.risk) s.config.risk[inp.dataset.risk] = isNaN(v) ? 0 : v;
     else if (inp.dataset.type) s.config[inp.dataset.type][inp.dataset.key][inp.dataset.param] = isNaN(v) ? 0 : v;
+    else if (inp.dataset.capital) s.initial_capital = isNaN(v) ? 0 : v;
   });
 }
 
@@ -432,6 +700,13 @@ function editorHtml(s) {
       <span class="editor-title">${editingId ? '编辑策略' : '新建策略'}</span>
     </div>
     <div class="editor-body">
+      <div class="section-label">资金配置</div>
+      <div class="signal" style="display:flex;flex-wrap:wrap;gap:10px">
+        <div class="field" style="flex:1 1 100%; min-width:200px">
+          <label>分配金额（元）</label>
+          <input type="number" data-capital="1" value="${s.initial_capital || 1000000}" step="10000" min="0" />
+        </div>
+      </div>
       <div class="section-label">买入信号（全部满足才买入）</div>
       <div class="chips">${buyChips}</div>
       <div class="chip-params" id="buy-params">${paramsHtml('buy', s.config.buy)}</div>
@@ -483,7 +758,7 @@ function openNameDialog(s) {
     if (!name) { toast('请输入策略名称'); $('#dialog-name').focus(); return; }
     s.name = name;
     try {
-      const payload = { name: s.name, enabled: s.enabled, config: s.config };
+      const payload = { name: s.name, enabled: s.enabled, config: s.config, initial_capital: s.initial_capital || 1000000 };
       if (s.id) await api('/api/strategies/' + s.id, { method: 'PUT', body: payload });
       else await api('/api/strategies', { method: 'POST', body: payload });
       await refreshData();
@@ -996,6 +1271,7 @@ async function saveGeneratedStrategy(s) {
       name: 'AI生成策略 #' + (s.index + 1) + ' ' + sigNames(s.signals).split('/')[0],
       enabled: true,
       config: s.config,
+      initial_capital: 1000000,
     }});
     await refreshData();
     toast('已保存到策略列表');

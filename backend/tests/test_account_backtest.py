@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app import backtest
 from app.account import AccountService, Portfolio, check_risk
 from app.database import Base
-from app.models import Account, Position
+from app.models import Account, Position, Strategy
 from app.schemas import default_config
 
 
@@ -146,4 +146,32 @@ def test_roll_daily_increments_hold_days_once_per_day():
     svc.roll_daily(db)
     db.refresh(p)
     assert p.hold_days == 1
+    db.close()
+
+
+def test_ensure_strategy_capital_defaults_each_strategy():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    acct = Account(initial_capital=1_000_000.0, available_cash=1_000_000.0)
+    db.add(acct)
+    s1 = Strategy(name="A", enabled=1, config_json="{}", initial_capital=0.0, available_cash=0.0)
+    s2 = Strategy(name="B", enabled=1, config_json="{}", initial_capital=0.0, available_cash=0.0)
+    db.add_all([s1, s2])
+    db.commit()
+
+    svc = AccountService()
+    svc.ensure_strategy_capital(db, acct, [s1, s2])
+    db.refresh(s1)
+    db.refresh(s2)
+    db.refresh(acct)
+
+    # 每个策略各自独立分配默认 100 万，账户现金不参与分配
+    assert s1.initial_capital == 1_000_000.0
+    assert s1.available_cash == 1_000_000.0
+    assert s2.initial_capital == 1_000_000.0
+    assert s2.available_cash == 1_000_000.0
+    assert acct.available_cash == 1_000_000.0
     db.close()

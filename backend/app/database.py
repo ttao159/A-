@@ -23,6 +23,18 @@ def migrate():
                 conn.execute(text("ALTER TABLE positions ADD COLUMN hold_days INTEGER DEFAULT 0"))
             if "high_since_buy" not in cols:
                 conn.execute(text("ALTER TABLE positions ADD COLUMN high_since_buy FLOAT DEFAULT 0"))
+            if "strategy_id" not in cols:
+                conn.execute(text("ALTER TABLE positions ADD COLUMN strategy_id INTEGER"))
+        if insp.has_table("strategies"):
+            cols = [c["name"] for c in insp.get_columns("strategies")]
+            if "initial_capital" not in cols:
+                conn.execute(text("ALTER TABLE strategies ADD COLUMN initial_capital FLOAT DEFAULT 0"))
+            if "available_cash" not in cols:
+                conn.execute(text("ALTER TABLE strategies ADD COLUMN available_cash FLOAT DEFAULT 0"))
+        if insp.has_table("trades"):
+            cols = [c["name"] for c in insp.get_columns("trades")]
+            if "strategy_id" not in cols:
+                conn.execute(text("ALTER TABLE trades ADD COLUMN strategy_id INTEGER"))
         if insp.has_table("scan_reports"):
             cols = [c["name"] for c in insp.get_columns("scan_reports")]
             if "source" not in cols:

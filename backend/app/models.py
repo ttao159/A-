@@ -14,6 +14,8 @@ class Strategy(Base):
     name = Column(String(100), nullable=False)
     enabled = Column(Integer, default=1)
     config_json = Column(Text, nullable=False)
+    initial_capital = Column(Float, default=0.0)
+    available_cash = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -32,6 +34,7 @@ class Position(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"), nullable=True)
     code = Column(String(20), nullable=False)
     name = Column(String(50), nullable=False)
     qty = Column(Integer, nullable=False)
@@ -62,6 +65,7 @@ class Trade(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"), nullable=True)
     code = Column(String(20), nullable=False)
     name = Column(String(50), nullable=False)
     direction = Column(String(10), nullable=False)

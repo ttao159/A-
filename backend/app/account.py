@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from . import matching
+from . import config, matching
 from .models import Account, Order, Position, Trade
 
 
@@ -156,8 +156,27 @@ class AccountService:
         if changed:
             db.commit()
 
-    def place_order(self, db, acct, code, name, direction, price, qty, reason=""):
-        """手动/自动下单并撮合成交。"""
+    def ensure_strategy_capital(self, db, acct, strategies):
+        """确保每个启用策略拥有独立本金：未分配本金的策略默认 100 万，各自独立运作。
+
+        每个策略独立计算，账户级现金不再参与策略资金分配。
+        """
+        if not strategies:
+            return
+        changed = False
+        for s in strategies:
+            if (s.initial_capital or 0.0) <= 0:
+                s.initial_capital = config.DEFAULT_INITIAL_CAPITAL
+                s.available_cash = config.DEFAULT_INITIAL_CAPITAL
+                changed = True
+        if changed:
+            db.commit()
+
+    def place_order(self, db, acct, code, name, direction, price, qty, reason="", strategy=None):
+        """手动/自动下单并撮合成交。
+
+        strategy 提供时，按该策略的独立现金与持仓运作；否则使用账户级现金与持仓。
+        """
         order = Order(account_id=acct.id, code=code, name=name,
                       direction=direction, qty=qty, price=price,
                       status="filled", reason=reason)
@@ -165,15 +184,22 @@ class AccountService:
         db.flush()
 
         commission, tax, transfer = matching.calc_fees(direction, price, qty)
+        if strategy is not None:
+            cash_holder = strategy
+            pos_filter = {"account_id": acct.id, "strategy_id": strategy.id, "code": code}
+        else:
+            cash_holder = acct
+            pos_filter = {"account_id": acct.id, "code": code}
+
         if direction == "buy":
             total_cost = price * qty + commission + transfer
-            if total_cost > acct.available_cash:
+            if total_cost > cash_holder.available_cash:
                 order.status = "rejected"
                 order.reason = "可用资金不足"
                 db.commit()
                 return order
-            acct.available_cash -= total_cost
-            pos = db.query(Position).filter(Position.account_id == acct.id, Position.code == code).first()
+            cash_holder.available_cash -= total_cost
+            pos = db.query(Position).filter_by(**pos_filter).first()
             if pos:
                 new_qty = pos.qty + qty
                 pos.avg_cost = (pos.avg_cost * pos.qty + price * qty + commission + transfer) / new_qty
@@ -181,12 +207,15 @@ class AccountService:
                 pos.hold_days = 0
                 pos.high_since_buy = price
             else:
-                db.add(Position(account_id=acct.id, code=code, name=name, qty=qty,
-                                avg_cost=(price * qty + commission + transfer) / qty,
-                                hold_days=0, high_since_buy=price))
+                pos_kwargs = dict(account_id=acct.id, code=code, name=name, qty=qty,
+                                  avg_cost=(price * qty + commission + transfer) / qty,
+                                  hold_days=0, high_since_buy=price)
+                if strategy is not None:
+                    pos_kwargs["strategy_id"] = strategy.id
+                db.add(Position(**pos_kwargs))
             pnl = 0.0
         else:
-            pos = db.query(Position).filter(Position.account_id == acct.id, Position.code == code).first()
+            pos = db.query(Position).filter_by(**pos_filter).first()
             if not pos or pos.qty < qty:
                 order.status = "rejected"
                 order.reason = "持仓不足"
@@ -194,13 +223,14 @@ class AccountService:
                 return order
             proceeds = price * qty - commission - tax - transfer
             pnl = (price - pos.avg_cost) * qty - commission - tax - transfer
-            acct.available_cash += proceeds
+            cash_holder.available_cash += proceeds
             pos.qty -= qty
             if pos.qty == 0:
                 db.delete(pos)
 
-        db.add(Trade(order_id=order.id, account_id=acct.id, code=code, name=name,
-                     direction=direction, qty=qty, price=price,
+        db.add(Trade(order_id=order.id, account_id=acct.id,
+                     strategy_id=strategy.id if strategy is not None else None,
+                     code=code, name=name, direction=direction, qty=qty, price=price,
                      commission=commission, tax=tax, transfer_fee=transfer, pnl=pnl))
         db.commit()
         db.refresh(order)

@@ -10,12 +10,15 @@ from . import config
 from .account import AccountService
 from .database import SessionLocal
 from .market import MarketDataService
-from .scanner import scan_and_trade
+from .scanner import scan_and_trade, scan_lock
 
 logger = logging.getLogger("scheduler")
 
 
 def _run_scan():
+    if not scan_lock.acquire(blocking=False):
+        logger.info("已有扫描在进行，跳过本次自动扫描")
+        return
     db = SessionLocal()
     try:
         report = scan_and_trade(db, MarketDataService(), AccountService(), source="auto")
@@ -27,6 +30,7 @@ def _run_scan():
         logger.exception("自动扫描失败: %s", e)
     finally:
         db.close()
+        scan_lock.release()
 
 
 def start_scheduler() -> BackgroundScheduler:
