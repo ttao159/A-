@@ -51,6 +51,7 @@
 
       <PositionList
         :positions="filteredPositions"
+        :strategies="strategyStore.strategies"
         @open-strategy="openStrategy"
         @open-stock="openStock"
       />
@@ -224,7 +225,7 @@ function openStock(p: { code: string; name: string }) {
   padding: 0 14px;
   border-radius: 17px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   font-size: 14px;
 }

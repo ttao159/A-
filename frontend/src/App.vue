@@ -2,8 +2,11 @@
   <div class="app">
     <header class="app-header">
       <h1>{{ title }}</h1>
-      <span v-if="accountStore.isLive" class="badge live">实盘</span>
-      <span v-else class="badge paper">模拟盘</span>
+      <div class="header-right">
+        <button class="theme-btn" @click="toggleTheme">{{ isDark ? '日' : '夜' }}</button>
+        <span v-if="accountStore.isLive" class="badge live">实盘</span>
+        <span v-else class="badge paper">模拟盘</span>
+      </div>
     </header>
     <div v-if="accountStore.isLive" class="risk-banner">
       实盘交易存在风险，请谨慎操作并核实每笔委托
@@ -40,7 +43,22 @@ import { triggerPullRefresh } from './composables/pullRefresh'
 const route = useRoute()
 const accountStore = useAccountStore()
 
-onMounted(() => accountStore.fetch())
+const isDark = ref(false)
+
+function applyTheme(dark: boolean) {
+  isDark.value = dark
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  localStorage.setItem('theme', dark ? 'dark' : 'light')
+}
+
+function toggleTheme() {
+  applyTheme(!isDark.value)
+}
+
+onMounted(() => {
+  accountStore.fetch()
+  applyTheme(localStorage.getItem('theme') === 'dark')
+})
 
 const mainRef = ref<HTMLElement | null>(null)
 const pullH = ref(0)
@@ -91,3 +109,22 @@ async function onTouchEnd() {
   pullH.value = 0
 }
 </script>
+
+<style scoped>
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+</style>

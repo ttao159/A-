@@ -40,3 +40,37 @@ export function sigNames(signals: { buy?: string[]; sell?: string[] }): string {
   const sell = (signals.sell ?? []).map(signalName)
   return [...buy, ...sell].join(' / ') || '—'
 }
+
+export const PARAM_LABELS: Record<string, string> = {
+  shortPeriod: '短周期',
+  longPeriod: '长周期',
+  fast: '快线',
+  slow: '慢线',
+  signal: '信号线',
+  days: '天数',
+  multiple: '倍数',
+  avgDays: '均量天数',
+  period: '周期',
+  threshold: '阈值',
+  n: 'N周期',
+  lowZone: '低位区',
+  highZone: '高位区',
+  numStd: '标准差倍数',
+  percent: '百分比%',
+  drawdown: '回撤%',
+}
+
+export const RISK_LABELS: Record<string, string> = {
+  maxPositionPercent: '单只最大仓位%',
+  maxHoldings: '最大持仓数',
+  maxSingleLoss: '单只最大亏损%',
+  totalStopLoss: '组合整体止损%',
+  maxDrawdown: '最大回撤%',
+}
+
+export function signalParamText(cfg: Record<string, unknown>): string {
+  const parts = Object.keys(cfg)
+    .filter((k) => k !== 'enabled')
+    .map((k) => `${PARAM_LABELS[k] ?? k} ${cfg[k]}`)
+  return parts.join(' · ')
+}

@@ -12,6 +12,20 @@
   --paper: #1a73e8;
 }
 
+:root[data-theme='dark'] {
+  --bg: #111214;
+  --card: #1b1d22;
+  --primary: #4c8dff;
+  --text: #e6e8ec;
+  --text-2: #9aa0a8;
+  --border: #2c2f36;
+  --up: #ff6b6b;
+  --down: #2ecc8f;
+  --danger: #ff6b6b;
+  --live: #ff6b6b;
+  --paper: #4c8dff;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -225,7 +239,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 15px;
-  background: #fff;
+  background: var(--card);
   color: var(--text);
 }
 
@@ -265,7 +279,7 @@ select {
 }
 
 .scan-mask .box {
-  background: #fff;
+  background: var(--card);
   border-radius: 14px;
   padding: 24px;
   width: 80%;

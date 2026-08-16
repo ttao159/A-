@@ -7,6 +7,7 @@
           <div style="font-weight: 600">{{ name }} <span class="muted">{{ code }}</span></div>
           <div class="muted">{{ stockMeta }}</div>
         </div>
+        <button class="search-btn" @click="openSearch">搜索</button>
       </div>
       <div class="row" style="gap: 8px; margin-top: 12px">
         <button
@@ -32,6 +33,19 @@
         </div>
       </div>
     </div>
+
+    <div v-if="searching" class="scan-mask" @click.self="searching = false">
+      <div class="box search-box">
+        <input v-model="searchQuery" placeholder="输入代码或名称搜索" />
+        <div class="search-results">
+          <div v-if="!searchResults.length" class="empty">无匹配结果</div>
+          <div v-for="s in searchResults" :key="s.code" class="search-item" @click="pickStock(s)">
+            <span class="search-code">{{ s.code }}</span>
+            <span class="search-name">{{ s.name }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -39,12 +53,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { stockApi } from '../api'
-import type { Bar, MinuteData } from '../api'
+import type { Bar, MinuteData, Stock } from '../api'
 import { fmtPrice } from '../utils/format'
 
 const route = useRoute()
-const code = String(route.params.code ?? '')
-const name = String(route.query.name ?? '')
+const code = ref(String(route.params.code ?? ''))
+const name = ref(String(route.query.name ?? ''))
 
 const modes = [
   { key: 'minute', label: '分时' },
@@ -88,9 +102,9 @@ async function load() {
   error.value = ''
   try {
     if (mode.value === 'minute') {
-      minuteData.value = await stockApi.minute(code)
+      minuteData.value = await stockApi.minute(code.value)
     } else {
-      bars.value = await stockApi.bars(code, mode.value === 'day' ? 120 : 120, mode.value)
+      bars.value = await stockApi.bars(code.value, mode.value === 'day' ? 120 : 120, mode.value)
     }
   } catch (e) {
     error.value = (e as Error).message
@@ -99,6 +113,49 @@ async function load() {
     draw()
   }
 }
+
+const searching = ref(false)
+const searchQuery = ref('')
+const stockList = ref<Stock[]>([])
+const stockLoaded = ref(false)
+
+async function openSearch() {
+  searching.value = true
+  if (stockLoaded.value) return
+  try {
+    stockList.value = await stockApi.list()
+    stockLoaded.value = true
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim()
+  const list = stockList.value
+  if (!q) return list.slice(0, 50)
+  return list.filter((s) => s.code.includes(q) || s.name.includes(q)).slice(0, 50)
+})
+
+function pickStock(s: Stock) {
+  code.value = s.code
+  name.value = s.name
+  searching.value = false
+  searchQuery.value = ''
+  load()
+}
+
+watch(
+  () => route.params.code,
+  () => {
+    const c = String(route.params.code ?? '')
+    if (c && c !== code.value) {
+      code.value = c
+      name.value = String(route.query.name ?? '')
+      load()
+    }
+  },
+)
 
 function switchMode(m: Mode) {
   if (mode.value === m) return
@@ -275,7 +332,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   height: 36px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   font-size: 20px;
   line-height: 1;
   margin-right: 8px;
@@ -286,7 +343,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   height: 34px;
   border-radius: 17px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   font-size: 13px;
 }
@@ -301,5 +358,63 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   margin-top: 8px;
   font-size: 12px;
   color: var(--text-2, #909399);
+}
+
+.search-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.search-box {
+  max-height: 70%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 92%;
+}
+
+.search-box input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+.search-results {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px;
+  border-bottom: 1px dashed var(--border);
+  cursor: pointer;
+}
+
+.search-item:active {
+  background: var(--bg);
+}
+
+.search-code {
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 64px;
+}
+
+.search-name {
+  color: var(--text);
+  font-size: 14px;
 }
 </style>

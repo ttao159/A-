@@ -2,19 +2,26 @@
   <div class="card">
     <div class="card-title">持仓</div>
     <div v-if="!positions.length" class="empty">暂无持仓</div>
-    <div v-for="p in positions" :key="p.code" class="list-item" @click="toggle(p.code)">
-      <div class="pos-main">
-        <div class="pos-name">
-          {{ p.name }} <span class="muted">{{ p.code }}</span>
+    <div v-for="p in positions" :key="p.code" class="pos-item">
+      <div class="pos-row" @click="$emit('openStock', p)">
+        <div class="pos-main">
+          <div class="pos-name">
+            {{ p.name }} <span class="muted">{{ p.code }}</span>
+            <span v-if="warnOf(p)" class="tag" :class="warnOf(p)!.type === 'tp' ? 'tag-tp' : 'tag-sl'">
+              {{ warnOf(p)!.label }}
+            </span>
+            <span v-if="p.hold_days === 0" class="tag tag-lock">T+1 锁定</span>
+          </div>
+          <div class="muted">{{ p.qty }} 股 · 成本 {{ fmtPrice(p.avg_cost) }} · 现价 {{ fmtPrice(p.price) }}</div>
         </div>
-        <div class="muted">{{ p.qty }} 股 · 成本 {{ fmtPrice(p.avg_cost) }} · 现价 {{ fmtPrice(p.price) }}</div>
-      </div>
-      <div class="pos-side">
-        <div :class="p.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(p.pnl) }}</div>
-        <div class="muted" :class="p.pnl_pct >= 0 ? 'up' : 'down'">{{ fmtPct(p.pnl_pct) }}</div>
+        <div class="pos-side">
+          <div :class="p.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(p.pnl) }}</div>
+          <div class="muted" :class="p.pnl_pct >= 0 ? 'up' : 'down'">{{ fmtPct(p.pnl_pct) }}</div>
+        </div>
+        <button class="expand-btn" @click.stop="toggle(p.code)">{{ expanded === p.code ? '▴' : '▾' }}</button>
       </div>
 
-      <div v-if="expanded === p.code" class="pos-detail" @click.stop>
+      <div v-if="expanded === p.code" class="pos-detail">
         <div class="detail-row">
           <span>持有天数</span><b>{{ p.hold_days }} 天</b>
         </div>
@@ -35,9 +42,6 @@
         >
           查看所属策略
         </button>
-        <button class="btn ghost block" style="margin-top: 8px" @click="$emit('openStock', p)">
-          查看走势
-        </button>
       </div>
     </div>
   </div>
@@ -45,10 +49,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { Position } from '../api/types'
+import type { Position, Strategy } from '../api/types'
 import { fmtMoney, fmtPct, fmtPrice } from '../utils/format'
 
-defineProps<{ positions: Position[] }>()
+const props = defineProps<{ positions: Position[]; strategies?: Strategy[] }>()
 defineEmits<{ openStrategy: [id: number]; openStock: [p: Position] }>()
 
 const expanded = ref<string | null>(null)
@@ -56,29 +60,86 @@ const expanded = ref<string | null>(null)
 function toggle(code: string) {
   expanded.value = expanded.value === code ? null : code
 }
+
+function warnOf(p: Position): { type: 'tp' | 'sl'; label: string } | null {
+  const s = props.strategies?.find((x) => x.id === p.strategy_id)
+  if (!s) return null
+  const cfg = s.config as { sell?: Record<string, { enabled?: boolean; percent?: number }> }
+  const tp = cfg.sell?.takeProfit
+  const sl = cfg.sell?.stopLoss
+  const tpPct = tp?.enabled ? Number(tp.percent ?? 0) : 0
+  const slPct = sl?.enabled ? Number(sl.percent ?? 0) : 0
+  if (tpPct > 0 && p.pnl_pct >= tpPct) return { type: 'tp', label: `止盈 ${tpPct}%` }
+  if (slPct > 0 && p.pnl_pct <= -slPct) return { type: 'sl', label: `止损 ${slPct}%` }
+  return null
+}
 </script>
 
 <style scoped>
+.pos-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.pos-item:last-child {
+  border-bottom: none;
+}
+
+.pos-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+}
+
 .pos-main {
   flex: 1;
+  min-width: 0;
 }
 
 .pos-name {
   font-weight: 500;
 }
 
-.pos-side {
-  text-align: right;
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
-.list-item {
-  flex-wrap: wrap;
+.tag-lock {
+  background: rgba(245, 166, 35, 0.15);
+  color: #d48806;
+}
+
+.tag-tp {
+  background: rgba(224, 57, 62, 0.12);
+  color: #e0393e;
+}
+
+.tag-sl {
+  background: rgba(10, 168, 105, 0.12);
+  color: #0aa869;
+}
+
+.pos-side {
+  text-align: right;
+  margin-left: 8px;
+}
+
+.expand-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  margin-left: 4px;
 }
 
 .pos-detail {
-  flex-basis: 100%;
-  margin-top: 8px;
-  padding-top: 8px;
+  padding: 8px 0 12px;
   border-top: 1px dashed var(--border);
 }
 

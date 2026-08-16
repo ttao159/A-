@@ -67,8 +67,19 @@
       </template>
 
       <template v-else>
-        <div v-if="!tradeStore.orders.length" class="empty">暂无委托</div>
-        <div v-for="o in tradeStore.orders" :key="'o' + o.id" class="list-item">
+        <div class="filter-row">
+          <button
+            v-for="f in orderFilters"
+            :key="f.key"
+            class="filter-btn"
+            :class="{ active: orderFilter === f.key }"
+            @click="orderFilter = f.key"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+        <div v-if="!filteredOrders.length" class="empty">暂无委托</div>
+        <div v-for="o in filteredOrders" :key="'o' + o.id" class="list-item">
           <div style="flex: 1">
             <div style="font-weight: 500">
               {{ o.name }} <span class="muted">{{ o.code }}</span>
@@ -108,6 +119,19 @@ const tradeFilters = [
   { key: 'buy', label: '买入' },
   { key: 'sell', label: '卖出' },
 ] as const
+
+const orderFilter = ref<'all' | 'filled' | 'rejected'>('all')
+
+const orderFilters = [
+  { key: 'all', label: '全部' },
+  { key: 'filled', label: '已成交' },
+  { key: 'rejected', label: '已拒绝' },
+] as const
+
+const filteredOrders = computed(() => {
+  if (orderFilter.value === 'all') return tradeStore.orders
+  return tradeStore.orders.filter((o) => o.status === orderFilter.value)
+})
 
 const filteredTrades = computed(() => {
   if (tradeFilter.value === 'all') return tradeStore.trades
@@ -150,7 +174,7 @@ function setTab(t: 'trades' | 'orders') {
   height: 32px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   font-size: 13px;
 }

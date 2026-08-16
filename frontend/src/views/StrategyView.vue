@@ -18,9 +18,18 @@
         <input type="checkbox" :checked="s.enabled" @change="toggle(s)" />
       </div>
       <div class="row" style="margin-top: 10px; gap: 8px">
+        <button class="btn ghost" style="flex: 1" @click="openPreview(s)">详情</button>
         <button class="btn ghost" style="flex: 1" @click="startEdit(s)">编辑</button>
         <button class="btn ghost" style="flex: 1" @click="goBacktest(s)">回测</button>
         <button class="btn danger" style="flex: 1" @click="remove(s)">删除</button>
+      </div>
+    </div>
+
+    <div v-if="previewing" class="scan-mask" @click.self="previewing = null">
+      <div class="box" style="max-height: 82%; overflow-y: auto; text-align: left; width: 92%">
+        <h3 style="margin: 0 0 12px">策略详情</h3>
+        <StrategyPreview v-if="previewing" :strategy="previewing" :positions="positionsOf(previewing.id)" />
+        <button class="btn block" style="margin-top: 14px" @click="previewing = null">关闭</button>
       </div>
     </div>
 
@@ -37,24 +46,40 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StrategyEditor from '../components/StrategyEditor.vue'
+import StrategyPreview from '../components/StrategyPreview.vue'
 import { useStrategyStore } from '../stores/strategy'
+import { usePositionStore } from '../stores/position'
 import { usePullRefresh } from '../composables/pullRefresh'
 import type { Strategy, StrategyInput } from '../api/types'
 import { fmtMoney } from '../utils/format'
 
 const strategyStore = useStrategyStore()
+const positionStore = usePositionStore()
 const router = useRouter()
 const route = useRoute()
 
 const editing = ref(false)
 const current = ref<Strategy | null>(null)
+const previewing = ref<Strategy | null>(null)
 const highlightId = ref<number | null>(null)
 
 onMounted(() => {
   if (route.query.sid) highlightId.value = Number(route.query.sid)
   strategyStore.fetch()
+  positionStore.fetch()
 })
-usePullRefresh(() => strategyStore.fetch())
+usePullRefresh(() => {
+  strategyStore.fetch()
+  positionStore.fetch()
+})
+
+function positionsOf(id: number) {
+  return positionStore.positions.filter((p) => p.strategy_id === id)
+}
+
+function openPreview(s: Strategy) {
+  previewing.value = s
+}
 
 function startCreate() {
   current.value = null

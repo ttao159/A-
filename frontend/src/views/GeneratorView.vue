@@ -513,7 +513,7 @@ async function saveGenStrategy(s: GenStrategy) {
 .gen-decision {
   margin-top: 10px;
   padding: 10px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
@@ -563,7 +563,7 @@ async function saveGenStrategy(s: GenStrategy) {
 .gen-agents {
   margin-top: 10px;
   padding: 10px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 13px;
