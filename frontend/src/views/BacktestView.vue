@@ -97,6 +97,16 @@
           :trades="tradeMarks"
         />
       </div>
+      <div v-if="tradeStocks.length" style="margin-top: 12px">
+        <div class="card-title">个股买卖点</div>
+        <select v-model="selectedCode" class="stock-select">
+          <option v-for="s in tradeStocks" :key="s.code" :value="s.code">
+            {{ s.name }}（{{ s.code }}）
+          </option>
+        </select>
+        <div v-if="tradeKlineLoading" class="empty">K线加载中...</div>
+        <TradeMarkKline v-else :bars="tradeKlineBars" :marks="selectedMarks" />
+      </div>
     </div>
 
     <div class="card">
@@ -157,7 +167,9 @@
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import EquityChart from '../components/EquityChart.vue'
-import { backtestApi, optimizeApi } from '../api'
+import TradeMarkKline from '../components/TradeMarkKline.vue'
+import { backtestApi, optimizeApi, stockApi } from '../api'
+import type { Bar } from '../api'
 import type { BacktestListItem, BacktestResult, OptimizeResultItem } from '../api/types'
 import { useStrategyStore } from '../stores/strategy'
 import { fmtPct } from '../utils/format'
@@ -231,6 +243,46 @@ const tradeMarks = computed(() =>
     direction: String(t.direction ?? ''),
   })),
 )
+
+const tradeStocks = computed(() => {
+  const map = new Map<string, string>()
+  for (const t of result.value?.trades ?? []) {
+    const code = String(t.code ?? '')
+    const name = String(t.name ?? '')
+    if (code && !map.has(code)) map.set(code, name)
+  }
+  return Array.from(map.entries()).map(([code, name]) => ({ code, name }))
+})
+
+const selectedCode = ref('')
+const tradeKlineBars = ref<Bar[]>([])
+const tradeKlineLoading = ref(false)
+
+const selectedMarks = computed(() =>
+  (result.value?.trades ?? [])
+    .filter((t) => String(t.code ?? '') === selectedCode.value)
+    .map((t) => ({
+      date: String(t.date ?? ''),
+      direction: String(t.direction ?? ''),
+      price: Number(t.price ?? 0),
+    })),
+)
+
+watch(result, () => {
+  selectedCode.value = tradeStocks.value[0]?.code ?? ''
+})
+
+watch(selectedCode, async (code) => {
+  if (!code) return
+  tradeKlineLoading.value = true
+  try {
+    tradeKlineBars.value = await stockApi.bars(code, 250, 'day')
+  } catch (e) {
+    tradeKlineBars.value = []
+  } finally {
+    tradeKlineLoading.value = false
+  }
+})
 
 async function run() {
   if (!sid.value) return
@@ -415,5 +467,18 @@ async function runOptimize() {
   align-items: flex-end;
   gap: 2px;
   font-size: 12px;
+}
+
+.stock-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
 }
 </style>
