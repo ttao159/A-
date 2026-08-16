@@ -152,5 +152,5 @@ export interface Alert {
 }
 
 export const alertApi = {
-  list: () => http.get<Alert[]>('/alerts'),
+  list: (limit = 50) => http.get<Alert[]>(`/alerts?limit=${limit}`),
 }

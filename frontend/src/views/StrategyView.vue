@@ -17,7 +17,16 @@
             分配 {{ fmtMoney(s.initial_capital) }} · 可用 {{ fmtMoney(s.available_cash) }}
           </div>
         </div>
-        <input type="checkbox" :checked="s.enabled" @change="toggle(s)" />
+        <button
+          class="switch"
+          :class="{ on: s.enabled }"
+          role="switch"
+          :aria-checked="s.enabled"
+          :aria-label="`${s.enabled ? '停用' : '启用'}策略 ${s.name}`"
+          @click="toggle(s)"
+        >
+          <span class="knob"></span>
+        </button>
       </div>
       <div class="row" style="margin-top: 10px; gap: 8px">
         <button class="btn ghost" style="flex: 1" @click="openPreview(s)">详情</button>
@@ -141,6 +150,39 @@ function goBacktest(s: Strategy) {
 </script>
 
 <style scoped>
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 26px;
+  border-radius: 26px;
+  background: var(--border);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.switch.on {
+  background: var(--primary);
+}
+
+.switch.on .knob {
+  transform: translateX(20px);
+}
+
 .highlighted {
   outline: 2px solid var(--primary);
   outline-offset: -2px;

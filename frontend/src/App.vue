@@ -83,9 +83,15 @@ const tabs = [
   { path: '/about', iconName: 'info', label: '说明' },
 ]
 
+const EXTRA_TITLES: Record<string, string> = {
+  '/alerts': '预警',
+}
+
 const title = computed(() => {
   const found = tabs.find((t) => t.path === route.path)
-  return found ? `A股助手 · ${found.label}` : 'A股自动交易助手'
+  if (found) return `A股助手 · ${found.label}`
+  if (EXTRA_TITLES[route.path]) return `A股助手 · ${EXTRA_TITLES[route.path]}`
+  return 'A股自动交易助手'
 })
 
 function onTouchStart(e: TouchEvent) {

@@ -20,8 +20,8 @@
         <div v-for="idx in indices" :key="idx.code" class="index-item">
           <div class="index-name">{{ idx.name }}</div>
           <div class="index-price">{{ idx.price.toFixed(2) }}</div>
-          <div class="index-change" :class="idx.change >= 0 ? 'up' : 'down'">
-            {{ idx.change >= 0 ? '+' : '' }}{{ idx.change.toFixed(2) }} ({{ idx.change_pct >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%)
+          <div class="pill index-change" :class="idx.change >= 0 ? 'up' : 'down'">
+            {{ idx.change >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%
           </div>
         </div>
       </div>
@@ -71,11 +71,21 @@
       <div class="card">
         <div class="card-title">预警提醒</div>
         <div v-if="!alerts.length" class="empty">暂无预警记录</div>
-        <div v-for="a in alerts" :key="a.id" class="alert-item">
-          <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
-          <span class="alert-msg">{{ a.message }}</span>
-          <span class="muted">{{ fmtDateTime(a.created_at) }}</span>
-        </div>
+        <template v-else>
+          <div v-for="a in visibleAlerts" :key="a.id" class="alert-item">
+            <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
+            <span class="alert-msg">{{ a.message }}</span>
+            <span class="muted">{{ fmtDateTime(a.created_at) }}</span>
+          </div>
+          <button
+            v-if="alerts.length > ALERT_VISIBLE"
+            class="btn ghost block"
+            style="margin-top: 8px"
+            @click="goAlerts"
+          >
+            查看全部 {{ alerts.length }} 条
+          </button>
+        </template>
       </div>
 
       <PositionList
@@ -107,6 +117,7 @@ import { alertApi, indexApi } from '../api'
 import type { Alert, IndexQuote } from '../api'
 import { fmtMoney, fmtPct, fmtDateTime } from '../utils/format'
 import { isTradingTime } from '../utils/date'
+import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
 
 const accountStore = useAccountStore()
 const positionStore = usePositionStore()
@@ -118,21 +129,8 @@ const alerts = ref<Alert[]>([])
 const indices = ref<IndexQuote[]>([])
 const lastUpdated = ref('')
 
-const ALERT_LABELS: Record<string, string> = {
-  takeProfit: '止盈',
-  stopLoss: '止损',
-  trailingStop: '移动止盈',
-  maxSingleLoss: '最大亏损',
-  strategy_failed: '策略失效',
-}
-
-function alertTypeLabel(type: string) {
-  return ALERT_LABELS[type] ?? type
-}
-
-function isProfitAlert(type: string) {
-  return type === 'takeProfit' || type === 'trailingStop'
-}
+const ALERT_VISIBLE = 5
+const visibleAlerts = computed(() => alerts.value.slice(0, ALERT_VISIBLE))
 
 const now = ref(new Date())
 let clockTimer: number | undefined
@@ -254,6 +252,10 @@ function openStrategy(id: number) {
 
 function openStock(p: { code: string; name: string }) {
   router.push({ path: `/stock/${p.code}`, query: { name: p.name } })
+}
+
+function goAlerts() {
+  router.push({ path: '/alerts' })
 }
 </script>
 
@@ -387,7 +389,6 @@ function openStock(p: { code: string; name: string }) {
 }
 
 .index-change {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
 }
 </style>

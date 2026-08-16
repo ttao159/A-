@@ -443,10 +443,11 @@ def get_account_daily_pnl(db: Session = Depends(get_db)):
 
 
 @app.get("/api/alerts")
-def get_alerts(db: Session = Depends(get_db)):
-    """预警提醒列表（最近 50 条）。"""
+def get_alerts(limit: int = 50, db: Session = Depends(get_db)):
+    """预警提醒列表（最近 N 条，默认 50，上限 500）。"""
     acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
-    alerts = db.query(Alert).filter(Alert.account_id == acct.id).order_by(Alert.id.desc()).limit(50).all()
+    limit = max(1, min(int(limit), 500))
+    alerts = db.query(Alert).filter(Alert.account_id == acct.id).order_by(Alert.id.desc()).limit(limit).all()
     return [
         {
             "id": a.id, "code": a.code, "name": a.name, "type": a.alert_type,

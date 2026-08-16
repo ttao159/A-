@@ -1,5 +1,13 @@
 <template>
   <div>
+    <div class="card seg-wrap">
+      <div class="seg-tabs">
+        <button class="seg-tab" :class="{ active: activeTab === 'scan' }" @click="activeTab = 'scan'">扫描</button>
+        <button class="seg-tab" :class="{ active: activeTab === 'gen' }" @click="activeTab = 'gen'">生成</button>
+      </div>
+    </div>
+
+    <template v-if="activeTab === 'scan'">
     <div class="card">
       <button class="btn block" :disabled="scanning" @click="startScan">
         {{ scanning ? '扫描中...' : '立即扫描' }}
@@ -69,7 +77,9 @@
         {{ scanExpanded ? '收起' : `展开全部 ${reports.items.length} 条记录` }}
       </button>
     </div>
+    </template>
 
+    <template v-else>
     <div class="card">
       <div class="card-title">策略生成器</div>
       <div class="field">
@@ -178,6 +188,7 @@
         </div>
       </div>
     </div>
+    </template>
 
     <div v-if="scanning || generating" class="scan-mask">
       <div class="box">
@@ -213,6 +224,7 @@ import { defaultDateRange } from '../utils/date'
 
 const strategyStore = useStrategyStore()
 
+const activeTab = ref<'scan' | 'gen'>('scan')
 const scanning = ref(false)
 const generating = ref(false)
 const lastResult = ref<ScanResult | null>(null)
@@ -411,6 +423,36 @@ async function saveGenStrategy(s: GenStrategy) {
 </script>
 
 <style scoped>
+.seg-wrap {
+  padding: 8px;
+}
+
+.seg-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.seg-tab {
+  flex: 1;
+  min-height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.seg-tab.active {
+  background: var(--card);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
 .stat b {
   color: var(--primary);
 }
