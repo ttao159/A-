@@ -6,7 +6,7 @@
       <button class="btn block" @click="showTemplatePicker = true">新建策略</button>
     </div>
 
-    <div v-if="strategyStore.loading && !strategyStore.strategies.length" class="empty">加载中...</div>
+    <Skeleton v-if="strategyStore.loading && !strategyStore.strategies.length" :rows="2" />
     <div v-else-if="!strategyStore.strategies.length" class="empty">暂无策略，点击上方新建</div>
 
     <div v-for="s in strategyStore.strategies" :key="s.id" class="card" :class="{ highlighted: s.id === highlightId }">
@@ -74,6 +74,7 @@ import { useRoute, useRouter } from 'vue-router'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyPreview from '../components/StrategyPreview.vue'
 import StrategyCompare from '../components/StrategyCompare.vue'
+import Skeleton from '../components/Skeleton.vue'
 import { useStrategyStore } from '../stores/strategy'
 import { usePositionStore } from '../stores/position'
 import { usePullRefresh } from '../composables/pullRefresh'
@@ -81,6 +82,7 @@ import type { Strategy, StrategyInput } from '../api/types'
 import type { StrategyTemplate } from '../utils/strategyTemplates'
 import { STRATEGY_TEMPLATES } from '../utils/strategyTemplates'
 import { fmtMoney } from '../utils/format'
+import { confirmDialog } from '../utils/confirm'
 
 const strategyStore = useStrategyStore()
 const positionStore = usePositionStore()
@@ -140,7 +142,13 @@ async function toggle(s: Strategy) {
 }
 
 async function remove(s: Strategy) {
-  if (!window.confirm(`确认删除策略「${s.name}」？`)) return
+  const ok = await confirmDialog({
+    title: '删除策略',
+    message: `确认删除策略「${s.name}」？删除后不可恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
   await strategyStore.remove(s.id)
 }
 

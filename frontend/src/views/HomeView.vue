@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="accountStore.loading && !accountStore.account" class="empty">加载中...</div>
+    <Skeleton v-if="accountStore.loading && !accountStore.account" :rows="2" />
     <div v-else-if="accountStore.error" class="empty">{{ accountStore.error }}</div>
     <template v-else>
       <div class="card clock-card">
@@ -109,6 +109,7 @@ import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
 import DailyPnlCalendar from '../components/DailyPnlCalendar.vue'
+import Skeleton from '../components/Skeleton.vue'
 import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
@@ -118,6 +119,7 @@ import type { Alert, IndexQuote } from '../api'
 import { fmtMoney, fmtPct, fmtDateTime } from '../utils/format'
 import { isTradingTime } from '../utils/date'
 import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
+import { confirmDialog } from '../utils/confirm'
 
 const accountStore = useAccountStore()
 const positionStore = usePositionStore()
@@ -241,7 +243,13 @@ const lossCount = computed(() => filteredPositions.value.filter((p) => p.pnl < 0
 const floatPnl = computed(() => filteredPositions.value.reduce((s, p) => s + p.pnl, 0))
 
 async function onReset() {
-  if (!window.confirm('确认重置模拟账户？将清空持仓与交易记录，各策略资金恢复本金。')) return
+  const ok = await confirmDialog({
+    title: '重置模拟账户',
+    message: '将清空持仓与交易记录，各策略资金恢复本金。',
+    confirmText: '重置',
+    danger: true,
+  })
+  if (!ok) return
   await accountStore.reset()
   positionStore.fetch()
 }

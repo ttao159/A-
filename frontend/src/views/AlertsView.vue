@@ -2,7 +2,7 @@
   <div>
     <div class="card">
       <div class="card-title">全部预警</div>
-      <div v-if="loading && !alerts.length" class="empty">加载中...</div>
+      <Skeleton v-if="loading && !alerts.length" :rows="2" />
       <div v-else-if="!alerts.length" class="empty">暂无预警记录</div>
       <template v-else>
         <div v-for="a in alerts" :key="a.id" class="alert-item">
@@ -21,6 +21,7 @@
 import { onMounted, ref } from 'vue'
 import { alertApi, type Alert } from '../api'
 import { usePullRefresh } from '../composables/pullRefresh'
+import Skeleton from '../components/Skeleton.vue'
 import { fmtDateTime } from '../utils/format'
 import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
 

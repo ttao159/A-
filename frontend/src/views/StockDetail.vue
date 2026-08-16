@@ -82,6 +82,16 @@ const H = 320
 const UP = '#e0393e'
 const DOWN = '#0aa869'
 
+function themeVars() {
+  const cs = getComputedStyle(document.documentElement)
+  return {
+    up: cs.getPropertyValue('--up').trim() || UP,
+    down: cs.getPropertyValue('--down').trim() || DOWN,
+    text2: cs.getPropertyValue('--text-2').trim() || '#909399',
+    line: cs.getPropertyValue('--border').trim() || '#bbbbbb',
+  }
+}
+
 const stockMeta = computed(() => (mode.value === 'minute' ? '当日分时' : `${bars.value.length} 根K线`))
 const legendText = computed(() => {
   const last = bars.value[bars.value.length - 1]
@@ -108,12 +118,22 @@ const minuteInfo = computed(() => {
   return `昨收 ${fmtPrice(prev)} · 现价 ${fmtPrice(last.price)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · 均价 ${fmtPrice(avg)} · 涨停 ${fmtPrice(prev * 1.1)} · 跌停 ${fmtPrice(prev * 0.9)}`
 })
 
+let themeObserver: MutationObserver | undefined
+
 onMounted(() => {
   load()
   startPolling()
+  themeObserver = new MutationObserver(() => draw())
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  })
 })
 
-onUnmounted(stopPolling)
+onUnmounted(() => {
+  stopPolling()
+  themeObserver?.disconnect()
+})
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -208,6 +228,7 @@ function draw() {
 }
 
 function drawKline(ctx: CanvasRenderingContext2D) {
+  const c = themeVars()
   const data = bars.value
   if (!data.length) return
   const padL = 8
@@ -237,8 +258,8 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     const b = data[i]
     const x = padL + step * i + step / 2
     const up = b.close >= b.open
-    ctx.strokeStyle = up ? UP : DOWN
-    ctx.fillStyle = up ? UP : DOWN
+    ctx.strokeStyle = up ? c.up : c.down
+    ctx.fillStyle = up ? c.up : c.down
     ctx.beginPath()
     ctx.moveTo(x, y(b.high))
     ctx.lineTo(x, y(b.low))
@@ -280,13 +301,14 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     ctx.stroke()
   }
 
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.font = '10px sans-serif'
   ctx.fillText(String(max.toFixed(2)), padL, padT + 8)
   ctx.fillText(String(min.toFixed(2)), padL, padT + priceH)
 }
 
 function drawMinute(ctx: CanvasRenderingContext2D) {
+  const c = themeVars()
   const data = minuteData.value?.bars ?? []
   if (!data.length) return
   const prev = minuteData.value?.prev_close ?? 0
@@ -336,7 +358,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   ctx.stroke()
 
   if (prev > 0) {
-    ctx.strokeStyle = '#bbb'
+    ctx.strokeStyle = c.line
     ctx.setLineDash([4, 4])
     ctx.beginPath()
     ctx.moveTo(padL, y(prev))
@@ -348,14 +370,14 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
     const downLimit = prev * 0.9
     ctx.setLineDash([3, 3])
     if (upLimit < max) {
-      ctx.strokeStyle = UP
+      ctx.strokeStyle = c.up
       ctx.beginPath()
       ctx.moveTo(padL, y(upLimit))
       ctx.lineTo(W - padR, y(upLimit))
       ctx.stroke()
     }
     if (downLimit > min) {
-      ctx.strokeStyle = DOWN
+      ctx.strokeStyle = c.down
       ctx.beginPath()
       ctx.moveTo(padL, y(downLimit))
       ctx.lineTo(W - padR, y(downLimit))
@@ -366,11 +388,11 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
 
   for (let i = 0; i < n; i++) {
     const b = data[i]
-    ctx.fillStyle = prev > 0 && b.price >= prev ? UP : DOWN
+    ctx.fillStyle = prev > 0 && b.price >= prev ? c.up : c.down
     ctx.fillRect(x(i) - 1, volY(b.volume), 2, H - padB - volY(b.volume))
   }
 
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.font = '10px sans-serif'
   ctx.fillText(String(max.toFixed(2)), padL, padT + 8)
   ctx.fillText(String(min.toFixed(2)), padL, padT + priceH)
