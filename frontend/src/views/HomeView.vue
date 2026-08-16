@@ -3,6 +3,17 @@
     <div v-if="accountStore.loading && !accountStore.account" class="empty">加载中...</div>
     <div v-else-if="accountStore.error" class="empty">{{ accountStore.error }}</div>
     <template v-else>
+      <div class="card clock-card">
+        <div class="clock-left">
+          <div class="clock-time">{{ clockTime }}</div>
+          <div class="muted">{{ clockDate }}</div>
+        </div>
+        <div class="clock-right">
+          <div class="clock-status" :class="{ trading: status.trading }">{{ status.label }}</div>
+          <div v-if="status.trading" class="muted">距收盘 {{ countdown }}</div>
+        </div>
+      </div>
+
       <AssetCard v-if="accountStore.account" :account="accountStore.account" />
 
       <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
@@ -52,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
@@ -68,6 +79,56 @@ const strategyStore = useStrategyStore()
 const router = useRouter()
 
 const activeId = ref<number | 'all'>('all')
+
+const now = ref(new Date())
+let clockTimer: number | undefined
+
+onMounted(() => {
+  refresh()
+  clockTimer = window.setInterval(() => {
+    now.value = new Date()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (clockTimer) window.clearInterval(clockTimer)
+})
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
+const clockTime = computed(() => {
+  const d = now.value
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map((x) => String(x).padStart(2, '0')).join(':')
+})
+
+const clockDate = computed(() => {
+  const d = now.value
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} 周${WEEKDAYS[d.getDay()]}`
+})
+
+const status = computed(() => {
+  const d = now.value
+  const day = d.getDay()
+  if (day === 0 || day === 6) return { label: '周末休市', trading: false }
+  const mins = d.getHours() * 60 + d.getMinutes()
+  if (mins < 570) return { label: '开盘前', trading: false }
+  if (mins < 690) return { label: '早盘交易中', trading: true }
+  if (mins < 780) return { label: '午间休市', trading: false }
+  if (mins < 900) return { label: '午后交易中', trading: true }
+  return { label: '已收盘', trading: false }
+})
+
+const countdown = computed(() => {
+  const d = now.value
+  const close = new Date(d)
+  close.setHours(15, 0, 0, 0)
+  let diff = close.getTime() - d.getTime()
+  if (diff < 0) diff = 0
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const s = Math.floor((diff % 60000) / 1000)
+  return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':')
+})
 
 onMounted(() => {
   refresh()
@@ -117,6 +178,38 @@ function openStock(p: { code: string; name: string }) {
 </script>
 
 <style scoped>
+.clock-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.clock-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.clock-time {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-right {
+  text-align: right;
+}
+
+.clock-status {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.clock-status.trading {
+  color: #e0393e;
+}
+
 .strategy-tabs {
   display: flex;
   gap: 8px;

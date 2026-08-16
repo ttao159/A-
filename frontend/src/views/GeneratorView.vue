@@ -106,9 +106,47 @@
           <span>回撤 <b>{{ recStrategy.metrics.max_drawdown_pct ?? '—' }}%</b></span>
           <span>胜率 <b>{{ recStrategy.metrics.win_rate_pct ?? '—' }}%</b></span>
         </div>
-        <div v-if="recStrategy.decision" class="muted" style="margin-top: 6px">
-          {{ recStrategy.decision.rating }} · {{ recStrategy.decision.risk_level }} · {{ recStrategy.decision.action }}
+        <div v-if="recStrategy.decision" class="gen-decision">
+          <div class="gen-decision-top">
+            <span class="gen-decision-rating">{{ recStrategy.decision.rating }}</span>
+            <span class="gen-decision-action" :class="actionClass(recStrategy.decision.action)">
+              {{ recStrategy.decision.action }}
+            </span>
+            <span class="muted">风险 {{ recStrategy.decision.risk_level }}</span>
+            <span class="muted">置信 {{ recStrategy.decision.confidence }}%</span>
+          </div>
+          <div class="gen-decision-summary">{{ recStrategy.decision.summary }}</div>
         </div>
+
+        <div v-if="genResult.agent_analysis" class="gen-agents">
+          <template v-if="genResult.agent_analysis.available && genResult.agent_analysis.opinions">
+            <div v-for="(v, k) in genResult.agent_analysis.opinions" :key="k" class="gen-agent">
+              <b>{{ k }}</b>{{ v }}
+            </div>
+            <div
+              v-if="genResult.agent_analysis.bull_case || genResult.agent_analysis.bear_case"
+              class="gen-debate"
+            >
+              <div class="gen-debate-bull"><b>看涨</b>{{ genResult.agent_analysis.bull_case || '—' }}</div>
+              <div class="gen-debate-bear"><b>看跌</b>{{ genResult.agent_analysis.bear_case || '—' }}</div>
+            </div>
+            <div
+              v-if="genResult.agent_analysis.target_price || genResult.agent_analysis.stop_loss || genResult.agent_analysis.position_suggestion"
+              class="gen-trade"
+            >
+              <span v-if="genResult.agent_analysis.target_price">目标价 ¥{{ genResult.agent_analysis.target_price }}</span>
+              <span v-if="genResult.agent_analysis.stop_loss">止损价 ¥{{ genResult.agent_analysis.stop_loss }}</span>
+              <span v-if="genResult.agent_analysis.position_suggestion">仓位 {{ genResult.agent_analysis.position_suggestion }}</span>
+            </div>
+            <div class="gen-agent-verdict">
+              综合结论：{{ genResult.agent_analysis.verdict || '—' }} · 建议 {{ genResult.agent_analysis.action || '—' }} · 置信 {{ genResult.agent_analysis.confidence ?? '—' }}%
+            </div>
+          </template>
+          <div v-else class="gen-agents-fallback">
+            {{ genResult.agent_analysis.verdict || '使用启发式分析结论' }}
+          </div>
+        </div>
+
         <button class="btn block" style="margin-top: 10px" @click="saveGenStrategy(recStrategy)">保存为策略</button>
       </div>
 
@@ -253,6 +291,12 @@ function fmtScanTime(s: string | null) {
 
 function cls(v: number | undefined) {
   return (v ?? 0) >= 0 ? 'up' : 'down'
+}
+
+function actionClass(a: string) {
+  if (a === '采用') return 'gen-action-use'
+  if (a === '弃用') return 'gen-action-drop'
+  return 'gen-action-watch'
 }
 
 function genHistoryText(req: Record<string, unknown>) {
@@ -464,5 +508,121 @@ async function saveGenStrategy(s: GenStrategy) {
   height: 28px;
   padding: 0 12px;
   font-size: 12px;
+}
+
+.gen-decision {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.gen-decision-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.gen-decision-rating {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 15px;
+}
+
+.gen-decision-action {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gen-action-use {
+  background: rgba(224, 57, 62, 0.1);
+  color: #e0393e;
+}
+
+.gen-action-drop {
+  background: rgba(10, 168, 105, 0.1);
+  color: #0aa869;
+}
+
+.gen-action-watch {
+  background: rgba(245, 166, 35, 0.12);
+  color: #d48806;
+}
+
+.gen-decision-summary {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-2, #606266);
+}
+
+.gen-agents {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.gen-agent {
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.gen-agent b {
+  margin-right: 8px;
+  color: var(--primary);
+}
+
+.gen-debate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.gen-debate-bull,
+.gen-debate-bear {
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.gen-debate-bull b {
+  color: #e0393e;
+  margin-right: 6px;
+}
+
+.gen-debate-bear b {
+  color: #0aa869;
+  margin-right: 6px;
+}
+
+.gen-trade {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.gen-trade b {
+  color: var(--text, #303133);
+}
+
+.gen-agent-verdict {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.gen-agents-fallback {
+  color: var(--text-2, #909399);
 }
 </style>

@@ -71,7 +71,14 @@ const stockMeta = computed(() => (mode.value === 'minute' ? '当日分时' : `${
 const legendText = computed(() => {
   const last = bars.value[bars.value.length - 1]
   if (!last) return ''
-  return `最新 ${fmtPrice(last.close)} · 最高 ${fmtPrice(last.high)} · 最低 ${fmtPrice(last.low)}`
+  const prev = bars.value[bars.value.length - 2]
+  const chg = prev ? ((last.close - prev.close) / prev.close) * 100 : 0
+  const ma = (p: number) => {
+    if (bars.value.length < p) return '—'
+    const s = bars.value.slice(-p).reduce((a, b) => a + b.close, 0)
+    return (s / p).toFixed(2)
+  }
+  return `最新 ${fmtPrice(last.close)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · MA5 ${ma(5)} · MA10 ${ma(10)} · MA20 ${ma(20)}`
 })
 
 onMounted(() => load())
@@ -152,6 +159,36 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     const bh = Math.max(1, bottom - top)
     ctx.fillRect(x - bodyW / 2, top, bodyW, bh)
     ctx.fillRect(x - bodyW / 2, volY(b.volume), bodyW, H - padB - volY(b.volume))
+  }
+
+  const maPeriods = [
+    { n: 5, color: '#f5a623' },
+    { n: 10, color: '#409eff' },
+    { n: 20, color: '#9254de' },
+  ]
+  for (const { n: period, color } of maPeriods) {
+    if (n < period) continue
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.1
+    ctx.beginPath()
+    let started = false
+    let sum = 0
+    for (let i = 0; i < n; i++) {
+      sum += data[i].close
+      if (i >= period - 1) {
+        const ma = sum / period
+        const px = padL + step * i + step / 2
+        const py = y(ma)
+        if (!started) {
+          ctx.moveTo(px, py)
+          started = true
+        } else {
+          ctx.lineTo(px, py)
+        }
+        sum -= data[i - period + 1].close
+      }
+    }
+    ctx.stroke()
   }
 
   ctx.fillStyle = '#909399'

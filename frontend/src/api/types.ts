@@ -148,12 +148,34 @@ export interface GenerationRequest {
   analysis_depth?: string
 }
 
+export interface GenDecision {
+  rating: string
+  risk_level: string
+  action: string
+  confidence: number
+  summary: string
+}
+
+export interface AgentAnalysis {
+  available: boolean
+  fallback?: string
+  verdict?: string
+  opinions?: Record<string, string>
+  bull_case?: string
+  bear_case?: string
+  target_price?: number
+  stop_loss?: number
+  position_suggestion?: string
+  action?: string
+  confidence?: number
+}
+
 export interface GenStrategy {
   index: number
   signals: { buy: string[]; sell: string[] }
   config: Record<string, unknown>
   metrics: BacktestMetrics
-  decision: Record<string, unknown>
+  decision: GenDecision
   equity_curve: EquityPoint[]
   trades: Record<string, unknown>[]
 }
@@ -164,7 +186,7 @@ export interface GenerationReport {
   strategies: GenStrategy[]
   ranking: { index: number; score: number }[]
   recommended_index: number
-  agent_analysis?: Record<string, unknown>
+  agent_analysis?: AgentAnalysis
 }
 
 export interface GenerationReportItem {
