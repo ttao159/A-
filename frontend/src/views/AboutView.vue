@@ -13,7 +13,7 @@
       <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新。</span></div>
       <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
-      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，并支持查看与删除。</span></div>
+      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，点击查看以弹窗展示结果，支持删除。</span></div>
       <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</span></div>
       <div class="guide-item"><b>扫描</b><span>一键全市场扫描，按策略信号自动交易；支持 AI 生成策略与多观点分析。</span></div>
       <div class="guide-item"><b>生成</b><span>按风险偏好一键生成策略组合，历史记录可按偏好筛选、查看与删除。</span></div>
@@ -59,6 +59,7 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">优化</span>历史回测查看改为弹窗展示，关闭后停留列表原位</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>回测页排版：快捷日期区间、核心指标突出、参数优化触控选择</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>回测历史查看与删除、生成历史分类筛选与删除</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>扫描历史详情、实盘扫描确认与下次扫描倒计时</div>
