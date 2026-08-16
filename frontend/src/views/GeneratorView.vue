@@ -19,28 +19,34 @@
 
     <div class="card">
       <div class="card-title">扫描统计</div>
-      <div class="stat-grid">
-        <div class="metric">
-          <div class="muted">累计扫描</div>
-          <div>{{ reports.stats.total_scans }}</div>
-        </div>
-        <div class="metric">
-          <div class="muted">累计买入</div>
-          <div class="up">{{ reports.stats.total_buys }}</div>
-        </div>
-        <div class="metric">
-          <div class="muted">累计卖出</div>
-          <div class="down">{{ reports.stats.total_sells }}</div>
-        </div>
-        <div class="metric">
-          <div class="muted">风控拦截</div>
-          <div>{{ reports.stats.total_rejects }}</div>
-        </div>
+      <Skeleton v-if="reportsLoading" :rows="2" />
+      <div v-else-if="reportsError" class="error-box">
+        {{ reportsError }}<br /><button class="retry-btn" @click="loadReports">重试</button>
       </div>
-      <div v-if="reports.scan_schedule" class="muted status-line">
-        策略引擎运行中 · 每交易日 {{ pad(reports.scan_schedule.hour) }}:{{ pad(reports.scan_schedule.minute) }} 自动扫描
-        · {{ reports.scan_schedule.broker_type === 'live' ? '实盘' : '模拟盘' }}
-      </div>
+      <template v-else>
+        <div class="stat-grid">
+          <div class="metric">
+            <div class="muted">累计扫描</div>
+            <div>{{ reports.stats.total_scans }}</div>
+          </div>
+          <div class="metric">
+            <div class="muted">累计买入</div>
+            <div class="up">{{ reports.stats.total_buys }}</div>
+          </div>
+          <div class="metric">
+            <div class="muted">累计卖出</div>
+            <div class="down">{{ reports.stats.total_sells }}</div>
+          </div>
+          <div class="metric">
+            <div class="muted">风控拦截</div>
+            <div>{{ reports.stats.total_rejects }}</div>
+          </div>
+        </div>
+        <div v-if="reports.scan_schedule" class="muted status-line">
+          策略引擎运行中 · 每交易日 {{ pad(reports.scan_schedule.hour) }}:{{ pad(reports.scan_schedule.minute) }} 自动扫描
+          · {{ reports.scan_schedule.broker_type === 'live' ? '实盘' : '模拟盘' }}
+        </div>
+      </template>
     </div>
 
     <div v-if="lastResult" class="card">
@@ -58,7 +64,10 @@
 
     <div class="card">
       <div class="card-title">扫描历史</div>
-      <div v-if="!reports.items.length" class="empty">暂无记录</div>
+      <div v-if="reportsError" class="error-box">
+        {{ reportsError }}<br /><button class="retry-btn" @click="loadReports">重试</button>
+      </div>
+      <div v-else-if="!reports.items.length" class="empty">暂无记录</div>
       <div v-for="r in visibleReports" :key="r.id" class="scan-item">
         <div class="scan-item-top">
           <span class="scan-time">{{ fmtDateTime(r.created_at) }}</span>
@@ -172,13 +181,23 @@
             {{ (s.decision && s.decision.rating) || '—' }} · 年化 {{ s.metrics.annual_return_pct ?? '-' }}% · 回撤 {{ s.metrics.max_drawdown_pct ?? '-' }}%
           </div>
         </div>
-        <button class="btn ghost" @click="saveGenStrategy(s)">保存</button>
+        <button
+          class="btn ghost"
+          :class="{ saved: savedIndexes.includes(s.index) }"
+          :disabled="savedIndexes.includes(s.index)"
+          @click="saveGenStrategy(s)"
+        >
+          {{ savedIndexes.includes(s.index) ? '已保存' : '保存' }}
+        </button>
       </div>
     </div>
 
     <div class="card">
       <div class="card-title">生成历史</div>
-      <div v-if="!genHistory.length" class="empty">暂无记录</div>
+      <div v-if="genHistoryError" class="error-box">
+        {{ genHistoryError }}<br /><button class="retry-btn" @click="loadGenHistory">重试</button>
+      </div>
+      <div v-else-if="!genHistory.length" class="empty">暂无记录</div>
       <div v-for="g in genHistory" :key="g.id" class="scan-item">
         <div class="scan-item-top">
           <span class="scan-time">{{ fmtDateTime(g.created_at) }}</span>
@@ -222,6 +241,7 @@ import { sigNames } from '../utils/signals'
 import { toast } from '../utils/toast'
 import { fmtDateTime, pnlClass } from '../utils/format'
 import { defaultDateRange } from '../utils/date'
+import Skeleton from '../components/Skeleton.vue'
 
 const strategyStore = useStrategyStore()
 
@@ -233,6 +253,10 @@ const reports = reactive<ScanReports>({ scan_schedule: undefined, stats: { total
 
 const SCAN_VISIBLE = 5
 const scanExpanded = ref(false)
+const reportsLoading = ref(true)
+const reportsError = ref('')
+const genHistoryError = ref('')
+const savedIndexes = ref<number[]>([])
 const visibleReports = computed(() =>
   scanExpanded.value ? reports.items : reports.items.slice(0, SCAN_VISIBLE),
 )
@@ -280,21 +304,26 @@ onMounted(() => {
 })
 
 async function loadReports() {
+  reportsLoading.value = true
+  reportsError.value = ''
   try {
     const r = await scanApi.reports()
     reports.scan_schedule = r.scan_schedule
     reports.stats = r.stats
     reports.items = r.items
   } catch (e) {
-    toast((e as Error).message)
+    if (!reports.items.length) reportsError.value = '扫描数据加载失败'
+  } finally {
+    reportsLoading.value = false
   }
 }
 
 async function loadGenHistory() {
+  genHistoryError.value = ''
   try {
     genHistory.value = await generatorApi.reports()
   } catch (e) {
-    // 历史加载失败不阻塞
+    if (!genHistory.value.length) genHistoryError.value = '生成历史加载失败'
   }
 }
 
@@ -427,6 +456,7 @@ async function saveGenStrategy(s: GenStrategy) {
       config: s.config as unknown as StrategyConfig,
     })
     genMsg.value = '已保存到策略列表'
+    if (!savedIndexes.value.includes(s.index)) savedIndexes.value = [...savedIndexes.value, s.index]
   } catch (e) {
     toast((e as Error).message)
   }
@@ -453,7 +483,7 @@ async function saveGenStrategy(s: GenStrategy) {
 
 .seg-tab {
   flex: 1;
-  min-height: 36px;
+  min-height: 44px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -461,6 +491,10 @@ async function saveGenStrategy(s: GenStrategy) {
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+}
+
+.seg-tab:active {
+  opacity: 0.7;
 }
 
 .seg-tab.active {
@@ -514,6 +548,7 @@ async function saveGenStrategy(s: GenStrategy) {
   background: var(--bg);
   border-radius: 10px;
   padding: 12px;
+  border: 1px solid var(--primary);
 }
 
 .gen-recommend-title {
@@ -537,9 +572,19 @@ async function saveGenStrategy(s: GenStrategy) {
 }
 
 .btn.small {
-  height: 28px;
-  padding: 0 12px;
+  height: 44px;
+  padding: 0 16px;
   font-size: 12px;
+}
+
+.btn.small:active {
+  opacity: 0.7;
+}
+
+.btn.saved {
+  background: var(--down);
+  color: #fff;
+  border-color: var(--down);
 }
 
 .gen-decision {
@@ -589,7 +634,7 @@ async function saveGenStrategy(s: GenStrategy) {
 .gen-decision-summary {
   margin-top: 6px;
   font-size: 13px;
-  color: var(--text-2, #606266);
+  color: var(--text-2);
 }
 
 .gen-agents {
@@ -644,7 +689,7 @@ async function saveGenStrategy(s: GenStrategy) {
 }
 
 .gen-trade b {
-  color: var(--text, #303133);
+  color: var(--text);
 }
 
 .gen-agent-verdict {
@@ -655,6 +700,6 @@ async function saveGenStrategy(s: GenStrategy) {
 }
 
 .gen-agents-fallback {
-  color: var(--text-2, #909399);
+  color: var(--text-2);
 }
 </style>

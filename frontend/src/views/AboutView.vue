@@ -4,22 +4,25 @@
       <div class="card-title">账户说明</div>
       <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
       <div class="info-row"><span>初始资金</span><b>{{ fmtMoney(accountStore.account?.initial_capital ?? 0) }}</b></div>
-      <div class="info-row"><span>扫描时间</span><b>交易日 15:05 收盘后</b></div>
+      <div class="info-row"><span>资金曲线</span><b>按日记录总资产</b></div>
+      <div class="info-row"><span>扫描时间</span><b>{{ schedule }}</b></div>
     </div>
 
     <div class="card">
       <div class="card-title">操作指南</div>
       <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新。</span></div>
+      <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
       <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，查看收益曲线、回撤与信号统计。</span></div>
-      <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持按状态筛选与搜索。</span></div>
-      <div class="guide-item"><b>扫描</b><span>一键全市场扫描，按策略信号自动交易并生成报告。</span></div>
+      <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</span></div>
+      <div class="guide-item"><b>扫描</b><span>一键全市场扫描，按策略信号自动交易；支持 AI 生成策略与多观点分析。</span></div>
     </div>
 
     <div class="card">
       <div class="card-title">数据来源</div>
       <div class="info-row"><span>股票列表</span><b>新浪财经公开接口</b></div>
       <div class="info-row"><span>日线 / 分时 / 实时</span><b>腾讯行情公开接口</b></div>
+      <div class="info-row"><span>策略生成</span><b>内置智能体推理</b></div>
       <div class="muted" style="margin-top: 8px; font-size: 12px">仅使用真实公开行情，不做合成数据。</div>
     </div>
 
@@ -52,7 +55,18 @@
     </div>
 
     <div class="card">
-      <div class="muted" style="font-size: 12px; line-height: 1.6">
+      <div class="card-title">版本信息</div>
+      <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
+      <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">新增</span>K线双指缩放、十字光标与均线显示开关</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>委托与成交分页加载、下单数字键盘</div>
+        <div class="changelog-item"><span class="changelog-tag">优化</span>全站暗色适配、图表高清与触控体验</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>AI 策略生成与智能体多观点分析</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="disclaimer">
         本系统仅供学习与技术演示，模拟盘不构成任何投资建议。实盘交易存在风险，接入前请谨慎评估并核实每笔委托。
       </div>
     </div>
@@ -60,10 +74,28 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useAccountStore } from '../stores/account'
+import { scanApi } from '../api'
 import { fmtMoney } from '../utils/format'
+import { version } from '../../package.json'
 
 const accountStore = useAccountStore()
+
+const schedule = ref('交易日 15:05 收盘后')
+onMounted(async () => {
+  try {
+    const r = await scanApi.reports()
+    const s = r.scan_schedule
+    if (s) {
+      const h = String(s.hour).padStart(2, '0')
+      const m = String(s.minute).padStart(2, '0')
+      schedule.value = `每交易日 ${h}:${m} 自动扫描`
+    }
+  } catch {
+    // 调度信息加载失败时保留默认文案
+  }
+})
 </script>
 
 <style scoped>
@@ -94,11 +126,44 @@ const accountStore = useAccountStore()
 }
 
 .guide-item b {
-  flex: 0 0 56px;
+  flex: 0 0 48px;
   font-weight: 600;
 }
 
 .guide-item span {
   color: var(--text-2);
+}
+
+.changelog {
+  margin-top: 8px;
+}
+
+.changelog-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.changelog-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--focus-ring);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.disclaimer {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>
