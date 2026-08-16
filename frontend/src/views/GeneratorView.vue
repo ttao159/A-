@@ -84,10 +84,61 @@
         <label>生成数量</label>
         <input v-model.number="genCount" type="number" min="1" max="10" />
       </div>
+      <div class="field">
+        <label>目标年化（%）</label>
+        <input v-model.number="genTarget" type="number" min="0" step="1" />
+      </div>
       <button class="btn block" :disabled="generating" @click="startGen">
         {{ generating ? '生成中...' : '生成策略' }}
       </button>
       <div v-if="genMsg" class="muted" style="margin-top: 8px">{{ genMsg }}</div>
+    </div>
+
+    <div v-if="genResult" class="card">
+      <div class="card-title">生成结果对比</div>
+      <div class="muted" style="font-size: 12px; margin-bottom: 8px">{{ genRequestText }}</div>
+
+      <div v-if="recStrategy" class="gen-recommend">
+        <div class="gen-recommend-title">推荐策略 #{{ recStrategy.index + 1 }}</div>
+        <div class="muted">{{ sigNames(recStrategy.signals) }}</div>
+        <div class="gen-recommend-metrics">
+          <span>年化 <b :class="cls(recStrategy.metrics.annual_return_pct)">{{ recStrategy.metrics.annual_return_pct ?? '—' }}%</b></span>
+          <span>回撤 <b>{{ recStrategy.metrics.max_drawdown_pct ?? '—' }}%</b></span>
+          <span>胜率 <b>{{ recStrategy.metrics.win_rate_pct ?? '—' }}%</b></span>
+        </div>
+        <div v-if="recStrategy.decision" class="muted" style="margin-top: 6px">
+          {{ recStrategy.decision.rating }} · {{ recStrategy.decision.risk_level }} · {{ recStrategy.decision.action }}
+        </div>
+        <button class="btn block" style="margin-top: 10px" @click="saveGenStrategy(recStrategy)">保存为策略</button>
+      </div>
+
+      <div class="card-title" style="font-size: 13px; margin-top: 12px">策略对比</div>
+      <div v-for="s in sortedStrategies" :key="s.index" class="cmp-row">
+        <div style="flex: 1">
+          <div style="font-weight: 500">
+            #{{ s.index + 1 }}{{ s.index === genResult.recommended_index ? ' ★推荐' : '' }}
+          </div>
+          <div class="muted" style="font-size: 12px">{{ sigNames(s.signals) }}</div>
+          <div class="muted" style="font-size: 12px">
+            {{ (s.decision && s.decision.rating) || '—' }} · 年化 {{ s.metrics.annual_return_pct ?? '-' }}% · 回撤 {{ s.metrics.max_drawdown_pct ?? '-' }}%
+          </div>
+        </div>
+        <button class="btn ghost" @click="saveGenStrategy(s)">保存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">生成历史</div>
+      <div v-if="!genHistory.length" class="empty">暂无记录</div>
+      <div v-for="g in genHistory" :key="g.id" class="scan-item">
+        <div class="scan-item-top">
+          <span class="scan-time">{{ fmtScanTime(g.created_at) }}</span>
+          <button class="btn ghost small" @click="viewReport(g.id)">查看</button>
+        </div>
+        <div class="scan-item-sub">
+          推荐第 {{ g.recommended_index + 1 }} 个 · {{ genHistoryText(g.request) }}
+        </div>
+      </div>
     </div>
 
     <div v-if="scanning || generating" class="scan-mask">
@@ -106,8 +157,20 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { generatorApi, scanApi } from '../api'
-import type { GenerationRequest, ScanReports, ScanResult } from '../api/types'
+import type {
+  GenerationReport,
+  GenerationReportItem,
+  GenerationRequest,
+  GenStrategy,
+  ScanReports,
+  ScanResult,
+  StrategyConfig,
+} from '../api/types'
 import type { StreamEvent } from '../api/http'
+import { useStrategyStore } from '../stores/strategy'
+import { sigNames } from '../utils/signals'
+
+const strategyStore = useStrategyStore()
 
 const scanning = ref(false)
 const generating = ref(false)
@@ -128,9 +191,38 @@ const elapsed = ref(0)
 
 const genRisk = ref('balanced')
 const genCount = ref(3)
+const genTarget = ref(15)
 const genMsg = ref('')
+const genResult = ref<GenerationReport | null>(null)
+const genHistory = ref<GenerationReportItem[]>([])
 
-onMounted(loadReports)
+const RISK_LABELS: Record<string, string> = { conservative: '保守', balanced: '均衡', aggressive: '激进' }
+
+const sortedStrategies = computed(() =>
+  (genResult.value?.strategies ?? []).slice().sort((a, b) => a.index - b.index),
+)
+
+const recStrategy = computed(() => {
+  const rec = genResult.value?.recommended_index
+  if (rec == null) return null
+  return genResult.value?.strategies.find((s) => s.index === rec) ?? null
+})
+
+const genRequestText = computed(() => {
+  const req = genResult.value?.request as Record<string, unknown> | undefined
+  if (!req) return ''
+  const targets = (req.targets ?? {}) as Record<string, unknown>
+  const scope = targets.scope
+  const codes = Array.isArray(targets.codes) ? (targets.codes as string[]).join(',') : ''
+  const scopeText = scope === 'market' ? '全市场' : scope === 'single' ? `单只 ${codes}` : `自定义 ${codes}`
+  const risk = RISK_LABELS[String(req.risk_profile ?? 'balanced')] ?? req.risk_profile
+  return `${scopeText} · ${req.start_date} ~ ${req.end_date} · ${risk} · 目标年化 ${req.target_annual_return ?? 0}%`
+})
+
+onMounted(() => {
+  loadReports()
+  loadGenHistory()
+})
 
 async function loadReports() {
   try {
@@ -143,12 +235,31 @@ async function loadReports() {
   }
 }
 
+async function loadGenHistory() {
+  try {
+    genHistory.value = await generatorApi.reports()
+  } catch (e) {
+    // 历史加载失败不阻塞
+  }
+}
+
 function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
 function fmtScanTime(s: string | null) {
   return (s ?? '').slice(5, 16).replace('T', ' ')
+}
+
+function cls(v: number | undefined) {
+  return (v ?? 0) >= 0 ? 'up' : 'down'
+}
+
+function genHistoryText(req: Record<string, unknown>) {
+  const targets = (req.targets ?? {}) as Record<string, unknown>
+  const scope = targets.scope
+  const risk = RISK_LABELS[String(req.risk_profile ?? 'balanced')] ?? req.risk_profile
+  return `${scope === 'market' ? '全市场' : '指定标的'} · ${risk}`
 }
 
 function handleEvent(e: StreamEvent) {
@@ -162,6 +273,23 @@ function handleEvent(e: StreamEvent) {
     if (report) lastResult.value = report
   } else if (e.type === 'error') {
     alert(String(e.detail ?? '扫描失败'))
+  }
+}
+
+function handleGenEvent(e: StreamEvent) {
+  if (e.type === 'progress') {
+    progressMsg.value = String(e.message ?? '')
+    progressDone.value = Number(e.done ?? 0)
+    progressTotal.value = Number(e.total ?? 0)
+    pct.value = progressTotal.value ? Math.round((progressDone.value / progressTotal.value) * 100) : 0
+  } else if (e.type === 'result') {
+    const report = e.report as GenerationReport
+    if (report) {
+      genResult.value = report
+      genMsg.value = `已生成 ${report.strategies.length} 个候选策略，推荐第 ${(report.recommended_index ?? 0) + 1} 个`
+    }
+  } else if (e.type === 'error') {
+    alert(String(e.detail ?? '生成失败'))
   }
 }
 
@@ -200,24 +328,54 @@ function yearRange() {
 async function startGen() {
   generating.value = true
   genMsg.value = ''
+  genResult.value = null
   progressMsg.value = '生成策略中...'
+  progressDone.value = 0
+  progressTotal.value = 0
+  pct.value = 0
+  elapsed.value = 0
+  const start = Date.now()
+  const timer = window.setInterval(() => {
+    elapsed.value = Math.round((Date.now() - start) / 1000)
+  }, 1000)
   try {
     const req: GenerationRequest = {
       targets: { scope: 'market', codes: [] },
       ...yearRange(),
       risk_profile: genRisk.value,
       count: genCount.value,
-      target_annual_return: 0,
+      target_annual_return: genTarget.value,
       analysis_depth: 'standard',
     }
-    const result = await generatorApi.run(req)
-    const rec = Number(result.recommended_index ?? -1)
-    const n = Array.isArray(result.candidates) ? result.candidates.length : 0
-    genMsg.value = `已生成 ${n} 个候选策略，推荐第 ${rec + 1} 个`
+    await generatorApi.stream(req, handleGenEvent)
+    await loadGenHistory()
   } catch (e) {
     alert((e as Error).message)
   } finally {
+    window.clearInterval(timer)
     generating.value = false
+  }
+}
+
+async function viewReport(gid: number) {
+  try {
+    genResult.value = await generatorApi.report(gid)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function saveGenStrategy(s: GenStrategy) {
+  try {
+    await strategyStore.create({
+      name: `AI生成策略 #${s.index + 1} ${sigNames(s.signals).split(' / ')[0]}`,
+      enabled: true,
+      initial_capital: 1000000,
+      config: s.config as unknown as StrategyConfig,
+    })
+    genMsg.value = '已保存到策略列表'
+  } catch (e) {
+    alert((e as Error).message)
   }
 }
 </script>
@@ -273,6 +431,38 @@ async function startGen() {
 .scan-item-sub {
   margin-top: 2px;
   color: var(--text-2);
+  font-size: 12px;
+}
+
+.gen-recommend {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.gen-recommend-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.gen-recommend-metrics {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.btn.small {
+  height: 28px;
+  padding: 0 12px;
   font-size: 12px;
 }
 </style>

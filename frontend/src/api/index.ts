@@ -1,7 +1,10 @@
 import { http, streamNDJSON, type StreamEvent } from './http'
 import type {
   Account,
+  BacktestListItem,
   BacktestResult,
+  GenerationReport,
+  GenerationReportItem,
   GenerationRequest,
   Order,
   OrderPrepareInput,
@@ -25,6 +28,17 @@ export interface Bar {
 export interface Stock {
   code: string
   name: string
+}
+
+export interface MinuteBar {
+  time: string
+  price: number
+  volume: number
+}
+
+export interface MinuteData {
+  prev_close: number
+  bars: MinuteBar[]
 }
 
 export const accountApi = {
@@ -57,24 +71,23 @@ export const scanApi = {
 export const backtestApi = {
   run: (sid: number, start: string, end: string) =>
     http.post<BacktestResult>(`/strategies/${sid}/backtest`, { start_date: start, end_date: end }),
-  list: (sid: number) =>
-    http.get<Omit<BacktestResult, 'equity_curve' | 'trades' | 'signal_stats'>[]>(
-      `/strategies/${sid}/backtests`,
-    ),
+  list: (sid: number) => http.get<BacktestListItem[]>(`/strategies/${sid}/backtests`),
   get: (sid: number, bid: number) => http.get<BacktestResult>(`/strategies/${sid}/backtests/${bid}`),
 }
 
 export const generatorApi = {
-  run: (req: GenerationRequest) => http.post<Record<string, unknown>>('/generator/run', req),
+  run: (req: GenerationRequest) => http.post<GenerationReport>('/generator/run', req),
   stream: (req: GenerationRequest, onEvent: (e: StreamEvent) => void) =>
     streamNDJSON('/generator/run/stream', req, onEvent),
-  reports: () => http.get<Record<string, unknown>[]>('/generator/reports'),
-  report: (gid: number) => http.get<Record<string, unknown>>(`/generator/reports/${gid}`),
+  reports: () => http.get<GenerationReportItem[]>('/generator/reports'),
+  report: (gid: number) => http.get<GenerationReport>(`/generator/reports/${gid}`),
 }
 
 export const stockApi = {
   list: () => http.get<Stock[]>('/stocks'),
-  bars: (code: string, days = 90) => http.get<Bar[]>(`/stocks/${code}/bars?days=${days}`),
+  bars: (code: string, days = 90, period = 'day') =>
+    http.get<Bar[]>(`/stocks/${code}/bars?days=${days}&period=${period}`),
+  minute: (code: string) => http.get<MinuteData>(`/stocks/${code}/minute`),
 }
 
 export const orderApi = {

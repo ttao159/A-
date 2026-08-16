@@ -38,7 +38,11 @@
         </div>
       </div>
 
-      <PositionList :positions="filteredPositions" />
+      <PositionList
+        :positions="filteredPositions"
+        @open-strategy="openStrategy"
+        @open-stock="openStock"
+      />
 
       <div class="card">
         <button class="btn ghost block" @click="onReset">重置模拟账户</button>
@@ -49,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
 import { useAccountStore } from '../stores/account'
@@ -60,6 +65,7 @@ import { fmtMoney, fmtPct } from '../utils/format'
 const accountStore = useAccountStore()
 const positionStore = usePositionStore()
 const strategyStore = useStrategyStore()
+const router = useRouter()
 
 const activeId = ref<number | 'all'>('all')
 
@@ -99,6 +105,14 @@ async function onReset() {
   if (!window.confirm('确认重置模拟账户？将清空持仓与交易记录，各策略资金恢复本金。')) return
   await accountStore.reset()
   positionStore.fetch()
+}
+
+function openStrategy(id: number) {
+  router.push({ path: '/strategy', query: { sid: String(id) } })
+}
+
+function openStock(p: { code: string; name: string }) {
+  router.push({ path: `/stock/${p.code}`, query: { name: p.name } })
 }
 </script>
 

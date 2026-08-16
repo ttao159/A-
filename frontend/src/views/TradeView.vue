@@ -38,8 +38,19 @@
       <div class="card-title">{{ tab === 'trades' ? '成交记录' : '委托记录' }}</div>
 
       <template v-if="tab === 'trades'">
-        <div v-if="!tradeStore.trades.length" class="empty">暂无成交</div>
-        <div v-for="t in tradeStore.trades" :key="'t' + t.id" class="list-item">
+        <div class="filter-row">
+          <button
+            v-for="f in tradeFilters"
+            :key="f.key"
+            class="filter-btn"
+            :class="{ active: tradeFilter === f.key }"
+            @click="tradeFilter = f.key"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+        <div v-if="!filteredTrades.length" class="empty">暂无成交</div>
+        <div v-for="t in filteredTrades" :key="'t' + t.id" class="list-item">
           <div style="flex: 1">
             <div style="font-weight: 500">
               {{ t.name }} <span class="muted">{{ t.code }}</span>
@@ -90,6 +101,18 @@ import { fmtMoney, fmtPrice } from '../utils/format'
 const tradeStore = useTradeStore()
 const tab = ref<'trades' | 'orders'>('trades')
 const showOrder = ref(false)
+const tradeFilter = ref<'all' | 'buy' | 'sell'>('all')
+
+const tradeFilters = [
+  { key: 'all', label: '全部' },
+  { key: 'buy', label: '买入' },
+  { key: 'sell', label: '卖出' },
+] as const
+
+const filteredTrades = computed(() => {
+  if (tradeFilter.value === 'all') return tradeStore.trades
+  return tradeStore.trades.filter((t) => t.direction === tradeFilter.value)
+})
 
 const tradeStats = computed(() => {
   const trades = tradeStore.trades
@@ -116,6 +139,28 @@ function setTab(t: 'trades' | 'orders') {
 </script>
 
 <style scoped>
+.filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filter-btn {
+  flex: 1;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.filter-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

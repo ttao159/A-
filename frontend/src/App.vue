@@ -55,6 +55,7 @@ const tabs = [
   { path: '/backtest', icon: '测', label: '回测' },
   { path: '/trade', icon: '交', label: '交易' },
   { path: '/generator', icon: '生', label: '扫描' },
+  { path: '/about', icon: '说', label: '说明' },
 ]
 
 const title = computed(() => {

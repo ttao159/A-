@@ -7,7 +7,7 @@
     <div v-if="strategyStore.loading && !strategyStore.strategies.length" class="empty">加载中...</div>
     <div v-else-if="!strategyStore.strategies.length" class="empty">暂无策略，点击上方新建</div>
 
-    <div v-for="s in strategyStore.strategies" :key="s.id" class="card">
+    <div v-for="s in strategyStore.strategies" :key="s.id" class="card" :class="{ highlighted: s.id === highlightId }">
       <div class="row">
         <div>
           <div style="font-weight: 500">{{ s.name }}</div>
@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
@@ -44,11 +44,16 @@ import { fmtMoney } from '../utils/format'
 
 const strategyStore = useStrategyStore()
 const router = useRouter()
+const route = useRoute()
 
 const editing = ref(false)
 const current = ref<Strategy | null>(null)
+const highlightId = ref<number | null>(null)
 
-onMounted(() => strategyStore.fetch())
+onMounted(() => {
+  if (route.query.sid) highlightId.value = Number(route.query.sid)
+  strategyStore.fetch()
+})
 usePullRefresh(() => strategyStore.fetch())
 
 function startCreate() {
@@ -83,3 +88,10 @@ function goBacktest(s: Strategy) {
   router.push({ path: '/backtest', query: { sid: String(s.id) } })
 }
 </script>
+
+<style scoped>
+.highlighted {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+</style>

@@ -28,6 +28,16 @@ const router = createRouter({
       name: 'generator',
       component: () => import('../views/GeneratorView.vue'),
     },
+    {
+      path: '/about',
+      name: 'about',
+      component: () => import('../views/AboutView.vue'),
+    },
+    {
+      path: '/stock/:code',
+      name: 'stock',
+      component: () => import('../views/StockDetail.vue'),
+    },
   ],
 })
 

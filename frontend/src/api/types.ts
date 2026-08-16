@@ -99,6 +99,15 @@ export interface BacktestResult {
   signal_stats?: Record<string, unknown>
 }
 
+export interface BacktestListItem {
+  id: number
+  strategy_id: number
+  start_date: string
+  end_date: string
+  metrics: BacktestMetrics
+  created_at: string | null
+}
+
 export interface ScanStats {
   total_scans: number
   total_buys: number
@@ -137,6 +146,32 @@ export interface GenerationRequest {
   count: number
   target_annual_return?: number
   analysis_depth?: string
+}
+
+export interface GenStrategy {
+  index: number
+  signals: { buy: string[]; sell: string[] }
+  config: Record<string, unknown>
+  metrics: BacktestMetrics
+  decision: Record<string, unknown>
+  equity_curve: EquityPoint[]
+  trades: Record<string, unknown>[]
+}
+
+export interface GenerationReport {
+  id?: number
+  request: Record<string, unknown>
+  strategies: GenStrategy[]
+  ranking: { index: number; score: number }[]
+  recommended_index: number
+  agent_analysis?: Record<string, unknown>
+}
+
+export interface GenerationReportItem {
+  id: number
+  created_at: string | null
+  recommended_index: number
+  request: Record<string, unknown>
 }
 
 export interface OrderPrepareInput {
