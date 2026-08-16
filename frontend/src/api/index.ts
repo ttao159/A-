@@ -120,6 +120,7 @@ export const backtestApi = {
     http.post<BacktestResult>(`/strategies/${sid}/backtest`, { start_date: start, end_date: end }),
   list: (sid: number) => http.get<BacktestListItem[]>(`/strategies/${sid}/backtests`),
   get: (sid: number, bid: number) => http.get<BacktestResult>(`/strategies/${sid}/backtests/${bid}`),
+  remove: (sid: number, bid: number) => http.del(`/strategies/${sid}/backtests/${bid}`),
 }
 
 export const optimizeApi = {

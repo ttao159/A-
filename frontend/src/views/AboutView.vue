@@ -13,9 +13,10 @@
       <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新。</span></div>
       <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
-      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，查看收益曲线、回撤与信号统计。</span></div>
+      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，查看收益曲线、回撤与信号统计；历史回测可查看详情与删除。</span></div>
       <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</span></div>
       <div class="guide-item"><b>扫描</b><span>一键全市场扫描，按策略信号自动交易；支持 AI 生成策略与多观点分析。</span></div>
+      <div class="guide-item"><b>生成</b><span>按风险偏好一键生成策略组合，历史记录可按偏好筛选、查看与删除。</span></div>
     </div>
 
     <div class="card">
@@ -58,6 +59,8 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">新增</span>回测历史查看与删除、生成历史分类筛选与删除</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>扫描历史详情、实盘扫描确认与下次扫描倒计时</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>K线双指缩放、十字光标与均线显示开关</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>委托与成交分页加载、下单数字键盘</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>全站暗色适配、图表高清与触控体验</div>

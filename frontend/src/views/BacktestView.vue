@@ -24,7 +24,7 @@
       </button>
     </div>
 
-    <div v-if="result" class="card">
+    <div v-if="result" ref="resultCard" class="card">
       <div class="card-title">回测结果</div>
       <div class="metric-grid">
         <div class="metric">
@@ -167,14 +167,17 @@
             · 胜率 {{ fmtPct(h.metrics.win_rate_pct) }}
           </div>
         </div>
-        <button class="btn ghost small" @click="viewHistory(h.id)">查看</button>
+        <button class="btn ghost small" :disabled="viewingId === h.id" @click="viewHistory(h.id)">
+          {{ viewingId === h.id ? '加载中...' : '查看' }}
+        </button>
+        <button class="btn ghost small del" @click="removeBacktest(h)">删除</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import EquityChart from '../components/EquityChart.vue'
 import TradeMarkKline from '../components/TradeMarkKline.vue'
@@ -185,6 +188,7 @@ import { useStrategyStore } from '../stores/strategy'
 import { fmtPct, pnlClass } from '../utils/format'
 import { todayStr, yearAgoStr } from '../utils/date'
 import { toast } from '../utils/toast'
+import { confirmDialog } from '../utils/confirm'
 import { SELL_LABELS } from '../utils/signals'
 
 const strategyStore = useStrategyStore()
@@ -196,6 +200,8 @@ const endDate = ref(todayStr())
 const loading = ref(false)
 const result = ref<BacktestResult | null>(null)
 const history = ref<BacktestListItem[]>([])
+const viewingId = ref<number | null>(null)
+const resultCard = ref<HTMLElement | null>(null)
 
 const OPTIMIZE_DIMS = [
   { key: 'buy.maCross.shortPeriod', label: '均线短周期', values: [5, 10, 15] },
@@ -321,13 +327,34 @@ async function loadHistory() {
 
 async function viewHistory(bid: number) {
   if (!sid.value) return
-  loading.value = true
+  viewingId.value = bid
   try {
     result.value = await backtestApi.get(Number(sid.value), bid)
+    await nextTick()
+    resultCard.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (e) {
     toast((e as Error).message)
   } finally {
-    loading.value = false
+    viewingId.value = null
+  }
+}
+
+async function removeBacktest(h: BacktestListItem) {
+  if (!sid.value) return
+  const ok = await confirmDialog({
+    title: '删除回测',
+    message: `确定删除 ${h.start_date} ~ ${h.end_date} 的回测记录吗？此操作不可恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    await backtestApi.remove(Number(sid.value), h.id)
+    history.value = history.value.filter((x) => x.id !== h.id)
+    if (result.value?.id === h.id) result.value = null
+    toast('已删除')
+  } catch (e) {
+    toast((e as Error).message)
   }
 }
 
@@ -382,6 +409,11 @@ async function runOptimize() {
   height: 28px;
   padding: 0 12px;
   font-size: 12px;
+}
+
+.btn.small.del {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .signal-buy {

@@ -81,3 +81,11 @@ Entries discovered by the Agent during task execution should follow this format:
 - Instructions:
   - 本项目主要用于安卓手机交易，最终运行在安卓 App 上
   - 后续前端开发一切以适配手机安卓 App 为主：移动端尺寸、触摸交互、WebView/APK 打包兼容优先
+
+[页面优化后同步更新说明页]
+- Date: 2026-08-16
+- Context: User instructed after generator page optimization round
+- Category: Workflow & Collaboration
+- Instructions:
+  - 每次页面优化完成后，说明页（AboutView）需同步更新，反映最新的功能特性与交互变化
+  - 说明页更新与优化改动一起提交，避免说明文档与功能脱节

@@ -227,6 +227,17 @@ def get_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
     }
 
 
+@app.delete("/api/strategies/{sid}/backtests/{bid}")
+def delete_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
+    bt = db.query(Backtest).filter(Backtest.id == bid, Backtest.strategy_id == sid).first()
+    if not bt:
+        raise HTTPException(404, "回测不存在")
+    db.query(EquityPoint).filter(EquityPoint.backtest_id == bt.id).delete()
+    db.delete(bt)
+    db.commit()
+    return {"status": "deleted"}
+
+
 # ===== 参数优化 =====
 @app.post("/api/strategies/{sid}/optimize")
 def optimize_strategy(sid: int, body: OptimizeRequest, db: Session = Depends(get_db)):
