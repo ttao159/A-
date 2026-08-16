@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { stockApi } from '../api'
 import type { Bar, MinuteData, Stock } from '../api'
@@ -95,11 +95,16 @@ const legendText = computed(() => {
   return `最新 ${fmtPrice(last.close)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · MA5 ${ma(5)} · MA10 ${ma(10)} · MA20 ${ma(20)}`
 })
 
-onMounted(() => load())
+onMounted(() => {
+  load()
+  startPolling()
+})
 
-async function load() {
-  loading.value = true
-  error.value = ''
+onUnmounted(stopPolling)
+
+async function load(silent = false) {
+  if (!silent) loading.value = true
+  if (!silent) error.value = ''
   try {
     if (mode.value === 'minute') {
       minuteData.value = await stockApi.minute(code.value)
@@ -107,11 +112,33 @@ async function load() {
       bars.value = await stockApi.bars(code.value, mode.value === 'day' ? 120 : 120, mode.value)
     }
   } catch (e) {
-    error.value = (e as Error).message
+    if (!silent) error.value = (e as Error).message
   } finally {
     loading.value = false
     draw()
   }
+}
+
+function isTradingTime(): boolean {
+  const d = new Date()
+  const day = d.getDay()
+  if (day === 0 || day === 6) return false
+  const mins = d.getHours() * 60 + d.getMinutes()
+  return (mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)
+}
+
+let refreshTimer: number | undefined
+
+function startPolling() {
+  stopPolling()
+  refreshTimer = window.setInterval(() => {
+    if (isTradingTime() && !searching.value) load(true)
+  }, 15000)
+}
+
+function stopPolling() {
+  if (refreshTimer) window.clearInterval(refreshTimer)
+  refreshTimer = undefined
 }
 
 const searching = ref(false)

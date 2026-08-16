@@ -3,7 +3,7 @@
 from datetime import date, datetime
 
 from . import config, matching
-from .models import Account, Order, Position, Trade
+from .models import Account, AccountEquityPoint, Order, Position, Trade
 
 
 def check_risk(state: dict, config: dict, price: float, qty: int, prices: dict):
@@ -142,6 +142,27 @@ class AccountService:
         positions = db.query(Position).filter(Position.account_id == acct.id).all()
         trades = db.query(Trade).filter(Trade.account_id == acct.id).order_by(Trade.id.desc()).limit(50).all()
         return acct, positions, trades
+
+    def record_equity(self, db, acct, total: float):
+        """按日记录账户总资产，供资金曲线展示（同日覆盖）。"""
+        today = date.today().isoformat()
+        pt = db.query(AccountEquityPoint).filter_by(account_id=acct.id, date=today).first()
+        if pt:
+            pt.equity = round(total, 2)
+        else:
+            db.add(AccountEquityPoint(account_id=acct.id, date=today, equity=round(total, 2)))
+        db.commit()
+
+    def equity_curve(self, db, acct, limit: int = 60):
+        pts = (
+            db.query(AccountEquityPoint)
+            .filter(AccountEquityPoint.account_id == acct.id)
+            .order_by(AccountEquityPoint.date.desc())
+            .limit(limit)
+            .all()
+        )
+        pts = list(reversed(pts))
+        return [{"date": p.date, "equity": p.equity} for p in pts]
 
     def roll_daily(self, db):
         """每个新交易日开始时，将持仓持有天数 +1（用于 T+1 与持有天数信号）。"""

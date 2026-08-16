@@ -43,7 +43,13 @@ export interface MinuteData {
 
 export const accountApi = {
   get: () => http.get<Account>('/account'),
+  equity: () => http.get<AccountEquityPoint[]>('/account/equity'),
   reset: () => http.post<{ ok: boolean }>('/account/reset'),
+}
+
+export interface AccountEquityPoint {
+  date: string
+  equity: number
 }
 
 export const strategyApi = {

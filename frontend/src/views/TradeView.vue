@@ -32,12 +32,16 @@
           <div :class="tradeStats.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(tradeStats.pnl) }}</div>
         </div>
       </div>
+      <div class="stat-sub">
+        盈利 {{ tradeStats.wins }} 笔 · 亏损 {{ tradeStats.losses }} 笔 · 卖出胜率 {{ tradeStats.winRate }}%
+      </div>
     </div>
 
     <div class="card">
       <div class="card-title">{{ tab === 'trades' ? '成交记录' : '委托记录' }}</div>
 
       <template v-if="tab === 'trades'">
+        <input v-model="tradeSearch" class="search-input" placeholder="按代码或名称搜索" />
         <div class="filter-row">
           <button
             v-for="f in tradeFilters"
@@ -50,7 +54,7 @@
           </button>
         </div>
         <div v-if="!filteredTrades.length" class="empty">暂无成交</div>
-        <div v-for="t in filteredTrades" :key="'t' + t.id" class="list-item">
+        <div v-for="t in filteredTrades" :key="'t' + t.id" class="list-item trade-item" @click="toggleDetail(t.id)">
           <div style="flex: 1">
             <div style="font-weight: 500">
               {{ t.name }} <span class="muted">{{ t.code }}</span>
@@ -62,6 +66,11 @@
           <div style="text-align: right">
             <div :class="t.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(t.pnl) }}</div>
             <div class="muted">{{ (t.traded_at || '').slice(5, 16) }}</div>
+          </div>
+          <div v-if="expandedId === t.id" class="trade-detail">
+            <span>成交额 {{ fmtMoney(t.price * t.qty) }}</span>
+            <span>佣金 {{ fmtMoney(t.commission) }}</span>
+            <span>印花税 {{ fmtMoney(t.tax) }}</span>
           </div>
         </div>
       </template>
@@ -113,6 +122,8 @@ const tradeStore = useTradeStore()
 const tab = ref<'trades' | 'orders'>('trades')
 const showOrder = ref(false)
 const tradeFilter = ref<'all' | 'buy' | 'sell'>('all')
+const tradeSearch = ref('')
+const expandedId = ref<number | null>(null)
 
 const tradeFilters = [
   { key: 'all', label: '全部' },
@@ -134,19 +145,32 @@ const filteredOrders = computed(() => {
 })
 
 const filteredTrades = computed(() => {
-  if (tradeFilter.value === 'all') return tradeStore.trades
-  return tradeStore.trades.filter((t) => t.direction === tradeFilter.value)
+  let list = tradeStore.trades
+  if (tradeFilter.value !== 'all') list = list.filter((t) => t.direction === tradeFilter.value)
+  const q = tradeSearch.value.trim()
+  if (q) list = list.filter((t) => t.code.includes(q) || t.name.includes(q))
+  return list
 })
 
 const tradeStats = computed(() => {
   const trades = tradeStore.trades
+  const sells = trades.filter((t) => t.direction === 'sell')
+  const wins = sells.filter((t) => (t.pnl || 0) > 0).length
+  const losses = sells.filter((t) => (t.pnl || 0) < 0).length
   return {
     total: trades.length,
     buys: trades.filter((t) => t.direction === 'buy').length,
-    sells: trades.filter((t) => t.direction === 'sell').length,
+    sells: sells.length,
     pnl: trades.reduce((s, t) => s + (t.pnl || 0), 0),
+    wins,
+    losses,
+    winRate: sells.length ? Math.round((wins / sells.length) * 100) : 0,
   }
 })
+
+function toggleDetail(id: number) {
+  expandedId.value = expandedId.value === id ? null : id
+}
 
 onMounted(load)
 usePullRefresh(load)
@@ -202,5 +226,33 @@ function setTab(t: 'trades' | 'orders') {
   font-size: 15px;
   font-weight: 600;
   margin-top: 2px;
+}
+
+.stat-sub {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.search-input {
+  margin-bottom: 10px;
+  height: 38px;
+}
+
+.trade-item {
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+
+.trade-detail {
+  flex-basis: 100%;
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--text-2);
 }
 </style>

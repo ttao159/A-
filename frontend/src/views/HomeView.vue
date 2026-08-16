@@ -16,6 +16,11 @@
 
       <AssetCard v-if="accountStore.account" :account="accountStore.account" />
 
+      <EquityCurve
+        :points="accountStore.equity"
+        :baseline="accountStore.account?.initial_capital"
+      />
+
       <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
         <div class="strategy-tabs">
           <button class="strat-tab" :class="{ active: activeId === 'all' }" @click="activeId = 'all'">
@@ -68,6 +73,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
+import EquityCurve from '../components/EquityCurve.vue'
 import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
@@ -139,6 +145,7 @@ usePullRefresh(refresh)
 
 function refresh() {
   accountStore.fetch()
+  accountStore.fetchEquity()
   positionStore.fetch()
   strategyStore.fetch()
 }

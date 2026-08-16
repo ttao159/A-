@@ -296,6 +296,7 @@ def get_account(db: Session = Depends(get_db)):
     cash = sum(s.available_cash or 0.0 for s in strategies)
     capital = sum(s.initial_capital or 0.0 for s in strategies)
     total = cash + market_value
+    accounts.record_equity(db, acct, total)
     return {
         "broker_type": config.BROKER_TYPE,
         "initial_capital": round(capital, 2),
@@ -304,6 +305,13 @@ def get_account(db: Session = Depends(get_db)):
         "total_asset": round(total, 2),
         "total_pnl": round(total - capital, 2),
     }
+
+
+@app.get("/api/account/equity")
+def get_account_equity(db: Session = Depends(get_db)):
+    """账户历史总资产曲线（最近 60 个交易日）。"""
+    acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
+    return accounts.equity_curve(db, acct, limit=60)
 
 
 @app.get("/api/positions")

@@ -29,6 +29,17 @@ class Account(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AccountEquityPoint(Base):
+    __tablename__ = "account_equity"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    date = Column(String(20), nullable=False)
+    equity = Column(Float, nullable=False)
+
+    __table_args__ = (UniqueConstraint("account_id", "date", name="uq_account_equity"),)
+
+
 class Position(Base):
     __tablename__ = "positions"
 
