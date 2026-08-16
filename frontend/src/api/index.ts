@@ -102,3 +102,17 @@ export const orderApi = {
   confirm: (requestId: string) =>
     http.post<{ status: string; reason: string; order_id: number }>(`/orders/confirm/${requestId}`),
 }
+
+export interface Alert {
+  id: number
+  code: string
+  name: string
+  type: string
+  message: string
+  price: number
+  created_at: string | null
+}
+
+export const alertApi = {
+  list: () => http.get<Alert[]>('/alerts'),
+}

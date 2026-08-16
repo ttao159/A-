@@ -28,7 +28,7 @@
       <div v-else>
         <canvas ref="canvas" :width="W" :height="H" style="width: 100%; height: auto"></canvas>
         <div class="legend">
-          <span v-if="mode === 'minute'">分时走势（昨收 {{ fmtPrice(minuteData?.prev_close ?? 0) }}）</span>
+          <span v-if="mode === 'minute'">{{ minuteInfo }}</span>
           <span v-else>{{ legendText }}</span>
         </div>
       </div>
@@ -92,7 +92,19 @@ const legendText = computed(() => {
     const s = bars.value.slice(-p).reduce((a, b) => a + b.close, 0)
     return (s / p).toFixed(2)
   }
-  return `最新 ${fmtPrice(last.close)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · MA5 ${ma(5)} · MA10 ${ma(10)} · MA20 ${ma(20)}`
+  const limitUp = prev ? prev.close * 1.1 : 0
+  const limitDown = prev ? prev.close * 0.9 : 0
+  return `最新 ${fmtPrice(last.close)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · MA5 ${ma(5)} · MA10 ${ma(10)} · MA20 ${ma(20)} · 涨停 ${fmtPrice(limitUp)} · 跌停 ${fmtPrice(limitDown)}`
+})
+
+const minuteInfo = computed(() => {
+  const md = minuteData.value
+  if (!md || !md.bars.length) return '分时走势'
+  const prev = md.prev_close || 0
+  const last = md.bars[md.bars.length - 1]
+  const avg = md.bars.reduce((s, b) => s + b.price, 0) / md.bars.length
+  const chg = prev ? ((last.price - prev) / prev) * 100 : 0
+  return `昨收 ${fmtPrice(prev)} · 现价 ${fmtPrice(last.price)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · 均价 ${fmtPrice(avg)} · 涨停 ${fmtPrice(prev * 1.1)} · 跌停 ${fmtPrice(prev * 0.9)}`
 })
 
 onMounted(() => {
@@ -338,11 +350,30 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
     ctx.lineTo(W - padR, y(prev))
     ctx.stroke()
     ctx.setLineDash([])
+
+    const upLimit = prev * 1.1
+    const downLimit = prev * 0.9
+    ctx.setLineDash([3, 3])
+    if (upLimit < max) {
+      ctx.strokeStyle = UP
+      ctx.beginPath()
+      ctx.moveTo(padL, y(upLimit))
+      ctx.lineTo(W - padR, y(upLimit))
+      ctx.stroke()
+    }
+    if (downLimit > min) {
+      ctx.strokeStyle = DOWN
+      ctx.beginPath()
+      ctx.moveTo(padL, y(downLimit))
+      ctx.lineTo(W - padR, y(downLimit))
+      ctx.stroke()
+    }
+    ctx.setLineDash([])
   }
 
-  ctx.fillStyle = '#409eff'
   for (let i = 0; i < n; i++) {
     const b = data[i]
+    ctx.fillStyle = prev > 0 && b.price >= prev ? UP : DOWN
     ctx.fillRect(x(i) - 1, volY(b.volume), 2, H - padB - volY(b.volume))
   }
 

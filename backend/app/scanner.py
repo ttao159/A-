@@ -7,13 +7,20 @@ from datetime import date, timedelta
 from . import config, matching
 from .account import AccountService, check_risk
 from .broker import PaperBroker
-from .models import Position, ScanReport, Strategy
+from .models import Alert, Position, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
 LOOKBACK_DAYS = 120
 
 scan_lock = threading.Lock()
+
+RISK_ALERTS = {
+    "takeProfit": "止盈",
+    "stopLoss": "止损",
+    "trailingStop": "移动止盈回撤",
+    "maxSingleLoss": "单只最大亏损",
+}
 
 
 def _position_dict(p: Position) -> dict:
@@ -121,6 +128,12 @@ def scan_and_trade(db, market, accounts: AccountService = None, broker=None, sou
                             "code": code, "name": name, "price": round(price, 3),
                             "qty": p.qty, "reason": reason,
                         })
+                        if reason in RISK_ALERTS:
+                            db.add(Alert(
+                                account_id=acct.id, strategy_id=strategy.id, code=code, name=name,
+                                alert_type=reason, price=round(price, 3),
+                                message=f"{name}({code}) 触发{RISK_ALERTS[reason]}，现价 {round(price, 2)}",
+                            ))
                         # 卖出后同步组合状态，避免后续风控用过期数据
                         positions = db.query(Position).filter(
                             Position.account_id == acct.id, Position.strategy_id == strategy.id).all()

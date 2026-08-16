@@ -124,6 +124,20 @@ class ScanReport(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    strategy_id = Column(Integer, ForeignKey("strategies.id"), nullable=True)
+    code = Column(String(20), nullable=False)
+    name = Column(String(50), nullable=False)
+    alert_type = Column(String(30), nullable=False)
+    message = Column(String(200), nullable=False)
+    price = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class DailyBarCache(Base):
     __tablename__ = "daily_bar_cache"
 

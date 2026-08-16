@@ -54,6 +54,16 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-title">预警提醒</div>
+        <div v-if="!alerts.length" class="empty">暂无预警记录</div>
+        <div v-for="a in alerts" :key="a.id" class="alert-item">
+          <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
+          <span class="alert-msg">{{ a.message }}</span>
+          <span class="muted">{{ (a.created_at || '').slice(5, 16) }}</span>
+        </div>
+      </div>
+
       <PositionList
         :positions="filteredPositions"
         :strategies="strategyStore.strategies"
@@ -78,6 +88,8 @@ import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
+import { alertApi } from '../api'
+import type { Alert } from '../api'
 import { fmtMoney, fmtPct } from '../utils/format'
 
 const accountStore = useAccountStore()
@@ -86,6 +98,22 @@ const strategyStore = useStrategyStore()
 const router = useRouter()
 
 const activeId = ref<number | 'all'>('all')
+const alerts = ref<Alert[]>([])
+
+const ALERT_LABELS: Record<string, string> = {
+  takeProfit: '止盈',
+  stopLoss: '止损',
+  trailingStop: '移动止盈',
+  maxSingleLoss: '最大亏损',
+}
+
+function alertTypeLabel(type: string) {
+  return ALERT_LABELS[type] ?? type
+}
+
+function isProfitAlert(type: string) {
+  return type === 'takeProfit' || type === 'trailingStop'
+}
 
 const now = ref(new Date())
 let clockTimer: number | undefined
@@ -148,6 +176,15 @@ function refresh() {
   accountStore.fetchEquity()
   positionStore.fetch()
   strategyStore.fetch()
+  fetchAlerts()
+}
+
+async function fetchAlerts() {
+  try {
+    alerts.value = await alertApi.list()
+  } catch (e) {
+    // 预警列表加载失败不阻断账户页
+  }
 }
 
 const filteredPositions = computed(() => {
@@ -255,5 +292,31 @@ function openStock(p: { code: string; name: string }) {
   display: flex;
   gap: 16px;
   font-size: 14px;
+}
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+
+.alert-item:last-child {
+  border-bottom: none;
+}
+
+.alert-tag {
+  flex: 0 0 auto;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.alert-msg {
+  flex: 1;
 }
 </style>

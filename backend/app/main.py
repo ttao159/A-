@@ -21,7 +21,7 @@ from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
-from .models import Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy
+from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
 from .schemas import BacktestRequest, GeneratorRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
@@ -312,6 +312,21 @@ def get_account_equity(db: Session = Depends(get_db)):
     """账户历史总资产曲线（最近 60 个交易日）。"""
     acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
     return accounts.equity_curve(db, acct, limit=60)
+
+
+@app.get("/api/alerts")
+def get_alerts(db: Session = Depends(get_db)):
+    """预警提醒列表（最近 50 条）。"""
+    acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
+    alerts = db.query(Alert).filter(Alert.account_id == acct.id).order_by(Alert.id.desc()).limit(50).all()
+    return [
+        {
+            "id": a.id, "code": a.code, "name": a.name, "type": a.alert_type,
+            "message": a.message, "price": a.price,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in alerts
+    ]
 
 
 @app.get("/api/positions")
