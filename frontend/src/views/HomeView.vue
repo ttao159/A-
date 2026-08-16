@@ -35,8 +35,6 @@
 
       <DailyPnlCalendar />
 
-      <RiskPanel :strategies="strategyStore.strategies" :is-live="accountStore.isLive" />
-
       <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
         <div class="strategy-tabs">
           <button class="strat-tab" :class="{ active: activeId === 'all' }" @click="activeId = 'all'">
@@ -101,7 +99,6 @@ import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
 import DailyPnlCalendar from '../components/DailyPnlCalendar.vue'
-import RiskPanel from '../components/RiskPanel.vue'
 import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
