@@ -80,6 +80,43 @@
     </div>
 
     <div class="card">
+      <div class="card-title">参数优化</div>
+      <div class="opt-dims">
+        <label v-for="d in OPTIMIZE_DIMS" :key="d.key" class="opt-dim">
+          <input type="checkbox" :value="d.key" v-model="selectedDims" />
+          <span>{{ d.label }}（{{ d.values.join('/') }}）</span>
+        </label>
+      </div>
+      <button
+        class="btn block"
+        style="margin-top: 10px"
+        :disabled="optimizing || !selectedDims.length"
+        @click="runOptimize"
+      >
+        {{ optimizing ? `优化中 ${optimizeProgress}/${optimizeTotal}...` : '开始优化' }}
+      </button>
+      <div v-if="optimizeError" class="empty">{{ optimizeError }}</div>
+    </div>
+
+    <div v-if="optimizeResults.length" class="card">
+      <div class="card-title">优化结果（按累计收益降序）</div>
+      <div v-if="optimizeSample" class="muted" style="font-size: 12px; margin-bottom: 6px">{{ optimizeSample }}</div>
+      <div v-for="(r, i) in optimizeResults" :key="i" class="opt-row">
+        <div class="opt-rank">{{ i + 1 }}</div>
+        <div class="opt-params">
+          <div v-for="(v, k) in r.params" :key="k" class="opt-param">{{ dimLabel(k) }}={{ v }}</div>
+        </div>
+        <div class="opt-metrics">
+          <span :class="(r.metrics.total_return_pct ?? 0) >= 0 ? 'up' : 'down'">
+            {{ fmtPct(r.metrics.total_return_pct) }}
+          </span>
+          <span class="muted">回撤 {{ fmtPct(r.metrics.max_drawdown_pct) }}</span>
+          <span class="muted">胜率 {{ fmtPct(r.metrics.win_rate_pct) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">历史回测</div>
       <div v-if="!history.length" class="empty">暂无历史回测</div>
       <div v-for="h in history" :key="h.id" class="hist-row">
@@ -100,8 +137,8 @@
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import EquityChart from '../components/EquityChart.vue'
-import { backtestApi } from '../api'
-import type { BacktestListItem, BacktestResult } from '../api/types'
+import { backtestApi, optimizeApi } from '../api'
+import type { BacktestListItem, BacktestResult, OptimizeResultItem } from '../api/types'
 import { useStrategyStore } from '../stores/strategy'
 import { fmtPct } from '../utils/format'
 import { SELL_LABELS } from '../utils/signals'
@@ -115,6 +152,24 @@ const endDate = ref(today())
 const loading = ref(false)
 const result = ref<BacktestResult | null>(null)
 const history = ref<BacktestListItem[]>([])
+
+const OPTIMIZE_DIMS = [
+  { key: 'buy.maCross.shortPeriod', label: '均线短周期', values: [5, 10, 15] },
+  { key: 'buy.maCross.longPeriod', label: '均线长周期', values: [20, 30, 60] },
+  { key: 'buy.breakHigh.days', label: '突破天数', values: [10, 20, 30] },
+  { key: 'sell.takeProfit.percent', label: '止盈百分比', values: [5, 10, 15, 20] },
+  { key: 'sell.stopLoss.percent', label: '止损百分比', values: [3, 5, 8] },
+  { key: 'sell.trailingStop.drawdown', label: '移动止盈回撤', values: [5, 8, 12] },
+  { key: 'risk.maxPositionPercent', label: '单只最大仓位', values: [10, 15, 20, 25] },
+] as const
+
+const selectedDims = ref<string[]>([])
+const optimizing = ref(false)
+const optimizeProgress = ref(0)
+const optimizeTotal = ref(0)
+const optimizeError = ref('')
+const optimizeResults = ref<OptimizeResultItem[]>([])
+const optimizeSample = ref('')
 
 onMounted(async () => {
   await strategyStore.fetch()
@@ -190,6 +245,43 @@ async function viewHistory(bid: number) {
     loading.value = false
   }
 }
+
+function dimLabel(key: string) {
+  return OPTIMIZE_DIMS.find((d) => d.key === key)?.label ?? key
+}
+
+async function runOptimize() {
+  if (!sid.value || !selectedDims.value.length) return
+  optimizing.value = true
+  optimizeError.value = ''
+  optimizeResults.value = []
+  optimizeProgress.value = 0
+  optimizeTotal.value = 0
+  const grid: Record<string, unknown[]> = {}
+  for (const d of OPTIMIZE_DIMS) {
+    if (selectedDims.value.includes(d.key)) grid[d.key] = [...d.values]
+  }
+  try {
+    await optimizeApi.stream(Number(sid.value), startDate.value, endDate.value, grid, (e) => {
+      if (e.type === 'progress') {
+        optimizeProgress.value = Number(e.done ?? 0)
+        optimizeTotal.value = Number(e.total ?? 0)
+      } else if (e.type === 'result') {
+        optimizeResults.value = (e.results as OptimizeResultItem[]) ?? []
+        const sample = e.sample as { sampled_stocks?: number; total_stocks?: number } | undefined
+        if (sample && sample.total_stocks) {
+          optimizeSample.value = `基于 ${sample.sampled_stocks}/${sample.total_stocks} 只股票抽样`
+        }
+      } else if (e.type === 'error') {
+        optimizeError.value = String(e.detail ?? '优化失败')
+      }
+    })
+  } catch (err) {
+    optimizeError.value = (err as Error).message
+  } finally {
+    optimizing.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -241,5 +333,67 @@ async function viewHistory(bid: number) {
   font-size: 15px;
   font-weight: 600;
   margin-top: 2px;
+}
+
+.opt-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.opt-dim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.opt-dim input {
+  width: 16px;
+  height: 16px;
+}
+
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.opt-row:last-child {
+  border-bottom: none;
+}
+
+.opt-rank {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opt-params {
+  flex: 1;
+  min-width: 0;
+}
+
+.opt-param {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.opt-metrics {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 12px;
 }
 </style>

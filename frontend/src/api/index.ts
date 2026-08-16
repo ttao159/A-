@@ -100,6 +100,23 @@ export const backtestApi = {
   get: (sid: number, bid: number) => http.get<BacktestResult>(`/strategies/${sid}/backtests/${bid}`),
 }
 
+export const optimizeApi = {
+  stream: (
+    sid: number,
+    start: string,
+    end: string,
+    paramGrid: Record<string, unknown[]>,
+    onEvent: (e: StreamEvent) => void,
+    stockLimit = 200,
+  ) =>
+    streamNDJSON(`/strategies/${sid}/optimize/stream`, {
+      start_date: start,
+      end_date: end,
+      param_grid: paramGrid,
+      stock_limit: stockLimit,
+    }, onEvent),
+}
+
 export const generatorApi = {
   run: (req: GenerationRequest) => http.post<GenerationReport>('/generator/run', req),
   stream: (req: GenerationRequest, onEvent: (e: StreamEvent) => void) =>

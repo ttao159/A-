@@ -68,6 +68,13 @@ class BacktestRequest(BaseModel):
     end_date: str = Field(default="", description="YYYY-MM-DD，空则默认今天")
 
 
+class OptimizeRequest(BaseModel):
+    start_date: str = Field(default="", description="YYYY-MM-DD，空则默认近一年")
+    end_date: str = Field(default="", description="YYYY-MM-DD，空则默认今天")
+    param_grid: dict = Field(description="参数网格，键为点分路径，值为候选列表")
+    stock_limit: Optional[int] = Field(default=200, description="抽样股票数量，0 表示全市场")
+
+
 class TargetsInput(BaseModel):
     scope: str = Field(description="single/custom/market")
     codes: list[str] = Field(default_factory=list, description="股票代码列表")

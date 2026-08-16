@@ -108,6 +108,11 @@ export interface BacktestListItem {
   created_at: string | null
 }
 
+export interface OptimizeResultItem {
+  params: Record<string, unknown>
+  metrics: BacktestMetrics
+}
+
 export interface ScanStats {
   total_scans: number
   total_buys: number

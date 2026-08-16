@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from . import backtest, config
+from . import backtest, config, optimizer
 from .account import AccountService
 from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
@@ -24,7 +24,7 @@ from .market import MarketDataService
 from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
-from .schemas import BacktestRequest, GeneratorRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
+from .schemas import BacktestRequest, GeneratorRequest, OptimizeRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
 from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
@@ -180,6 +180,82 @@ def get_backtest(sid: int, bid: int, db: Session = Depends(get_db)):
         "metrics": json.loads(bt.metrics_json or "{}"),
         "equity_curve": [{"date": p.date, "equity": p.equity} for p in curve],
     }
+
+
+# ===== 参数优化 =====
+@app.post("/api/strategies/{sid}/optimize")
+def optimize_strategy(sid: int, body: OptimizeRequest, db: Session = Depends(get_db)):
+    """对策略参数网格搜索，返回按历史回测总收益降序的最优组合。"""
+    s = db.query(Strategy).filter(Strategy.id == sid).first()
+    if not s:
+        raise HTTPException(404, "策略不存在")
+    today = date.today()
+    end = body.end_date or today.isoformat()
+    start = body.start_date or (today - timedelta(days=365)).isoformat()
+    cfg = json.loads(s.config_json)
+    capital = s.initial_capital or config.DEFAULT_INITIAL_CAPITAL
+    try:
+        results, sample_info = optimizer.optimize(cfg, market, start, end, body.param_grid,
+                                                  initial_capital=capital,
+                                                  stock_limit=body.stock_limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
+    return {"strategy_id": s.id, "start_date": start, "end_date": end,
+            "sample": sample_info, "results": results}
+
+
+@app.post("/api/strategies/{sid}/optimize/stream")
+def optimize_strategy_stream(sid: int, body: OptimizeRequest):
+    """流式参数优化：NDJSON 逐行输出进度，末行输出完整优化结果。"""
+    db = SessionLocal()
+    try:
+        s = db.query(Strategy).filter(Strategy.id == sid).first()
+        if not s:
+            raise HTTPException(404, "策略不存在")
+        today = date.today()
+        end = body.end_date or today.isoformat()
+        start = body.start_date or (today - timedelta(days=365)).isoformat()
+        cfg = json.loads(s.config_json)
+        capital = s.initial_capital or config.DEFAULT_INITIAL_CAPITAL
+    finally:
+        db.close()
+
+    q = queue.Queue()
+
+    def progress(stage, message, done, total):
+        q.put({"type": "progress", "stage": stage, "message": message,
+               "done": done, "total": total})
+
+    def worker():
+        try:
+            results, sample_info = optimizer.optimize(cfg, market, start, end, body.param_grid,
+                                                      initial_capital=capital,
+                                                      stock_limit=body.stock_limit,
+                                                      progress=progress)
+            q.put({"type": "result", "results": results, "sample": sample_info})
+        except ValueError as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 400})
+        except DataUnavailableError as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 502})
+        except Exception as exc:
+            q.put({"type": "error", "detail": str(exc), "status": 500})
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def gen():
+        while True:
+            evt = q.get()
+            if evt["type"] == "error":
+                yield json.dumps(evt, ensure_ascii=False) + "\n"
+                break
+            if evt["type"] == "result":
+                yield json.dumps(evt, ensure_ascii=False) + "\n"
+                break
+            yield json.dumps(evt, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 # ===== 策略生成引擎 =====
