@@ -524,6 +524,11 @@ def list_scan_reports(db: Session = Depends(get_db)):
     ).one()
     items = db.query(ScanReport).order_by(ScanReport.id.desc()).limit(20).all()
     return {
+        "scan_schedule": {
+            "hour": config.SCAN_HOUR,
+            "minute": config.SCAN_MINUTE,
+            "broker_type": config.BROKER_TYPE,
+        },
         "stats": {
             "total_scans": total_scans,
             "total_buys": total_buys,

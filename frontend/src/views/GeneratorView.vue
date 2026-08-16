@@ -9,6 +9,32 @@
       </button>
     </div>
 
+    <div class="card">
+      <div class="card-title">扫描统计</div>
+      <div class="stat-grid">
+        <div class="metric">
+          <div class="muted">累计扫描</div>
+          <div>{{ reports.stats.total_scans }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">累计买入</div>
+          <div class="up">{{ reports.stats.total_buys }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">累计卖出</div>
+          <div class="down">{{ reports.stats.total_sells }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">风控拦截</div>
+          <div>{{ reports.stats.total_rejects }}</div>
+        </div>
+      </div>
+      <div v-if="reports.scan_schedule" class="muted status-line">
+        策略引擎运行中 · 每交易日 {{ pad(reports.scan_schedule.hour) }}:{{ pad(reports.scan_schedule.minute) }} 自动扫描
+        · {{ reports.scan_schedule.broker_type === 'live' ? '实盘' : '模拟盘' }}
+      </div>
+    </div>
+
     <div v-if="lastResult" class="card">
       <div class="card-title">最近扫描结果</div>
       <div class="row" style="gap: 8px">
@@ -76,7 +102,7 @@ import type { StreamEvent } from '../api/http'
 const scanning = ref(false)
 const generating = ref(false)
 const lastResult = ref<ScanResult | null>(null)
-const reports = reactive<ScanReports>({ stats: { total_scans: 0, total_buys: 0, total_sells: 0, total_rejects: 0 }, items: [] })
+const reports = reactive<ScanReports>({ scan_schedule: undefined, stats: { total_scans: 0, total_buys: 0, total_sells: 0, total_rejects: 0 }, items: [] })
 
 const progressMsg = ref('')
 const progressDone = ref(0)
@@ -92,11 +118,16 @@ onMounted(loadReports)
 async function loadReports() {
   try {
     const r = await scanApi.reports()
+    reports.scan_schedule = r.scan_schedule
     reports.stats = r.stats
     reports.items = r.items
   } catch (e) {
     alert((e as Error).message)
   }
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, '0')
 }
 
 function handleEvent(e: StreamEvent) {
@@ -167,5 +198,28 @@ async function startGen() {
 <style scoped>
 .stat b {
   color: var(--primary);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.metric {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.metric div:last-child {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.status-line {
+  margin-top: 10px;
 }
 </style>

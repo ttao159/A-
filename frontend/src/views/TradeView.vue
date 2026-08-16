@@ -13,6 +13,28 @@
     </div>
 
     <div class="card">
+      <div class="card-title">交易统计</div>
+      <div class="stat-grid">
+        <div class="metric">
+          <div class="muted">累计成交</div>
+          <div>{{ tradeStats.total }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">买入</div>
+          <div class="up">{{ tradeStats.buys }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">卖出</div>
+          <div class="down">{{ tradeStats.sells }}</div>
+        </div>
+        <div class="metric">
+          <div class="muted">已实现盈亏</div>
+          <div :class="tradeStats.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(tradeStats.pnl) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">{{ tab === 'trades' ? '成交记录' : '委托记录' }}</div>
 
       <template v-if="tab === 'trades'">
@@ -59,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import OrderPanel from '../components/OrderPanel.vue'
 import { useTradeStore } from '../stores/trade'
 import { usePullRefresh } from '../composables/pullRefresh'
@@ -68,6 +90,16 @@ import { fmtMoney, fmtPrice } from '../utils/format'
 const tradeStore = useTradeStore()
 const tab = ref<'trades' | 'orders'>('trades')
 const showOrder = ref(false)
+
+const tradeStats = computed(() => {
+  const trades = tradeStore.trades
+  return {
+    total: trades.length,
+    buys: trades.filter((t) => t.direction === 'buy').length,
+    sells: trades.filter((t) => t.direction === 'sell').length,
+    pnl: trades.reduce((s, t) => s + (t.pnl || 0), 0),
+  }
+})
 
 onMounted(load)
 usePullRefresh(load)
@@ -82,3 +114,24 @@ function setTab(t: 'trades' | 'orders') {
   load()
 }
 </script>
+
+<style scoped>
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.metric {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.metric div:last-child {
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+</style>

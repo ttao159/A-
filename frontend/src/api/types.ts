@@ -117,6 +117,7 @@ export interface ScanReportItem {
 }
 
 export interface ScanReports {
+  scan_schedule?: { hour: number; minute: number; broker_type: string }
   stats: ScanStats
   items: ScanReportItem[]
 }
