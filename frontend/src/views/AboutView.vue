@@ -13,7 +13,7 @@
       <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新。</span></div>
       <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
-      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可查看与删除。</span></div>
+      <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，并支持查看与删除。</span></div>
       <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</span></div>
       <div class="guide-item"><b>扫描</b><span>一键全市场扫描，按策略信号自动交易；支持 AI 生成策略与多观点分析。</span></div>
       <div class="guide-item"><b>生成</b><span>按风险偏好一键生成策略组合，历史记录可按偏好筛选、查看与删除。</span></div>

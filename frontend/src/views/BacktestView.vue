@@ -176,14 +176,34 @@
     </div>
 
     <div class="card">
-      <div class="card-title">历史回测</div>
-      <div v-if="!history.length" class="empty">暂无历史回测</div>
-      <div v-for="h in history" :key="h.id" class="hist-row">
+      <div class="hist-head">
+        <span class="card-title" style="margin: 0">历史回测</span>
+        <select v-model="histSort" class="sort-select">
+          <option value="time">最新优先</option>
+          <option value="return">收益优先</option>
+          <option value="winrate">胜率优先</option>
+          <option value="drawdown">回撤最小</option>
+        </select>
+      </div>
+      <div v-if="history.length" class="hist-filters">
+        <button
+          v-for="f in histFilters"
+          :key="f.key"
+          class="filter-btn"
+          :class="{ active: histFilter === f.key }"
+          @click="histFilter = f.key"
+        >
+          {{ f.label }}
+        </button>
+      </div>
+      <div v-if="!sortedHistory.length" class="empty">暂无历史回测</div>
+      <div v-for="h in sortedHistory" :key="h.id" class="hist-row">
         <div style="flex: 1">
           <div class="muted" style="font-size: 12px">{{ h.start_date }} ~ {{ h.end_date }}</div>
           <div style="font-size: 13px; margin-top: 2px">
             收益 <span :class="(h.metrics.total_return_pct ?? 0) >= 0 ? 'up' : 'down'">{{ fmtPct(h.metrics.total_return_pct) }}</span>
             · 胜率 {{ fmtPct(h.metrics.win_rate_pct) }}
+            · 回撤 {{ fmtPct(h.metrics.max_drawdown_pct) }}
           </div>
         </div>
         <button class="btn ghost small" :disabled="viewingId === h.id" @click="viewHistory(h.id)">
@@ -221,6 +241,41 @@ const result = ref<BacktestResult | null>(null)
 const history = ref<BacktestListItem[]>([])
 const viewingId = ref<number | null>(null)
 const resultCard = ref<HTMLElement | null>(null)
+
+const histFilter = ref<'all' | 'profit' | 'loss'>('all')
+const histSort = ref<'time' | 'return' | 'winrate' | 'drawdown'>('time')
+
+const histFilters = [
+  { key: 'all', label: '全部' },
+  { key: 'profit', label: '盈利' },
+  { key: 'loss', label: '亏损' },
+] as const
+
+const sortedHistory = computed(() => {
+  let list = history.value.filter((h) => {
+    const ret = h.metrics.total_return_pct ?? 0
+    if (histFilter.value === 'profit') return ret >= 0
+    if (histFilter.value === 'loss') return ret < 0
+    return true
+  })
+  const arr = [...list]
+  switch (histSort.value) {
+    case 'return':
+      arr.sort((a, b) => (b.metrics.total_return_pct ?? 0) - (a.metrics.total_return_pct ?? 0))
+      break
+    case 'winrate':
+      arr.sort((a, b) => (b.metrics.win_rate_pct ?? 0) - (a.metrics.win_rate_pct ?? 0))
+      break
+    case 'drawdown':
+      arr.sort((a, b) => (a.metrics.max_drawdown_pct ?? 0) - (b.metrics.max_drawdown_pct ?? 0))
+      break
+    case 'time':
+    default:
+      arr.sort((a, b) => b.id - a.id)
+      break
+  }
+  return arr
+})
 
 const QUICK_RANGES = [
   { label: '近1月', months: 1 },
@@ -437,6 +492,52 @@ async function runOptimize() {
 </script>
 
 <style scoped>
+.hist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sort-select {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.hist-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filter-btn {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filter-btn:active {
+  opacity: 0.7;
+}
+
+.filter-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .hist-row {
   display: flex;
   align-items: center;
