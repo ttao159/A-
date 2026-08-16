@@ -1,6 +1,6 @@
 # 需求实施计划
 
-- [ ] 1. 搭建前端工程与后端券商适配层骨架
+- [x] 1. 搭建前端工程与后端券商适配层骨架
    - 创建 frontend/ 目录，初始化 Vue 3 + Vite + TypeScript 工程
    - 配置 vite.config.ts 将 /api 反向代理至后端 8001 端口
    - 创建 backend/app/broker.py，定义 BrokerAdapter 抽象基类与 broker_type
