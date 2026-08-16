@@ -74,3 +74,10 @@ Entries discovered by the Agent during task execution should follow this format:
 - Context: User instructed on how recommendations/suggestions should be presented
 - Instructions:
   - 以后每一个建议都以对话选择方式呈现：需要给出建议、推荐或方案选择时，用 question 工具提供选项让用户选择，而不是直接输出建议文字
+
+[项目运行目标：安卓 App 优先]
+- Date: 2026-08-16
+- Context: User stated during trading terminal rebuild implementation
+- Instructions:
+  - 本项目主要用于安卓手机交易，最终运行在安卓 App 上
+  - 后续前端开发一切以适配手机安卓 App 为主：移动端尺寸、触摸交互、WebView/APK 打包兼容优先
