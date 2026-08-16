@@ -109,18 +109,18 @@ function warnOf(p: Position): { type: 'tp' | 'sl'; label: string } | null {
 }
 
 .tag-lock {
-  background: rgba(245, 166, 35, 0.15);
-  color: #d48806;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .tag-tp {
-  background: rgba(224, 57, 62, 0.12);
-  color: #e0393e;
+  background: var(--up-bg);
+  color: var(--up);
 }
 
 .tag-sl {
-  background: rgba(10, 168, 105, 0.12);
-  color: #0aa869;
+  background: var(--down-bg);
+  color: var(--down);
 }
 
 .pos-side {

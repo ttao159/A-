@@ -55,6 +55,7 @@ import { useRoute } from 'vue-router'
 import { stockApi } from '../api'
 import type { Bar, MinuteData, Stock } from '../api'
 import { fmtPrice } from '../utils/format'
+import { isTradingTime } from '../utils/date'
 
 const route = useRoute()
 const code = ref(String(route.params.code ?? ''))
@@ -129,14 +130,6 @@ async function load(silent = false) {
     loading.value = false
     draw()
   }
-}
-
-function isTradingTime(): boolean {
-  const d = new Date()
-  const day = d.getDay()
-  if (day === 0 || day === 6) return false
-  const mins = d.getHours() * 60 + d.getMinutes()
-  return (mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)
 }
 
 let refreshTimer: number | undefined

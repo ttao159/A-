@@ -29,13 +29,13 @@
       <div class="metric-grid">
         <div class="metric">
           <div class="muted">累计收益</div>
-          <div :class="val(result.metrics.total_return_pct)">
+          <div :class="pnlClass(result.metrics.total_return_pct)">
             {{ fmtPct(result.metrics.total_return_pct) }}
           </div>
         </div>
         <div class="metric">
           <div class="muted">年化收益</div>
-          <div :class="val(result.metrics.annual_return_pct)">
+          <div :class="pnlClass(result.metrics.annual_return_pct)">
             {{ fmtPct(result.metrics.annual_return_pct) }}
           </div>
         </div>
@@ -57,15 +57,15 @@
         </div>
         <div class="metric">
           <div class="muted">夏普比率</div>
-          <div :class="val(result.metrics.sharpe_ratio)">{{ result.metrics.sharpe_ratio?.toFixed(2) ?? '--' }}</div>
+          <div :class="pnlClass(result.metrics.sharpe_ratio)">{{ result.metrics.sharpe_ratio?.toFixed(2) ?? '--' }}</div>
         </div>
         <div class="metric">
           <div class="muted">卡玛比率</div>
-          <div :class="val(result.metrics.calmar_ratio)">{{ result.metrics.calmar_ratio?.toFixed(2) ?? '--' }}</div>
+          <div :class="pnlClass(result.metrics.calmar_ratio)">{{ result.metrics.calmar_ratio?.toFixed(2) ?? '--' }}</div>
         </div>
         <div class="metric">
           <div class="muted">索提诺比率</div>
-          <div :class="val(result.metrics.sortino_ratio)">{{ result.metrics.sortino_ratio?.toFixed(2) ?? '--' }}</div>
+          <div :class="pnlClass(result.metrics.sortino_ratio)">{{ result.metrics.sortino_ratio?.toFixed(2) ?? '--' }}</div>
         </div>
         <div class="metric">
           <div class="muted">年化波动率</div>
@@ -172,15 +172,17 @@ import { backtestApi, optimizeApi, stockApi } from '../api'
 import type { Bar } from '../api'
 import type { BacktestListItem, BacktestResult, OptimizeResultItem } from '../api/types'
 import { useStrategyStore } from '../stores/strategy'
-import { fmtPct } from '../utils/format'
+import { fmtPct, pnlClass } from '../utils/format'
+import { todayStr, yearAgoStr } from '../utils/date'
+import { toast } from '../utils/toast'
 import { SELL_LABELS } from '../utils/signals'
 
 const strategyStore = useStrategyStore()
 const route = useRoute()
 
 const sid = ref<number | string>('')
-const startDate = ref(defaultStart())
-const endDate = ref(today())
+const startDate = ref(yearAgoStr())
+const endDate = ref(todayStr())
 const loading = ref(false)
 const result = ref<BacktestResult | null>(null)
 const history = ref<BacktestListItem[]>([])
@@ -211,20 +213,6 @@ onMounted(async () => {
 })
 
 watch(sid, () => loadHistory())
-
-function today() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function defaultStart() {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - 1)
-  return d.toISOString().slice(0, 10)
-}
-
-function val(v: number | undefined) {
-  return (v ?? 0) >= 0 ? 'up' : 'down'
-}
 
 const signalStats = computed(() => {
   const ss = result.value?.signal_stats as { buy?: number; sell?: Record<string, number> } | undefined
@@ -291,7 +279,7 @@ async function run() {
     result.value = await backtestApi.run(Number(sid.value), startDate.value, endDate.value)
     loadHistory()
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     loading.value = false
   }
@@ -312,7 +300,7 @@ async function viewHistory(bid: number) {
   try {
     result.value = await backtestApi.get(Number(sid.value), bid)
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     loading.value = false
   }
@@ -392,19 +380,6 @@ async function runOptimize() {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-}
-
-.metric {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-}
-
-.metric div:last-child {
-  font-size: 15px;
-  font-weight: 600;
-  margin-top: 2px;
 }
 
 .opt-dims {

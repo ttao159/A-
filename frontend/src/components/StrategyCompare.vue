@@ -132,10 +132,10 @@ onMounted(async () => {
 }
 
 .fill-up {
-  background: #e0393e;
+  background: var(--up);
 }
 
 .fill-down {
-  background: #1e9c4d;
+  background: var(--down);
 }
 </style>

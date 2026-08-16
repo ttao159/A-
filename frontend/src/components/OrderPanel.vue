@@ -65,7 +65,7 @@
 
       <template v-else>
         <div class="result-box">
-          <div :class="resultOk ? 'down' : 'up'" style="font-size: 16px; font-weight: 600; margin-bottom: 8px">
+          <div :class="resultOk ? 'text-primary' : 'text-danger'" style="font-size: 16px; font-weight: 600; margin-bottom: 8px">
             {{ resultOk ? '下单成功' : '下单被拒绝' }}
           </div>
           <div class="muted">{{ resultMsg }}</div>
@@ -83,6 +83,7 @@ import type { OrderPrepareInput } from '../api/types'
 import { useAccountStore } from '../stores/account'
 import { useStrategyStore } from '../stores/strategy'
 import { fmtMoney, fmtPrice } from '../utils/format'
+import { toast } from '../utils/toast'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ close: []; done: [] }>()
@@ -141,7 +142,7 @@ function validate(): string {
 async function prepare() {
   const err = validate()
   if (err) {
-    alert(err)
+    toast(err)
     return
   }
   submitting.value = true
@@ -154,7 +155,7 @@ async function prepare() {
     order.qty = form.qty
     step.value = 'confirm'
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     submitting.value = false
   }
@@ -169,7 +170,7 @@ async function confirm() {
     step.value = 'result'
     emit('done')
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     submitting.value = false
   }

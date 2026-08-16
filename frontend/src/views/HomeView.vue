@@ -74,7 +74,7 @@
         <div v-for="a in alerts" :key="a.id" class="alert-item">
           <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
           <span class="alert-msg">{{ a.message }}</span>
-          <span class="muted">{{ (a.created_at || '').slice(5, 16) }}</span>
+          <span class="muted">{{ fmtDateTime(a.created_at) }}</span>
         </div>
       </div>
 
@@ -105,7 +105,8 @@ import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
 import { alertApi, indexApi } from '../api'
 import type { Alert, IndexQuote } from '../api'
-import { fmtMoney, fmtPct } from '../utils/format'
+import { fmtMoney, fmtPct, fmtDateTime } from '../utils/format'
+import { isTradingTime } from '../utils/date'
 
 const accountStore = useAccountStore()
 const positionStore = usePositionStore()
@@ -135,16 +136,21 @@ function isProfitAlert(type: string) {
 
 const now = ref(new Date())
 let clockTimer: number | undefined
+let pollTimer: number | undefined
 
 onMounted(() => {
   refresh()
   clockTimer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
+  pollTimer = window.setInterval(() => {
+    if (isTradingTime() && document.visibilityState === 'visible') refresh()
+  }, 30000)
 })
 
 onUnmounted(() => {
   if (clockTimer) window.clearInterval(clockTimer)
+  if (pollTimer) window.clearInterval(pollTimer)
 })
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -281,7 +287,7 @@ function openStock(p: { code: string; name: string }) {
 }
 
 .clock-status.trading {
-  color: #e0393e;
+  color: var(--up);
 }
 
 .strategy-tabs {

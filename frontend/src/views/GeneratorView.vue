@@ -53,7 +53,7 @@
       <div v-if="!reports.items.length" class="empty">暂无记录</div>
       <div v-for="r in visibleReports" :key="r.id" class="scan-item">
         <div class="scan-item-top">
-          <span class="scan-time">{{ fmtScanTime(r.created_at) }}</span>
+          <span class="scan-time">{{ fmtDateTime(r.created_at) }}</span>
           <span class="muted">
             买 <b class="up">{{ r.buy_count }}</b> · 卖 <b class="down">{{ r.sell_count }}</b> · 拒 <b>{{ r.reject_count }}</b>
           </span>
@@ -102,7 +102,7 @@
         <div class="gen-recommend-title">推荐策略 #{{ recStrategy.index + 1 }}</div>
         <div class="muted">{{ sigNames(recStrategy.signals) }}</div>
         <div class="gen-recommend-metrics">
-          <span>年化 <b :class="cls(recStrategy.metrics.annual_return_pct)">{{ recStrategy.metrics.annual_return_pct ?? '—' }}%</b></span>
+          <span>年化 <b :class="pnlClass(recStrategy.metrics.annual_return_pct)">{{ recStrategy.metrics.annual_return_pct ?? '—' }}%</b></span>
           <span>回撤 <b>{{ recStrategy.metrics.max_drawdown_pct ?? '—' }}%</b></span>
           <span>胜率 <b>{{ recStrategy.metrics.win_rate_pct ?? '—' }}%</b></span>
         </div>
@@ -170,7 +170,7 @@
       <div v-if="!genHistory.length" class="empty">暂无记录</div>
       <div v-for="g in genHistory" :key="g.id" class="scan-item">
         <div class="scan-item-top">
-          <span class="scan-time">{{ fmtScanTime(g.created_at) }}</span>
+          <span class="scan-time">{{ fmtDateTime(g.created_at) }}</span>
           <button class="btn ghost small" @click="viewReport(g.id)">查看</button>
         </div>
         <div class="scan-item-sub">
@@ -207,6 +207,9 @@ import type {
 import type { StreamEvent } from '../api/http'
 import { useStrategyStore } from '../stores/strategy'
 import { sigNames } from '../utils/signals'
+import { toast } from '../utils/toast'
+import { fmtDateTime, pnlClass } from '../utils/format'
+import { defaultDateRange } from '../utils/date'
 
 const strategyStore = useStrategyStore()
 
@@ -269,7 +272,7 @@ async function loadReports() {
     reports.stats = r.stats
     reports.items = r.items
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   }
 }
 
@@ -285,14 +288,6 @@ function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
-function fmtScanTime(s: string | null) {
-  return (s ?? '').slice(5, 16).replace('T', ' ')
-}
-
-function cls(v: number | undefined) {
-  return (v ?? 0) >= 0 ? 'up' : 'down'
-}
-
 function actionClass(a: string) {
   if (a === '采用') return 'gen-action-use'
   if (a === '弃用') return 'gen-action-drop'
@@ -306,26 +301,35 @@ function genHistoryText(req: Record<string, unknown>) {
   return `${scope === 'market' ? '全市场' : '指定标的'} · ${risk}`
 }
 
+function applyProgress(e: StreamEvent) {
+  progressMsg.value = String(e.message ?? '')
+  progressDone.value = Number(e.done ?? 0)
+  progressTotal.value = Number(e.total ?? 0)
+  pct.value = progressTotal.value ? Math.round((progressDone.value / progressTotal.value) * 100) : 0
+}
+
+function beginElapsed(): number {
+  elapsed.value = 0
+  const start = Date.now()
+  return window.setInterval(() => {
+    elapsed.value = Math.round((Date.now() - start) / 1000)
+  }, 1000)
+}
+
 function handleEvent(e: StreamEvent) {
   if (e.type === 'progress') {
-    progressMsg.value = String(e.message ?? '')
-    progressDone.value = Number(e.done ?? 0)
-    progressTotal.value = Number(e.total ?? 0)
-    pct.value = progressTotal.value ? Math.round((progressDone.value / progressTotal.value) * 100) : 0
+    applyProgress(e)
   } else if (e.type === 'result') {
     const report = e.report as ScanResult
     if (report) lastResult.value = report
   } else if (e.type === 'error') {
-    alert(String(e.detail ?? '扫描失败'))
+    toast(String(e.detail ?? '扫描失败'))
   }
 }
 
 function handleGenEvent(e: StreamEvent) {
   if (e.type === 'progress') {
-    progressMsg.value = String(e.message ?? '')
-    progressDone.value = Number(e.done ?? 0)
-    progressTotal.value = Number(e.total ?? 0)
-    pct.value = progressTotal.value ? Math.round((progressDone.value / progressTotal.value) * 100) : 0
+    applyProgress(e)
   } else if (e.type === 'result') {
     const report = e.report as GenerationReport
     if (report) {
@@ -333,7 +337,7 @@ function handleGenEvent(e: StreamEvent) {
       genMsg.value = `已生成 ${report.strategies.length} 个候选策略，推荐第 ${(report.recommended_index ?? 0) + 1} 个`
     }
   } else if (e.type === 'error') {
-    alert(String(e.detail ?? '生成失败'))
+    toast(String(e.detail ?? '生成失败'))
   }
 }
 
@@ -343,29 +347,15 @@ async function startScan() {
   progressDone.value = 0
   progressTotal.value = 0
   pct.value = 0
-  elapsed.value = 0
-  const start = Date.now()
-  const timer = window.setInterval(() => {
-    elapsed.value = Math.round((Date.now() - start) / 1000)
-  }, 1000)
+  const timer = beginElapsed()
   try {
     await scanApi.stream(handleEvent)
     await loadReports()
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     window.clearInterval(timer)
     scanning.value = false
-  }
-}
-
-function yearRange() {
-  const end = new Date()
-  const start = new Date()
-  start.setFullYear(start.getFullYear() - 1)
-  return {
-    start_date: start.toISOString().slice(0, 10),
-    end_date: end.toISOString().slice(0, 10),
   }
 }
 
@@ -377,15 +367,11 @@ async function startGen() {
   progressDone.value = 0
   progressTotal.value = 0
   pct.value = 0
-  elapsed.value = 0
-  const start = Date.now()
-  const timer = window.setInterval(() => {
-    elapsed.value = Math.round((Date.now() - start) / 1000)
-  }, 1000)
+  const timer = beginElapsed()
   try {
     const req: GenerationRequest = {
       targets: { scope: 'market', codes: [] },
-      ...yearRange(),
+      ...defaultDateRange(),
       risk_profile: genRisk.value,
       count: genCount.value,
       target_annual_return: genTarget.value,
@@ -394,7 +380,7 @@ async function startGen() {
     await generatorApi.stream(req, handleGenEvent)
     await loadGenHistory()
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   } finally {
     window.clearInterval(timer)
     generating.value = false
@@ -405,7 +391,7 @@ async function viewReport(gid: number) {
   try {
     genResult.value = await generatorApi.report(gid)
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   }
 }
 
@@ -419,7 +405,7 @@ async function saveGenStrategy(s: GenStrategy) {
     })
     genMsg.value = '已保存到策略列表'
   } catch (e) {
-    alert((e as Error).message)
+    toast((e as Error).message)
   }
 }
 </script>
@@ -433,19 +419,6 @@ async function saveGenStrategy(s: GenStrategy) {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-}
-
-.metric {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 10px 6px;
-  text-align: center;
-}
-
-.metric div:last-child {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 2px;
 }
 
 .status-line {
@@ -540,18 +513,18 @@ async function saveGenStrategy(s: GenStrategy) {
 }
 
 .gen-action-use {
-  background: rgba(224, 57, 62, 0.1);
-  color: #e0393e;
+  background: var(--up-bg);
+  color: var(--up);
 }
 
 .gen-action-drop {
-  background: rgba(10, 168, 105, 0.1);
-  color: #0aa869;
+  background: var(--down-bg);
+  color: var(--down);
 }
 
 .gen-action-watch {
-  background: rgba(245, 166, 35, 0.12);
-  color: #d48806;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .gen-decision-summary {
@@ -595,12 +568,12 @@ async function saveGenStrategy(s: GenStrategy) {
 }
 
 .gen-debate-bull b {
-  color: #e0393e;
+  color: var(--up);
   margin-right: 6px;
 }
 
 .gen-debate-bear b {
-  color: #0aa869;
+  color: var(--down);
   margin-right: 6px;
 }
 

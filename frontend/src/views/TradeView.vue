@@ -65,7 +65,7 @@
           </div>
           <div style="text-align: right">
             <div :class="t.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(t.pnl) }}</div>
-            <div class="muted">{{ (t.traded_at || '').slice(5, 16) }}</div>
+            <div class="muted">{{ fmtDateTime(t.traded_at) }}</div>
           </div>
           <div v-if="expandedId === t.id" class="trade-detail">
             <span>成交额 {{ fmtMoney(t.price * t.qty) }}</span>
@@ -98,7 +98,7 @@
             </div>
           </div>
           <div style="text-align: right">
-            <div :class="o.status === 'filled' ? 'down' : 'up'">
+            <div :class="o.status === 'filled' ? 'text-primary' : 'text-danger'">
               {{ o.status === 'filled' ? '已成交' : '已拒绝' }}
             </div>
             <div class="muted">{{ o.broker_type === 'live' ? '实盘' : '模拟' }}</div>
@@ -116,7 +116,7 @@ import { computed, onMounted, ref } from 'vue'
 import OrderPanel from '../components/OrderPanel.vue'
 import { useTradeStore } from '../stores/trade'
 import { usePullRefresh } from '../composables/pullRefresh'
-import { fmtMoney, fmtPrice } from '../utils/format'
+import { fmtMoney, fmtPrice, fmtDateTime } from '../utils/format'
 
 const tradeStore = useTradeStore()
 const tab = ref<'trades' | 'orders'>('trades')
@@ -213,19 +213,6 @@ function setTab(t: 'trades' | 'orders') {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-}
-
-.metric {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 10px 6px;
-  text-align: center;
-}
-
-.metric div:last-child {
-  font-size: 15px;
-  font-weight: 600;
-  margin-top: 2px;
 }
 
 .stat-sub {
