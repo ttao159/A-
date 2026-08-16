@@ -71,7 +71,11 @@
       </div>
       <div v-if="result.equity_curve?.length" style="margin-top: 12px">
         <div class="card-title">权益曲线</div>
-        <EquityChart :data="result.equity_curve" />
+        <EquityChart
+          :data="result.equity_curve"
+          :baseline="result.metrics.initial_capital"
+          :trades="tradeMarks"
+        />
       </div>
     </div>
 
@@ -145,6 +149,13 @@ const sellStatRows = computed(() => {
   const sell = signalStats.value?.sell ?? {}
   return Object.keys(sell).map((key) => ({ key, label: SELL_LABELS[key] ?? key, count: sell[key] }))
 })
+
+const tradeMarks = computed(() =>
+  (result.value?.trades ?? []).map((t) => ({
+    date: String(t.date ?? ''),
+    direction: String(t.direction ?? ''),
+  })),
+)
 
 async function run() {
   if (!sid.value) return
