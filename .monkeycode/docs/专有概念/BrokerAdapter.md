@@ -1,21 +1,22 @@
 # 券商适配层（BrokerAdapter）
 
-券商适配层是重构中的抽象接口，用于统一订单与账户操作，屏蔽模拟盘与实盘差异。
+券商适配层是统一的订单与账户操作接口，用于屏蔽模拟盘与实盘差异。
 
 ## 什么是 BrokerAdapter？
 
-BrokerAdapter 是券商接口的抽象基类，声明了统一下单、撤单、账户查询、持仓查询、委托查询、成交查询与对账共七个抽象方法。模拟盘（PaperBroker）与实盘（LiveBroker）均实现此接口，业务层（扫描交易、账户查询）通过该接口统一下单与查询。
+BrokerAdapter 是券商接口的抽象基类，声明了统一下单、撤单、账户查询、持仓查询、委托查询、成交查询与对账共七个抽象方法。PaperBroker（模拟盘）已实现并复用既有撮合逻辑，LiveBroker（实盘）为占位实现，业务层（扫描交易、账户查询）通过该接口统一下单与查询。
 
 **关键特征**:
-- 两种券商类型：`paper`（模拟盘）、`live`（实盘，预留）
+- 两种券商类型：`paper`（模拟盘，已实现）、`live`（实盘，预留）
 - 业务层与具体券商解耦
-- 为未来实盘交易预留接口，实盘接入时无需改动扫描/账户业务逻辑
+- `get_broker()` 工厂函数按类型返回适配器，缺省为模拟盘
+- 实盘接入时无需改动扫描/账户业务逻辑
 
 ## 代码位置
 
 | 方面 | 位置 |
 |------|------|
-| 抽象基类 | `backend/app/broker.py` |
+| 抽象基类与实现 | `backend/app/broker.py` |
 
 ## 结构
 
@@ -40,6 +41,15 @@ class BrokerAdapter(ABC):
     def get_trades(self, db): ...
     @abstractmethod
     def reconcile(self, db): ...
+
+class PaperBroker(BrokerAdapter):
+    broker_type = "paper"
+    # place_order 复用 AccountService.place_order 完成模拟撮合
+    # reconcile 校验各策略资金守恒（现金 + 持仓成本 = 本金 + 已实现盈亏）
+
+class LiveBroker(BrokerAdapter):
+    broker_type = "live"
+    # 各方法抛出「实盘券商未接入」错误
 ```
 
 ### 关键字段
