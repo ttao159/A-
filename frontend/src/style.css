@@ -7,6 +7,8 @@
   --border: #e5e6eb;
   --up: #e0393e;
   --down: #0aa869;
+  --up-bg: rgba(224, 57, 62, 0.12);
+  --down-bg: rgba(10, 168, 105, 0.12);
   --danger: #e0393e;
   --live: #e0393e;
   --paper: #1a73e8;
@@ -21,6 +23,8 @@
   --border: #2c2f36;
   --up: #ff6b6b;
   --down: #2ecc8f;
+  --up-bg: rgba(255, 107, 107, 0.14);
+  --down-bg: rgba(46, 204, 143, 0.14);
   --danger: #ff6b6b;
   --live: #ff6b6b;
   --paper: #4c8dff;
@@ -46,6 +50,7 @@ body {
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -127,20 +132,20 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 0;
+  padding: 7px 0;
   text-decoration: none;
   color: var(--text-2);
   font-size: 11px;
   min-height: 48px;
+  transition: color 0.15s;
+}
+
+.tab-item svg {
+  margin-bottom: 3px;
 }
 
 .tab-item.router-link-active {
   color: var(--primary);
-}
-
-.tab-icon {
-  font-size: 18px;
-  line-height: 1.2;
 }
 
 .card {
@@ -162,6 +167,26 @@ body {
 }
 
 .down {
+  color: var(--down);
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.pill.down {
+  background: var(--down-bg);
   color: var(--down);
 }
 
@@ -241,6 +266,19 @@ select {
   font-size: 15px;
   background: var(--card);
   color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.14);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .field {
@@ -327,4 +365,19 @@ select {
   font-size: 13px;
   background: var(--bg);
   transition: height 0.15s;
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateX(-12px);
 }

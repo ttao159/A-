@@ -16,7 +16,7 @@
         </div>
         <div class="pos-side">
           <div :class="p.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(p.pnl) }}</div>
-          <div class="muted" :class="p.pnl_pct >= 0 ? 'up' : 'down'">{{ fmtPct(p.pnl_pct) }}</div>
+          <span class="pill" :class="p.pnl_pct >= 0 ? 'up' : 'down'">{{ fmtPct(p.pnl_pct) }}</span>
         </div>
         <button class="expand-btn" @click.stop="toggle(p.code)">{{ expanded === p.code ? '▴' : '▾' }}</button>
       </div>

@@ -3,7 +3,9 @@
     <header class="app-header">
       <h1>{{ title }}</h1>
       <div class="header-right">
-        <button class="theme-btn" @click="toggleTheme">{{ isDark ? '日' : '夜' }}</button>
+        <button class="theme-btn" @click="toggleTheme" aria-label="切换主题">
+          <Icon :name="isDark ? 'sun' : 'moon'" :size="18" />
+        </button>
         <span v-if="accountStore.isLive" class="badge live">实盘</span>
         <span v-else class="badge paper">模拟盘</span>
       </div>
@@ -23,11 +25,15 @@
       @touchmove="onTouchMove"
       @touchend="onTouchEnd"
     >
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <Transition name="page" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </router-view>
     </main>
     <nav class="tab-bar">
       <router-link v-for="tab in tabs" :key="tab.path" :to="tab.path" class="tab-item">
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <Icon :name="tab.iconName" :size="22" />
         <span class="tab-label">{{ tab.label }}</span>
       </router-link>
     </nav>
@@ -39,6 +45,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAccountStore } from './stores/account'
 import { triggerPullRefresh } from './composables/pullRefresh'
+import Icon from './components/Icon.vue'
 
 const route = useRoute()
 const accountStore = useAccountStore()
@@ -68,12 +75,12 @@ let startY = 0
 let pulling = false
 
 const tabs = [
-  { path: '/', icon: '账', label: '账户' },
-  { path: '/strategy', icon: '策', label: '策略' },
-  { path: '/backtest', icon: '测', label: '回测' },
-  { path: '/trade', icon: '交', label: '交易' },
-  { path: '/generator', icon: '生', label: '扫描' },
-  { path: '/about', icon: '说', label: '说明' },
+  { path: '/', iconName: 'wallet', label: '账户' },
+  { path: '/strategy', iconName: 'target', label: '策略' },
+  { path: '/backtest', iconName: 'bar-chart', label: '回测' },
+  { path: '/trade', iconName: 'swap', label: '交易' },
+  { path: '/generator', iconName: 'search', label: '扫描' },
+  { path: '/about', iconName: 'info', label: '说明' },
 ]
 
 const title = computed(() => {
@@ -123,8 +130,16 @@ async function onTouchEnd() {
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--card);
-  color: var(--text);
-  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.theme-btn:active {
+  color: var(--primary);
+  border-color: var(--primary);
 }
 </style>

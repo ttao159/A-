@@ -7,8 +7,10 @@
       </span>
     </div>
     <div class="asset-total">{{ fmtMoney(account.total_asset) }}</div>
-    <div class="asset-pnl" :class="account.total_pnl >= 0 ? 'up' : 'down'">
-      {{ pnlText }}
+    <div class="asset-pnl">
+      <span class="pill" :class="account.total_pnl >= 0 ? 'up' : 'down'">
+        {{ pnlText }}
+      </span>
     </div>
     <div class="asset-grid">
       <div class="asset-cell">
