@@ -6,6 +6,8 @@
 import { onMounted, ref, watch } from 'vue'
 import type { EquityPoint } from '../api/types'
 import { fmtMoney } from '../utils/format'
+import { chartColors } from '../utils/theme'
+import { useThemeRedraw } from '../composables/useThemeRedraw'
 
 interface TradeMark {
   date: string
@@ -18,15 +20,13 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const W = 360
 const H = 220
 
-const UP = '#e0393e'
-const DOWN = '#0aa869'
-const LINE = '#1a73e8'
-
 onMounted(draw)
 watch(() => props.data, draw)
 watch(() => props.trades, draw)
+useThemeRedraw(() => draw())
 
 function draw() {
+  const c = chartColors()
   const el = canvas.value
   if (!el) return
   const ctx = el.getContext('2d')
@@ -62,7 +62,7 @@ function draw() {
   data.forEach((p, i) => dateIndex.set(p.date, i))
 
   // 净值曲线
-  ctx.strokeStyle = LINE
+  ctx.strokeStyle = c.line
   ctx.lineWidth = 1.6
   ctx.beginPath()
   data.forEach((p, i) => {
@@ -74,7 +74,7 @@ function draw() {
   // 本金基准线
   if (base > 0) {
     const by = y(base)
-    ctx.strokeStyle = '#c0c4cc'
+    ctx.strokeStyle = c.grid
     ctx.setLineDash([4, 4])
     ctx.beginPath()
     ctx.moveTo(padL, by)
@@ -91,7 +91,7 @@ function draw() {
       const px = x(idx)
       const py = y(data[idx].equity)
       if (t.direction === 'buy') {
-        ctx.fillStyle = UP
+        ctx.fillStyle = c.up
         ctx.beginPath()
         ctx.moveTo(px, py - 8)
         ctx.lineTo(px - 4, py - 2)
@@ -99,7 +99,7 @@ function draw() {
         ctx.closePath()
         ctx.fill()
       } else if (t.direction === 'sell') {
-        ctx.fillStyle = DOWN
+        ctx.fillStyle = c.down
         ctx.beginPath()
         ctx.moveTo(px, py + 8)
         ctx.lineTo(px - 4, py + 2)
@@ -115,10 +115,10 @@ function draw() {
   const last = data[data.length - 1]
   const chg = first.equity ? ((last.equity - first.equity) / first.equity) * 100 : 0
   ctx.font = '10px sans-serif'
-  ctx.fillStyle = chg >= 0 ? UP : DOWN
+  ctx.fillStyle = chg >= 0 ? c.up : c.down
   ctx.textAlign = 'right'
   ctx.fillText(`${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, W - padR, mainTop + 10)
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.fillText(fmtMoney(max), padL, mainTop + 8)
   ctx.fillText(fmtMoney(min), padL, mainBottom - 2)
   ctx.textAlign = 'left'
@@ -138,14 +138,14 @@ function draw() {
   const ddH = ddBottom - ddTop
   const ydd = (v: number) => ddTop + ((ddMax - v) / ddRange) * ddH
 
-  ctx.strokeStyle = '#c0c4cc'
+  ctx.strokeStyle = c.grid
   ctx.beginPath()
   ctx.moveTo(padL, ydd(0))
   ctx.lineTo(W - padR, ydd(0))
   ctx.stroke()
 
   ctx.fillStyle = 'rgba(224, 57, 62, 0.15)'
-  ctx.strokeStyle = DOWN
+  ctx.strokeStyle = c.down
   ctx.lineWidth = 1.2
   ctx.beginPath()
   data.forEach((_p, i) => {
@@ -160,7 +160,7 @@ function draw() {
   ctx.fill()
   ctx.stroke()
 
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.font = '9px sans-serif'
   ctx.textAlign = 'left'
   ctx.fillText(`最大回撤 ${ddMin.toFixed(2)}%`, padL, ddBottom + 8)

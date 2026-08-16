@@ -3,7 +3,7 @@
     <div class="cal-head">
       <button class="nav" @click="shiftMonth(-1)">‹</button>
       <div class="cal-title">{{ year }} 年 {{ month }} 月</div>
-      <button class="nav" @click="shiftMonth(1)">›</button>
+      <button class="nav" :disabled="!canNext" @click="shiftMonth(1)">›</button>
     </div>
 
     <div class="cal-summary">
@@ -68,7 +68,14 @@ const monthPnl = computed(() => {
     .reduce((sum, p) => sum + p.pnl, 0)
 })
 
+const canNext = computed(() => {
+  const cur = today.getFullYear() * 12 + (today.getMonth() + 1)
+  const sel = year.value * 12 + month.value
+  return sel < cur
+})
+
 function shiftMonth(delta: number) {
+  if (delta > 0 && !canNext.value) return
   const d = new Date(year.value, month.value - 1 + delta, 1)
   year.value = d.getFullYear()
   month.value = d.getMonth() + 1
@@ -105,6 +112,11 @@ onMounted(async () => {
   color: var(--text);
   font-size: 18px;
   line-height: 1;
+}
+
+.nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .cal-summary {

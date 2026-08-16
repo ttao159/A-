@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { orderApi } from '../api'
+import { orderApi, stockApi } from '../api'
 import type { OrderPrepareInput } from '../api/types'
 import { useAccountStore } from '../stores/account'
 import { useStrategyStore } from '../stores/strategy'
@@ -119,6 +119,29 @@ watch(
       step.value = 'form'
       if (!strategyStore.strategies.length) strategyStore.fetch()
     }
+  },
+)
+
+let priceTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => form.code,
+  (code) => {
+    if (priceTimer) clearTimeout(priceTimer)
+    const trimmed = code.trim()
+    if (!/^\d{6}$/.test(trimmed)) return
+    priceTimer = setTimeout(async () => {
+      try {
+        const md = await stockApi.minute(trimmed)
+        const last = md.bars[md.bars.length - 1]
+        const px = last ? last.price : md.prev_close
+        if (px > 0) {
+          form.price = Number(px.toFixed(2))
+          toast(`已按现价 ${fmtPrice(form.price)} 填入`)
+        }
+      } catch {
+        // 获取现价失败时保留手动输入
+      }
+    }, 400)
   },
 )
 
@@ -195,7 +218,7 @@ function close() {
 .risk-tip {
   margin-top: 12px;
   padding: 10px 12px;
-  background: #fff3f3;
+  background: var(--danger-bg);
   color: var(--danger);
   border-radius: 8px;
   font-size: 13px;

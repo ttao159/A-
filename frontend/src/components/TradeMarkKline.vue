@@ -8,6 +8,8 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import type { Bar } from '../api'
+import { chartColors } from '../utils/theme'
+import { useThemeRedraw } from '../composables/useThemeRedraw'
 
 const props = defineProps<{
   bars: Bar[]
@@ -18,10 +20,8 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const W = 360
 const H = 300
 
-const UP = '#e0393e'
-const DOWN = '#0aa869'
-
 function draw() {
+  const c = chartColors()
   const el = canvas.value
   if (!el) return
   const ctx = el.getContext('2d')
@@ -57,8 +57,8 @@ function draw() {
     const b = data[i]
     const x = padL + step * i + step / 2
     const up = b.close >= b.open
-    ctx.strokeStyle = up ? UP : DOWN
-    ctx.fillStyle = up ? UP : DOWN
+    ctx.strokeStyle = up ? c.up : c.down
+    ctx.fillStyle = up ? c.up : c.down
     ctx.beginPath()
     ctx.moveTo(x, y(b.high))
     ctx.lineTo(x, y(b.low))
@@ -79,7 +79,7 @@ function draw() {
     const x = padL + step * i + step / 2
     if (m.direction === 'buy') {
       const ty = y(data[i].low) + 10
-      ctx.fillStyle = UP
+      ctx.fillStyle = c.up
       ctx.beginPath()
       ctx.moveTo(x, ty)
       ctx.lineTo(x - 4, ty + 8)
@@ -88,7 +88,7 @@ function draw() {
       ctx.fill()
     } else {
       const ty = y(data[i].high) - 10
-      ctx.fillStyle = DOWN
+      ctx.fillStyle = c.down
       ctx.beginPath()
       ctx.moveTo(x, ty)
       ctx.lineTo(x - 4, ty - 8)
@@ -98,7 +98,7 @@ function draw() {
     }
   }
 
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.font = '10px sans-serif'
   ctx.fillText(String(max.toFixed(2)), padL, padT + 8)
   ctx.fillText(String(min.toFixed(2)), padL, padT + priceH)
@@ -106,6 +106,7 @@ function draw() {
 
 watch(() => [props.bars, props.marks], draw, { deep: true })
 onMounted(draw)
+useThemeRedraw(() => draw())
 </script>
 
 <style scoped>

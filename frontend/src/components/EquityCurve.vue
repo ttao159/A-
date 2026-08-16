@@ -16,6 +16,8 @@
 import { onMounted, ref, watch } from 'vue'
 import type { AccountEquityPoint } from '../api'
 import { fmtMoney } from '../utils/format'
+import { chartColors } from '../utils/theme'
+import { useThemeRedraw } from '../composables/useThemeRedraw'
 
 const props = defineProps<{ points: AccountEquityPoint[]; baseline?: number }>()
 
@@ -23,14 +25,12 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const W = 360
 const H = 180
 
-const UP = '#e0393e'
-const DOWN = '#0aa869'
-const LINE = '#1a73e8'
-
 onMounted(draw)
 watch(() => props.points, draw)
+useThemeRedraw(() => draw())
 
 function draw() {
+  const c = chartColors()
   const el = canvas.value
   if (!el) return
   const ctx = el.getContext('2d')
@@ -60,14 +60,14 @@ function draw() {
   const y = (v: number) => padT + (1 - (v - min) / range) * plotH
 
   ctx.font = '10px sans-serif'
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.textAlign = 'left'
   ctx.fillText(fmtMoney(max), padL, padT - 2)
   ctx.fillText(fmtMoney(min), padL, H - padB + 12)
 
   if (base > 0) {
     const by = y(base)
-    ctx.strokeStyle = '#c0c4cc'
+    ctx.strokeStyle = c.grid
     ctx.setLineDash([4, 4])
     ctx.beginPath()
     ctx.moveTo(padL, by)
@@ -76,7 +76,7 @@ function draw() {
     ctx.setLineDash([])
   }
 
-  ctx.strokeStyle = LINE
+  ctx.strokeStyle = c.line
   ctx.lineWidth = 1.6
   ctx.beginPath()
   data.forEach((p, i) => {
@@ -88,10 +88,10 @@ function draw() {
   const last = data[data.length - 1]
   const first = data[0]
   const chg = first.equity ? ((last.equity - first.equity) / first.equity) * 100 : 0
-  ctx.fillStyle = chg >= 0 ? UP : DOWN
+  ctx.fillStyle = chg >= 0 ? c.up : c.down
   ctx.textAlign = 'right'
   ctx.fillText(`${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, W - padR, padT + 10)
-  ctx.fillStyle = '#909399'
+  ctx.fillStyle = c.text2
   ctx.fillText(last.date.slice(5), W - padR, H - padB + 12)
 }
 </script>

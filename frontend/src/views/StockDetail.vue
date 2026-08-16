@@ -56,6 +56,8 @@ import { stockApi } from '../api'
 import type { Bar, MinuteData, Stock } from '../api'
 import { fmtPrice } from '../utils/format'
 import { isTradingTime } from '../utils/date'
+import { chartColors } from '../utils/theme'
+import { useThemeRedraw } from '../composables/useThemeRedraw'
 
 const route = useRoute()
 const code = ref(String(route.params.code ?? ''))
@@ -78,19 +80,6 @@ const minuteData = ref<MinuteData | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const W = 360
 const H = 320
-
-const UP = '#e0393e'
-const DOWN = '#0aa869'
-
-function themeVars() {
-  const cs = getComputedStyle(document.documentElement)
-  return {
-    up: cs.getPropertyValue('--up').trim() || UP,
-    down: cs.getPropertyValue('--down').trim() || DOWN,
-    text2: cs.getPropertyValue('--text-2').trim() || '#909399',
-    line: cs.getPropertyValue('--border').trim() || '#bbbbbb',
-  }
-}
 
 const stockMeta = computed(() => (mode.value === 'minute' ? '当日分时' : `${bars.value.length} 根K线`))
 const legendText = computed(() => {
@@ -118,22 +107,14 @@ const minuteInfo = computed(() => {
   return `昨收 ${fmtPrice(prev)} · 现价 ${fmtPrice(last.price)}（${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%） · 均价 ${fmtPrice(avg)} · 涨停 ${fmtPrice(prev * 1.1)} · 跌停 ${fmtPrice(prev * 0.9)}`
 })
 
-let themeObserver: MutationObserver | undefined
-
 onMounted(() => {
   load()
   startPolling()
-  themeObserver = new MutationObserver(() => draw())
-  themeObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme'],
-  })
 })
 
-onUnmounted(() => {
-  stopPolling()
-  themeObserver?.disconnect()
-})
+onUnmounted(stopPolling)
+
+useThemeRedraw(() => draw())
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -228,7 +209,7 @@ function draw() {
 }
 
 function drawKline(ctx: CanvasRenderingContext2D) {
-  const c = themeVars()
+  const c = chartColors()
   const data = bars.value
   if (!data.length) return
   const padL = 8
@@ -308,7 +289,7 @@ function drawKline(ctx: CanvasRenderingContext2D) {
 }
 
 function drawMinute(ctx: CanvasRenderingContext2D) {
-  const c = themeVars()
+  const c = chartColors()
   const data = minuteData.value?.bars ?? []
   if (!data.length) return
   const prev = minuteData.value?.prev_close ?? 0
@@ -358,7 +339,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   ctx.stroke()
 
   if (prev > 0) {
-    ctx.strokeStyle = c.line
+    ctx.strokeStyle = c.grid
     ctx.setLineDash([4, 4])
     ctx.beginPath()
     ctx.moveTo(padL, y(prev))
