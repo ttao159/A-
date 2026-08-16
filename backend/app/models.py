@@ -56,6 +56,8 @@ class Order(Base):
     price = Column(Float, nullable=True)
     status = Column(String(20), nullable=False)  # filled / rejected
     reason = Column(String(200), nullable=True)
+    broker_type = Column(String(10), default="paper")  # paper / live
+    external_order_id = Column(String(64), nullable=True)  # 外部券商委托号，实盘回填
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -58,8 +58,12 @@ class PaperBroker(BrokerAdapter):
 
     def place_order(self, db, code, name, direction, price, qty, reason="", strategy=None):
         acct = self._accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
-        return self._accounts.place_order(
+        order = self._accounts.place_order(
             db, acct, code, name, direction, price, qty, reason, strategy)
+        order.broker_type = self.broker_type
+        db.commit()
+        db.refresh(order)
+        return order
 
     def cancel_order(self, db, order_id):
         order = db.query(Order).filter(Order.id == order_id).first()

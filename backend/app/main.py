@@ -3,6 +3,8 @@
 import json
 import queue
 import threading
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 
@@ -15,13 +17,14 @@ from sqlalchemy.orm import Session
 
 from . import backtest, config
 from .account import AccountService
+from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
-from .models import Backtest, EquityPoint, GenerationReport, ScanReport, Strategy
+from .models import Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
-from .schemas import BacktestRequest, GeneratorRequest, StrategyCreate, StrategyUpdate
+from .schemas import BacktestRequest, GeneratorRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
 from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
@@ -294,6 +297,7 @@ def get_account(db: Session = Depends(get_db)):
     capital = sum(s.initial_capital or 0.0 for s in strategies)
     total = cash + market_value
     return {
+        "broker_type": config.BROKER_TYPE,
         "initial_capital": round(capital, 2),
         "available_cash": round(cash, 2),
         "market_value": round(market_value, 2),
@@ -342,6 +346,59 @@ def get_trades(db: Session = Depends(get_db)):
         }
         for t in trades
     ]
+
+
+@app.get("/api/orders")
+def get_orders(db: Session = Depends(get_db)):
+    """委托列表（最近 100 条，含券商类型与外部委托号）。"""
+    acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
+    orders = db.query(Order).filter(Order.account_id == acct.id).order_by(Order.id.desc()).limit(100).all()
+    return [
+        {
+            "id": o.id, "code": o.code, "name": o.name, "direction": o.direction,
+            "qty": o.qty, "price": o.price, "status": o.status, "reason": o.reason,
+            "broker_type": o.broker_type or "paper",
+            "external_order_id": o.external_order_id,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+        }
+        for o in orders
+    ]
+
+
+# ===== 实盘下单二次确认（确认链路与下单链路解耦） =====
+_pending_orders = {}
+_pending_lock = threading.Lock()
+_PENDING_TTL = 300
+
+
+@app.post("/api/orders/prepare")
+def prepare_order(body: OrderPrepareRequest):
+    """阶段一：提交下单请求，返回 request_id 供用户确认。"""
+    request_id = uuid.uuid4().hex
+    payload = body.model_dump()
+    with _pending_lock:
+        _pending_orders[request_id] = {"body": payload, "created_at": time.time()}
+    return {"request_id": request_id, "status": "pending", "order": payload}
+
+
+@app.post("/api/orders/confirm/{request_id}")
+def confirm_order(request_id: str, db: Session = Depends(get_db)):
+    """阶段二：确认下发，真正调用券商下单。"""
+    with _pending_lock:
+        item = _pending_orders.pop(request_id, None)
+    if not item or time.time() - item["created_at"] > _PENDING_TTL:
+        raise HTTPException(404, "下单请求不存在或已过期")
+    body = item["body"]
+    strategy = None
+    if body.get("strategy_id"):
+        strategy = db.query(Strategy).filter(Strategy.id == body["strategy_id"]).first()
+        if not strategy:
+            raise HTTPException(404, "策略不存在")
+    broker = get_broker(config.BROKER_TYPE)
+    order = broker.place_order(
+        db, body["code"], body["name"], body["direction"],
+        body["price"], body["qty"], body.get("reason", ""), strategy=strategy)
+    return {"status": order.status, "reason": order.reason, "order_id": order.id}
 
 
 @app.get("/api/stocks")

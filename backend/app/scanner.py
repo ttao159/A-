@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 from . import config, matching
 from .account import AccountService, check_risk
+from .broker import PaperBroker
 from .models import Position, ScanReport, Strategy
 from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
@@ -37,10 +38,11 @@ def _latest_price(market, code: str, start: str, end: str) -> float:
     return None
 
 
-def scan_and_trade(db, market, accounts: AccountService = None, source: str = "manual", progress=None) -> dict:
+def scan_and_trade(db, market, accounts: AccountService = None, broker=None, source: str = "manual", progress=None) -> dict:
     """执行一次全市场扫描并自动交易，返回扫描报告。
 
     source: manual（手动触发）/ auto（定时任务）。
+    broker: 券商适配器，缺省为模拟盘 PaperBroker。
     progress: 可选回调 progress(stage, message, done, total)，用于流式进度上报。
     """
     def emit(stage, message, done, total):
@@ -48,6 +50,7 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
             progress(stage, message, done, total)
 
     accounts = accounts or AccountService()
+    broker = broker or PaperBroker(accounts)
     strategies = db.query(Strategy).filter(Strategy.enabled == 1).all()
     if not strategies:
         return {"error": "无启用的策略", "buys": [], "sells": [], "rejected": []}
@@ -112,7 +115,7 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
                 p = held[code]
                 reason = evaluate_sell(cfg, _position_dict(p), bars)
                 if reason:
-                    order = accounts.place_order(db, acct, code, name, "sell", price, p.qty, reason, strategy=strategy)
+                    order = broker.place_order(db, code, name, "sell", price, p.qty, reason, strategy=strategy)
                     if order.status == "filled":
                         report["sells"].append({
                             "code": code, "name": name, "price": round(price, 3),
@@ -139,7 +142,7 @@ def scan_and_trade(db, market, accounts: AccountService = None, source: str = "m
                 if not ok:
                     report["rejected"].append({"code": code, "name": name, "reason": why})
                     continue
-                order = accounts.place_order(db, acct, code, name, "buy", price, qty, "buy_signal", strategy=strategy)
+                order = broker.place_order(db, code, name, "buy", price, qty, "buy_signal", strategy=strategy)
                 if order.status == "filled":
                     report["buys"].append({
                         "code": code, "name": name, "price": round(price, 3),

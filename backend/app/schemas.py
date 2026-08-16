@@ -81,3 +81,13 @@ class GeneratorRequest(BaseModel):
     count: int = Field(ge=1, le=10, description="生成策略数量")
     target_annual_return: float = Field(default=0.0, ge=0, description="目标年化收益率（%）")
     analysis_depth: Optional[str] = Field(default="standard", description="quick/standard/deep")
+
+
+class OrderPrepareRequest(BaseModel):
+    code: str = Field(description="股票代码")
+    name: str = Field(default="", description="股票名称")
+    direction: str = Field(description="buy/sell")
+    price: float = Field(gt=0, description="委托价格")
+    qty: int = Field(ge=100, description="委托数量（100 股整数倍）")
+    strategy_id: Optional[int] = Field(default=None, description="所属策略 ID")
+    reason: str = Field(default="", description="下单理由")

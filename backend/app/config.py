@@ -17,3 +17,6 @@ EXCLUDED_PREFIXES = ("300", "301", "688", "689")
 # 扫描触发时间（交易日收盘后）
 SCAN_HOUR = 15
 SCAN_MINUTE = 5
+
+# 当前券商模式：paper（模拟盘）/ live（实盘，未接入）
+BROKER_TYPE = "paper"

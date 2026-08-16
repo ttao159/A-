@@ -35,6 +35,12 @@ def migrate():
             cols = [c["name"] for c in insp.get_columns("trades")]
             if "strategy_id" not in cols:
                 conn.execute(text("ALTER TABLE trades ADD COLUMN strategy_id INTEGER"))
+        if insp.has_table("orders"):
+            cols = [c["name"] for c in insp.get_columns("orders")]
+            if "broker_type" not in cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN broker_type VARCHAR(10) DEFAULT 'paper'"))
+            if "external_order_id" not in cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN external_order_id VARCHAR(64)"))
         if insp.has_table("scan_reports"):
             cols = [c["name"] for c in insp.get_columns("scan_reports")]
             if "source" not in cols:
