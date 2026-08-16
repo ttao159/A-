@@ -19,6 +19,7 @@ backend/app/
 ├── matching.py        # 撮合与费用计算
 ├── account.py         # 组合逻辑与账户服务
 ├── backtest.py        # 回测引擎
+├── optimizer.py       # 参数优化（网格搜索）
 ├── scanner.py         # 自动扫描交易
 ├── scheduler.py       # 定时调度
 ├── broker.py          # 券商适配层抽象基类
@@ -34,7 +35,9 @@ backend/app/
 | `account.py` | Portfolio（回测用）与 AccountService（DB 持久化，含每策略独立本金） |
 | `scanner.py` | 全市场扫描交易，`scan_lock` 保证单实例运行 |
 | `market.py` | 行情缓存与并发预取，全市场扫描约 2~3 分钟 |
-| `broker.py` | 券商适配层抽象基类（重构中） |
+| `backtest.py` | 回测引擎，历史行情重放与指标统计 |
+| `optimizer.py` | 参数优化，网格搜索多组参数并回测对比 |
+| `broker.py` | 券商适配层抽象基类，屏蔽模拟盘与实盘差异 |
 
 ## 依赖
 
@@ -63,7 +66,7 @@ backend/app/
 ### 测试
 
 - 测试位于 `backend/tests/`，命名 `test_<module>.py`
-- 运行 `python3 -m pytest -q`（当前 117 passed）
+- 运行 `python3 -m pytest -q`（当前 127 passed）
 
 ## 添加新文件
 

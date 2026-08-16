@@ -4,7 +4,7 @@
 
 A股自动交易助手是一个面向 A 股交易者的辅助交易系统。用户配置策略后，系统在每个交易日收盘后自动扫描全市场、模拟撮合成交、监控账户与持仓，并提供策略回测与策略生成引擎。
 
-系统当前处于一次架构升级过程中：后端已完成「每策略独立本金」的资金模型改造，并开始引入券商适配层（BrokerAdapter）为未来实盘交易预留接口；前端正从原生 HTML/CSS/JS 手机预览界面重构为 Vue 3 + Vite + TypeScript 单页应用（移动端优先）。
+后端已完成「每策略独立本金」的资金模型改造，并引入券商适配层（BrokerAdapter）为未来实盘交易预留接口；前端为 Vue 3 + Vite + TypeScript 单页应用（移动端优先）。
 
 系统数据全部来自公开 HTTP API（腾讯 K 线、新浪股票列表），禁用合成数据；交易为模拟撮合，遵循 A 股 T+1 与涨跌停规则。
 
@@ -25,8 +25,7 @@ A股自动交易助手是一个面向 A 股交易者的辅助交易系统。用�
 - SQLite（`backend/trading.db`）
 
 **前端**
-- 原生 HTML/CSS/JS（`index.html` / `style.css` / `app.js`，旧手机预览界面，仍由后端静态托管）
-- Vue 3 + Vite + TypeScript（`frontend/`，重构中的新前端）
+- Vue 3 + Vite + TypeScript（`frontend/`，移动端优先单页应用，构建产物由后端静态托管）
 
 **外部服务**
 - 腾讯 ifzq K 线接口（日线/周线/月线，前复权）
@@ -38,15 +37,19 @@ A股自动交易助手是一个面向 A 股交易者的辅助交易系统。用�
 
 ```
 workspace/
-├── index.html / style.css / app.js   # 旧手机预览界面（原生 JS）
-├── frontend/                         # 新前端（Vue 3 + Vite + TypeScript）
+├── frontend/                         # 前端（Vue 3 + Vite + TypeScript）
 │   ├── index.html
 │   ├── vite.config.ts                # /api 反向代理到后端 8001
 │   └── src/
 │       ├── main.ts                   # 应用入口
 │       ├── App.vue
 │       ├── router/index.ts
-│       └── views/HomeView.vue
+│       ├── views/                    # 页面视图
+│       ├── components/               # 可复用组件
+│       ├── stores/                   # Pinia 状态
+│       ├── api/                      # REST 与 NDJSON 封装
+│       ├── composables/              # 组合式函数
+│       └── utils/                    # 工具函数
 ├── backend/
 │   ├── requirements.txt
 │   ├── .env.example                  # USER_LLM_* 占位符
@@ -65,9 +68,10 @@ workspace/
 │   │   ├── matching.py               # 撮合与费用
 │   │   ├── account.py                # 组合逻辑与账户服务
 │   │   ├── backtest.py               # 回测引擎
+│   │   ├── optimizer.py              # 参数优化（网格搜索）
 │   │   ├── scanner.py                # 自动扫描交易
 │   │   ├── scheduler.py              # 定时调度
-│   │   ├── broker.py                 # 券商适配层抽象基类（新增）
+│   │   ├── broker.py                 # 券商适配层抽象基类
 │   │   ├── generator.py              # 策略生成引擎
 │   │   └── agents.py                 # 多智能体 LLM 分析框架
 │   └── tests/                        # 单元测试
@@ -89,7 +93,7 @@ workspace/
 **位置**: `backend/app/main.py`
 **关键文件**: `main.py`, `schemas.py`
 **依赖**: account、backtest、generator、market、scanner、scheduler
-**被依赖**: 前端（旧静态页面与新 Vue 前端通过 `/api` 访问）
+**被依赖**: 前端（Vue 前端通过 `/api` 访问）
 
 ### 行情数据服务
 **目的**: 全系统统一提供真实公开行情数据，带内存 TTL 缓存、磁盘持久化缓存与并发预取。
@@ -133,7 +137,7 @@ workspace/
 **依赖**: backtest、market、schemas、agents
 **被依赖**: main
 
-### 券商适配层（重构中）
+### 券商适配层
 **目的**: 抽象下单与账户操作接口，屏蔽模拟盘与实盘差异，为未来实盘交易预留。
 **位置**: `backend/app/broker.py`
 **关键文件**: `broker.py`
@@ -147,8 +151,7 @@ workspace/
 ```mermaid
 flowchart LR
     subgraph 前端
-        Old["原生 HTML/JS 手机预览"]
-        New["Vue 3 + Vite 新前端"]
+        Web["Vue 3 + Vite 前端"]
     end
 
     subgraph API层["FastAPI 路由层"]
@@ -159,6 +162,7 @@ flowchart LR
     subgraph 业务逻辑
         Scanner["扫描交易"]
         Backtest["回测引擎"]
+        Optimizer["参数优化"]
         Generator["策略生成引擎"]
         Account["账户与撮合"]
         StrategyEngine["策略引擎"]
@@ -170,17 +174,18 @@ flowchart LR
         DB["SQLite"]
     end
 
-    Old --> Routes
-    New --> Routes
+    Web --> Routes
     Routes --> Static
     Routes --> Scanner
     Routes --> Backtest
+    Routes --> Optimizer
     Routes --> Generator
     Routes --> Account
     Scanner --> Account
     Scanner --> StrategyEngine
     Backtest --> StrategyEngine
     Backtest --> Account
+    Optimizer --> Backtest
     Generator --> Backtest
     Account --> Broker
     Scanner --> Market

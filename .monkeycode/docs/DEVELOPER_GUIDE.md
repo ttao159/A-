@@ -50,11 +50,11 @@ npm install
 ### 运行
 
 ```bash
-# 后端（默认 8001 端口，同时托管旧前端静态页面）
+# 后端（默认 8001 端口，同时托管前端构建产物）
 cd backend
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 
-# 新前端开发服务器（5173 端口，/api 反向代理到 8001）
+# 前端开发服务器（5173 端口，/api 反向代理到 8001）
 cd frontend
 npm run dev
 ```
@@ -62,8 +62,13 @@ npm run dev
 ### 运行测试
 
 ```bash
+# 后端
 cd backend
 python3 -m pytest -q
+
+# 前端
+cd frontend
+npm test
 ```
 
 ## 开发工作流

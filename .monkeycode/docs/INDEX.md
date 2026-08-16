@@ -24,7 +24,7 @@ REST 与 NDJSON 流式接口、请求/响应格式。集成或使用本系统的
 | 模块 | 描述 | README |
 |------|------|--------|
 | `backend/app/` | 后端核心业务（路由、账户、扫描、回测、生成引擎） | [README](./模块/backend-app.md) |
-| `frontend/` | 新前端（Vue 3 + Vite + TypeScript） | [README](./模块/frontend.md) |
+| `frontend/` | 前端（Vue 3 + Vite + TypeScript） | [README](./模块/frontend.md) |
 
 ---
 
