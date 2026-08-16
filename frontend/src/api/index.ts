@@ -145,6 +145,7 @@ export const generatorApi = {
     streamNDJSON('/generator/run/stream', req, onEvent),
   reports: () => http.get<GenerationReportItem[]>('/generator/reports'),
   report: (gid: number) => http.get<GenerationReport>(`/generator/reports/${gid}`),
+  remove: (gid: number) => http.del<{ status: string }>(`/generator/reports/${gid}`),
 }
 
 export const stockApi = {

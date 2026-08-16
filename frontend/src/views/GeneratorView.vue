@@ -107,11 +107,17 @@
       <div class="card-title">策略生成器</div>
       <div class="field">
         <label>风险偏好</label>
-        <select v-model="genRisk">
-          <option value="conservative">保守</option>
-          <option value="balanced">均衡</option>
-          <option value="aggressive">激进</option>
-        </select>
+        <div class="risk-seg">
+          <button
+            v-for="opt in RISK_OPTIONS"
+            :key="opt.value"
+            class="risk-btn"
+            :class="{ active: genRisk === opt.value }"
+            @click="genRisk = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
       </div>
       <div class="field">
         <label>生成数量</label>
@@ -128,7 +134,7 @@
       <div v-if="genMsg" class="muted" style="margin-top: 8px">{{ genMsg }}</div>
     </div>
 
-    <div v-if="genResult" class="card">
+    <div v-if="genResult" ref="resultCard" class="card">
       <div class="card-title">生成结果对比</div>
       <div class="muted" style="font-size: 12px; margin-bottom: 8px">{{ genRequestText }}</div>
 
@@ -208,14 +214,37 @@
 
     <div class="card">
       <div class="card-title">生成历史</div>
+      <div v-if="genHistory.length" class="risk-filter">
+        <button
+          class="risk-tab"
+          :class="{ active: genRiskFilter === 'all' }"
+          @click="genRiskFilter = 'all'"
+        >
+          全部
+        </button>
+        <button
+          v-for="opt in RISK_OPTIONS"
+          :key="opt.value"
+          class="risk-tab"
+          :class="{ active: genRiskFilter === opt.value }"
+          @click="genRiskFilter = opt.value"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
       <div v-if="genHistoryError" class="error-box">
         {{ genHistoryError }}<br /><button class="retry-btn" @click="loadGenHistory">重试</button>
       </div>
-      <div v-else-if="!genHistory.length" class="empty">暂无记录</div>
-      <div v-for="g in genHistory" :key="g.id" class="scan-item">
+      <div v-else-if="!filteredGenHistory.length" class="empty">暂无记录</div>
+      <div v-for="g in filteredGenHistory" :key="g.id" class="scan-item">
         <div class="scan-item-top">
           <span class="scan-time">{{ fmtDateTime(g.created_at) }}</span>
-          <button class="btn ghost small" @click="viewReport(g.id)">查看</button>
+          <div class="scan-item-right">
+            <button class="btn ghost small" :disabled="viewingId === g.id" @click="viewReport(g.id)">
+              {{ viewingId === g.id ? '加载中...' : '查看' }}
+            </button>
+            <button class="btn ghost small del" @click="removeGenHistory(g)">删除</button>
+          </div>
         </div>
         <div class="scan-item-sub">
           推荐第 {{ g.recommended_index + 1 }} 个 · {{ genHistoryText(g.request) }}
@@ -266,7 +295,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { generatorApi, scanApi } from '../api'
 import type {
   GenerationReport,
@@ -328,6 +357,24 @@ const countdownText = ref('')
 let countdownTimer: number | undefined
 
 const RISK_LABELS: Record<string, string> = { conservative: '保守', balanced: '均衡', aggressive: '激进' }
+
+const RISK_OPTIONS = [
+  { value: 'conservative', label: '保守' },
+  { value: 'balanced', label: '均衡' },
+  { value: 'aggressive', label: '激进' },
+]
+
+const genRiskFilter = ref('all')
+const filteredGenHistory = computed(() => {
+  if (genRiskFilter.value === 'all') return genHistory.value
+  return genHistory.value.filter((g) => {
+    const req = (g.request ?? {}) as Record<string, unknown>
+    return String(req.risk_profile ?? 'balanced') === genRiskFilter.value
+  })
+})
+
+const viewingId = ref<number | null>(null)
+const resultCard = ref<HTMLElement | null>(null)
 
 const sortedStrategies = computed(() =>
   (genResult.value?.strategies ?? []).slice().sort((a, b) => a.index - b.index),
@@ -564,8 +611,31 @@ async function startGen() {
 }
 
 async function viewReport(gid: number) {
+  viewingId.value = gid
   try {
     genResult.value = await generatorApi.report(gid)
+    await nextTick()
+    resultCard.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    viewingId.value = null
+  }
+}
+
+async function removeGenHistory(g: GenerationReportItem) {
+  const ok = await confirmDialog({
+    title: '删除生成记录',
+    message: `确定删除 ${fmtDateTime(g.created_at)} 的生成记录吗？此操作不可恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    await generatorApi.remove(g.id)
+    genHistory.value = genHistory.value.filter((h) => h.id !== g.id)
+    if (genResult.value?.id === g.id) genResult.value = null
+    toast('已删除')
   } catch (e) {
     toast((e as Error).message)
   }
@@ -596,6 +666,72 @@ async function saveGenStrategy(s: GenStrategy) {
   margin-top: 8px;
   font-size: 13px;
   color: var(--danger);
+}
+
+.risk-seg {
+  display: flex;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.risk-btn {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.risk-btn:active {
+  opacity: 0.7;
+}
+
+.risk-btn.active {
+  background: var(--card);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.risk-filter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.risk-tab {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.risk-tab:active {
+  opacity: 0.7;
+}
+
+.risk-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.btn.small.del {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .seg-tabs {

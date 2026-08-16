@@ -397,6 +397,17 @@ def get_generation_report(gid: int, db: Session = Depends(get_db)):
     return json.loads(g.report_json or "{}")
 
 
+@app.delete("/api/generator/reports/{gid}")
+def delete_generation_report(gid: int, db: Session = Depends(get_db)):
+    """删除某次策略生成报告。"""
+    g = db.query(GenerationReport).filter(GenerationReport.id == gid).first()
+    if not g:
+        raise HTTPException(404, "生成报告不存在")
+    db.delete(g)
+    db.commit()
+    return {"status": "deleted"}
+
+
 # ===== 账户 =====
 @app.get("/api/account")
 def get_account(db: Session = Depends(get_db)):
