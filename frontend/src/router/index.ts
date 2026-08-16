@@ -8,6 +8,26 @@ const router = createRouter({
       name: 'home',
       component: () => import('../views/HomeView.vue'),
     },
+    {
+      path: '/strategy',
+      name: 'strategy',
+      component: () => import('../views/StrategyView.vue'),
+    },
+    {
+      path: '/backtest',
+      name: 'backtest',
+      component: () => import('../views/BacktestView.vue'),
+    },
+    {
+      path: '/trade',
+      name: 'trade',
+      component: () => import('../views/TradeView.vue'),
+    },
+    {
+      path: '/generator',
+      name: 'generator',
+      component: () => import('../views/GeneratorView.vue'),
+    },
   ],
 })
 

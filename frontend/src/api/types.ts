@@ -16,7 +16,7 @@ export interface Strategy {
 }
 
 export interface StrategyInput {
-  name: string
+  name?: string
   enabled?: boolean
   config?: StrategyConfig
   initial_capital?: number
