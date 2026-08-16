@@ -20,17 +20,17 @@
 - [x] 3. 检查点 - 确保所有测试通过
   - 运行后端 pytest，确保既有测试通过，如有疑问请询问用户
 
-- [ ] 4. 改造扫描与账户链路走券商适配器
-  - [ ] 4.1 修改 scanner.py 下单入口调用 BrokerAdapter
+- [x] 4. 改造扫描与账户链路走券商适配器
+  - [x] 4.1 修改 scanner.py 下单入口调用 BrokerAdapter
     - 将 accounts.place_order 替换为 PaperBroker 实例下单
-  - [ ] 4.2 扩展 models.py 与 database.py
+  - [x] 4.2 扩展 models.py 与 database.py
     - 为 Order 增加 broker_type 与 external_order_id 字段并写入迁移
-  - [ ] 4.3 修改 main.py 账户与订单接口
+  - [x] 4.3 修改 main.py 账户与订单接口
     - /api/account 返回 broker_type 字段，订单接口返回外部委托号与券商类型
-  - [ ] 4.4 新增实盘下单二次确认接口
+  - [x] 4.4 新增实盘下单二次确认接口
     - 提供下单请求与确认下发两阶段接口
 
-- [ ] 5. 检查点 - 确保后端链路完整
+- [x] 5. 检查点 - 确保后端链路完整
   - 运行 pytest 并手动触发扫描，验证模拟盘下单、账户与持仓刷新
 
 - [ ] 6. 实现前端 API 层与状态管理
