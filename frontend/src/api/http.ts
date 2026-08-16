@@ -1,10 +1,18 @@
+import { toast } from '../utils/toast'
+
 const BASE = '/api'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options,
+    })
+  } catch {
+    toast('网络连接失败，请检查网络后重试')
+    throw new Error('网络连接失败')
+  }
   if (!res.ok) {
     let detail = ''
     try {

@@ -16,10 +16,14 @@
 
       <AssetCard v-if="accountStore.account" :account="accountStore.account" />
 
+      <div v-if="lastUpdated" class="updated-hint">最后更新 {{ lastUpdated }}</div>
+
       <EquityCurve
         :points="accountStore.equity"
         :baseline="accountStore.account?.initial_capital"
       />
+
+      <RiskPanel :strategies="strategyStore.strategies" :is-live="accountStore.isLive" />
 
       <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
         <div class="strategy-tabs">
@@ -84,6 +88,7 @@ import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
+import RiskPanel from '../components/RiskPanel.vue'
 import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
@@ -99,6 +104,7 @@ const router = useRouter()
 
 const activeId = ref<number | 'all'>('all')
 const alerts = ref<Alert[]>([])
+const lastUpdated = ref('')
 
 const ALERT_LABELS: Record<string, string> = {
   takeProfit: '止盈',
@@ -171,12 +177,18 @@ onMounted(() => {
 
 usePullRefresh(refresh)
 
-function refresh() {
-  accountStore.fetch()
-  accountStore.fetchEquity()
-  positionStore.fetch()
-  strategyStore.fetch()
-  fetchAlerts()
+async function refresh() {
+  await Promise.all([
+    accountStore.fetch(),
+    accountStore.fetchEquity(),
+    positionStore.fetch(),
+    strategyStore.fetch(),
+    fetchAlerts(),
+  ])
+  const d = new Date()
+  lastUpdated.value = [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map((x) => String(x).padStart(2, '0'))
+    .join(':')
 }
 
 async function fetchAlerts() {
@@ -318,5 +330,12 @@ function openStock(p: { code: string; name: string }) {
 
 .alert-msg {
   flex: 1;
+}
+
+.updated-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-2);
+  margin: -4px 16px 0;
 }
 </style>
