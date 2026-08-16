@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from . import config, matching
 from .account import AccountService, check_risk
 from .broker import PaperBroker
-from .models import Alert, Position, ScanReport, Strategy
+from .models import Alert, Position, ScanReport, Strategy, Trade
 from .public_data import DataUnavailableError
 from .strategy_engine import evaluate_buy, evaluate_sell
 
@@ -43,6 +43,44 @@ def _latest_price(market, code: str, start: str, end: str) -> float:
     except DataUnavailableError:
         pass
     return None
+
+
+def _detect_strategy_failure(db, acct, strategy, cfg, equity) -> bool:
+    """策略失效检测：连续卖出亏损或累计回撤超阈值，失效则禁用并告警。
+
+    返回 True 表示策略已失效（已自动禁用并记录告警）。
+    """
+    risk = cfg.get("risk", {})
+    max_consec_loss = int(risk.get("maxConsecutiveLosses", 5))
+    max_drawdown_pct = float(risk.get("maxDrawdownPct", 15))
+
+    reason = None
+    sells = (
+        db.query(Trade)
+        .filter(Trade.strategy_id == strategy.id, Trade.direction == "sell")
+        .order_by(Trade.id.desc())
+        .limit(max_consec_loss)
+        .all()
+    )
+    if len(sells) >= max_consec_loss and all((t.pnl or 0.0) < 0 for t in sells):
+        reason = f"连续 {max_consec_loss} 笔卖出亏损，判定策略失效"
+    else:
+        capital = strategy.initial_capital or 0.0
+        if capital > 0:
+            ret_pct = (equity - capital) / capital * 100.0
+            if ret_pct <= -max_drawdown_pct:
+                reason = f"累计回撤 {abs(ret_pct):.2f}% 超过 {max_drawdown_pct}%，判定策略失效"
+
+    if not reason:
+        return False
+
+    strategy.enabled = 0
+    db.add(Alert(
+        account_id=acct.id, strategy_id=strategy.id, code="SYSTEM", name=strategy.name,
+        alert_type="strategy_failed", price=0.0, message=reason,
+    ))
+    db.commit()
+    return True
 
 
 def scan_and_trade(db, market, accounts: AccountService = None, broker=None, source: str = "manual", progress=None) -> dict:
@@ -104,6 +142,9 @@ def scan_and_trade(db, market, accounts: AccountService = None, broker=None, sou
         equity = strategy.available_cash + sum(p.qty * prices.get(p.code, p.avg_cost)
                                                for p in positions)
         state["high_water"] = max(strategy.initial_capital, equity)
+
+        if _detect_strategy_failure(db, acct, strategy, cfg, equity):
+            continue
 
         for code, name in stock_list:
             processed += 1

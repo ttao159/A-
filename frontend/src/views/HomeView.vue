@@ -122,6 +122,7 @@ const ALERT_LABELS: Record<string, string> = {
   stopLoss: '止损',
   trailingStop: '移动止盈',
   maxSingleLoss: '最大亏损',
+  strategy_failed: '策略失效',
 }
 
 function alertTypeLabel(type: string) {
