@@ -6,13 +6,13 @@
    - 创建 backend/app/broker.py，定义 BrokerAdapter 抽象基类与 broker_type
    - 安装前端依赖，确保开发服务器可启动
 
-- [ ] 2. 实现后端券商适配层
-  - [ ] 2.1 定义 BrokerAdapter 抽象基类接口
+- [x] 2. 实现后端券商适配层
+  - [x] 2.1 定义 BrokerAdapter 抽象基类接口
     - 声明 place_order / cancel_order / get_account / get_positions / get_orders / get_trades / reconcile 抽象方法
-  - [ ] 2.2 实现 PaperBroker 模拟券商
+  - [x] 2.2 实现 PaperBroker 模拟券商
     - 复用 AccountService.place_order 完成模拟撮合与费用计算
     - 实现撤单、查账户、查持仓、查委托、查成交、对账
-  - [ ] 2.3 实现 LiveBroker 实盘券商占位
+  - [x] 2.3 实现 LiveBroker 实盘券商占位
     - 各方法返回「实盘券商未接入」错误，broker_type="live"
   - [ ]* 2.4 为券商适配层编写单元测试
     - 覆盖 PaperBroker 下单/撤单/对账与资金守恒
