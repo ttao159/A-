@@ -69,6 +69,51 @@ def list_strategies(db: Session = Depends(get_db)):
     return [_strategy_out(s) for s in db.query(Strategy).all()]
 
 
+@app.get("/api/strategies/compare")
+def compare_strategies(db: Session = Depends(get_db)):
+    """多策略收益对比：每个策略的总资产、盈亏与收益率，按收益率降序。"""
+    strategies = db.query(Strategy).all()
+    _, positions, _ = accounts.get_snapshot(db)
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=10)).isoformat()
+
+    pos_by_strategy = {}
+    for p in positions:
+        if p.strategy_id is not None:
+            pos_by_strategy.setdefault(p.strategy_id, []).append(p)
+
+    result = []
+    for s in strategies:
+        capital = s.initial_capital or 0.0
+        cash = s.available_cash or 0.0
+        market_value = 0.0
+        for p in pos_by_strategy.get(s.id, []):
+            price = p.avg_cost
+            try:
+                bars = market.get_daily_bars(p.code, start, end)
+                if bars is not None and len(bars):
+                    price = float(bars["close"].iloc[-1])
+            except Exception:
+                pass
+            market_value += p.qty * price
+        total = cash + market_value
+        pnl = total - capital
+        ret_pct = (pnl / capital * 100.0) if capital else 0.0
+        result.append({
+            "id": s.id,
+            "name": s.name,
+            "enabled": bool(s.enabled),
+            "initial_capital": round(capital, 2),
+            "available_cash": round(cash, 2),
+            "market_value": round(market_value, 2),
+            "total_asset": round(total, 2),
+            "pnl": round(pnl, 2),
+            "return_pct": round(ret_pct, 2),
+        })
+    result.sort(key=lambda x: x["return_pct"], reverse=True)
+    return result
+
+
 @app.post("/api/strategies")
 def create_strategy(body: StrategyCreate, db: Session = Depends(get_db)):
     capital = body.initial_capital if body.initial_capital is not None else config.DEFAULT_INITIAL_CAPITAL

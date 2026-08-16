@@ -22,6 +22,18 @@ export interface StrategyInput {
   initial_capital?: number
 }
 
+export interface StrategyCompareItem {
+  id: number
+  name: string
+  enabled: boolean
+  initial_capital: number
+  available_cash: number
+  market_value: number
+  total_asset: number
+  pnl: number
+  return_pct: number
+}
+
 export interface Account {
   broker_type: string
   initial_capital: number

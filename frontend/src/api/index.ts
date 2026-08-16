@@ -12,6 +12,7 @@ import type {
   ScanReports,
   ScanResult,
   Strategy,
+  StrategyCompareItem,
   StrategyInput,
   Trade,
 } from './types'
@@ -76,6 +77,7 @@ export const strategyApi = {
   create: (input: StrategyInput) => http.post<Strategy>('/strategies', input),
   update: (id: number, input: StrategyInput) => http.put<Strategy>(`/strategies/${id}`, input),
   remove: (id: number) => http.del<{ ok: boolean }>(`/strategies/${id}`),
+  compare: () => http.get<StrategyCompareItem[]>('/strategies/compare'),
 }
 
 export const positionApi = {

@@ -1,5 +1,7 @@
 <template>
   <div>
+    <StrategyCompare />
+
     <div class="card">
       <button class="btn block" @click="showTemplatePicker = true">新建策略</button>
     </div>
@@ -62,6 +64,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StrategyEditor from '../components/StrategyEditor.vue'
 import StrategyPreview from '../components/StrategyPreview.vue'
+import StrategyCompare from '../components/StrategyCompare.vue'
 import { useStrategyStore } from '../stores/strategy'
 import { usePositionStore } from '../stores/position'
 import { usePullRefresh } from '../composables/pullRefresh'
