@@ -18,6 +18,7 @@ import type { AccountEquityPoint } from '../api'
 import { fmtMoney } from '../utils/format'
 import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
+import { hiDPIContext } from '../utils/canvas'
 
 const props = defineProps<{ points: AccountEquityPoint[]; baseline?: number }>()
 
@@ -33,7 +34,7 @@ function draw() {
   const c = chartColors()
   const el = canvas.value
   if (!el) return
-  const ctx = el.getContext('2d')
+  const ctx = hiDPIContext(el, W, H)
   if (!ctx) return
   ctx.clearRect(0, 0, W, H)
 

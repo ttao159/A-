@@ -209,12 +209,16 @@ function setTab(t: 'trades' | 'orders') {
 
 .filter-btn {
   flex: 1;
-  height: 32px;
-  border-radius: 16px;
+  height: 44px;
+  border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
   font-size: 13px;
+}
+
+.filter-btn:active {
+  opacity: 0.7;
 }
 
 .filter-btn.active {

@@ -3,6 +3,9 @@
     <div class="card">
       <div class="card-title">全部预警</div>
       <Skeleton v-if="loading && !alerts.length" :rows="2" />
+      <div v-else-if="error" class="error-box">
+        {{ error }}<br /><button class="retry-btn" @click="load">重试</button>
+      </div>
       <div v-else-if="!alerts.length" class="empty">暂无预警记录</div>
       <template v-else>
         <div v-for="a in alerts" :key="a.id" class="alert-item">
@@ -27,13 +30,15 @@ import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
 
 const alerts = ref<Alert[]>([])
 const loading = ref(false)
+const error = ref('')
 
 async function load() {
   loading.value = true
+  error.value = ''
   try {
     alerts.value = await alertApi.list(500)
   } catch (e) {
-    // 加载失败保留旧数据，不打断页面
+    if (!alerts.value.length) error.value = '预警列表加载失败'
   } finally {
     loading.value = false
   }

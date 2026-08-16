@@ -25,6 +25,10 @@
           </div>
         </div>
       </div>
+      <div v-else-if="indicesError" class="card index-bar index-err">
+        <span>{{ indicesError }}</span>
+        <button class="retry-btn" @click="fetchIndices">重试</button>
+      </div>
 
       <div v-if="lastUpdated" class="updated-hint">最后更新 {{ lastUpdated }}</div>
 
@@ -70,7 +74,10 @@
 
       <div class="card">
         <div class="card-title">预警提醒</div>
-        <div v-if="!alerts.length" class="empty">暂无预警记录</div>
+        <div v-if="alertsError" class="error-box">
+          {{ alertsError }}<br /><button class="retry-btn" @click="fetchAlerts">重试</button>
+        </div>
+        <div v-else-if="!alerts.length" class="empty">暂无预警记录</div>
         <template v-else>
           <div v-for="a in visibleAlerts" :key="a.id" class="alert-item">
             <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
@@ -129,6 +136,8 @@ const router = useRouter()
 const activeId = ref<number | 'all'>('all')
 const alerts = ref<Alert[]>([])
 const indices = ref<IndexQuote[]>([])
+const indicesError = ref('')
+const alertsError = ref('')
 const lastUpdated = ref('')
 
 const ALERT_VISIBLE = 5
@@ -223,16 +232,18 @@ function setLastUpdated() {
 async function fetchIndices() {
   try {
     indices.value = await indexApi.list()
+    indicesError.value = ''
   } catch (e) {
-    // 指数行情加载失败不阻断账户页
+    indicesError.value = '指数行情加载失败'
   }
 }
 
 async function fetchAlerts() {
   try {
     alerts.value = await alertApi.list()
+    alertsError.value = ''
   } catch (e) {
-    // 预警列表加载失败不阻断账户页
+    alertsError.value = '预警列表加载失败'
   }
 }
 
@@ -388,9 +399,20 @@ function goAlerts() {
 
 .index-bar {
   display: flex;
+  align-items: center;
   gap: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.index-err {
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.index-err .retry-btn {
+  margin-top: 0;
 }
 
 .index-item {

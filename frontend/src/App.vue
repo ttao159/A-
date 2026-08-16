@@ -131,8 +131,8 @@ async function onTouchEnd() {
 }
 
 .theme-btn {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--card);

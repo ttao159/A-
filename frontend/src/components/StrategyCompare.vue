@@ -2,6 +2,7 @@
   <div class="card">
     <div class="card-title">策略收益对比</div>
     <div v-if="loading" class="empty">加载中...</div>
+    <div v-else-if="error" class="error-box">{{ error }}<br /><button class="retry-btn" @click="load">重试</button></div>
     <div v-else-if="!items.length" class="empty">暂无策略</div>
     <template v-else>
       <div v-for="(s, i) in items" :key="s.id" class="cmp-row">
@@ -30,6 +31,7 @@ import { fmtMoney, fmtPct } from '../utils/format'
 
 const items = ref<StrategyCompareItem[]>([])
 const loading = ref(false)
+const error = ref('')
 
 function barStyle(ret: number) {
   const maxAbs = Math.max(...items.value.map((s) => Math.abs(s.return_pct)), 0.01)
@@ -38,16 +40,19 @@ function barStyle(ret: number) {
   return { left: 50 - width + '%', width: width + '%' }
 }
 
-onMounted(async () => {
+async function load() {
   loading.value = true
+  error.value = ''
   try {
     items.value = await strategyApi.compare()
   } catch (e) {
-    // 对比加载失败不阻塞页面
+    error.value = '加载失败，请检查后端服务后重试'
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <style scoped>

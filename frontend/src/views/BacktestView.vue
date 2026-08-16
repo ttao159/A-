@@ -420,7 +420,12 @@ async function runOptimize() {
   color: var(--text-2);
   font-size: 13px;
   padding: 4px 0;
+  min-height: 44px;
   cursor: pointer;
+}
+
+.help-toggle:active {
+  opacity: 0.6;
 }
 
 .help-list {

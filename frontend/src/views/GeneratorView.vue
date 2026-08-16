@@ -98,6 +98,7 @@
         <label>目标年化（%）</label>
         <input v-model.number="genTarget" type="number" min="0" step="1" />
       </div>
+      <div v-if="genError" class="gen-error">{{ genError }}</div>
       <button class="btn block" :disabled="generating" @click="startGen">
         {{ generating ? '生成中...' : '生成策略' }}
       </button>
@@ -246,6 +247,7 @@ const genRisk = ref('balanced')
 const genCount = ref(3)
 const genTarget = ref(15)
 const genMsg = ref('')
+const genError = ref('')
 const genResult = ref<GenerationReport | null>(null)
 const genHistory = ref<GenerationReportItem[]>([])
 
@@ -372,6 +374,15 @@ async function startScan() {
 }
 
 async function startGen() {
+  if (!Number.isInteger(genCount.value) || genCount.value < 1 || genCount.value > 10) {
+    genError.value = '生成数量需为 1-10 的整数'
+    return
+  }
+  if (!Number.isFinite(genTarget.value) || genTarget.value < 0 || genTarget.value > 200) {
+    genError.value = '目标年化需在 0-200% 之间'
+    return
+  }
+  genError.value = ''
   generating.value = true
   genMsg.value = ''
   genResult.value = null
@@ -425,6 +436,12 @@ async function saveGenStrategy(s: GenStrategy) {
 <style scoped>
 .seg-wrap {
   padding: 8px;
+}
+
+.gen-error {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--danger);
 }
 
 .seg-tabs {

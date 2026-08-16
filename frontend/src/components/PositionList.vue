@@ -95,13 +95,17 @@ function warnOf(p: Position): { type: 'tp' | 'sl'; label: string } | null {
 }
 
 .sort-btn {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 13px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text-2);
   font-size: 12px;
+}
+
+.sort-btn:active {
+  opacity: 0.7;
 }
 
 .pos-item {
@@ -157,13 +161,17 @@ function warnOf(p: Position): { type: 'tp' | 'sl'; label: string } | null {
 }
 
 .expand-btn {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
   color: var(--text-2);
   font-size: 14px;
   margin-left: 4px;
+}
+
+.expand-btn:active {
+  opacity: 0.5;
 }
 
 .pos-detail {

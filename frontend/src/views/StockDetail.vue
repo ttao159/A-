@@ -73,6 +73,7 @@ import { fmtPrice } from '../utils/format'
 import { isTradingTime } from '../utils/date'
 import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
+import { hiDPIContext } from '../utils/canvas'
 
 const route = useRoute()
 const code = ref(String(route.params.code ?? ''))
@@ -234,7 +235,7 @@ function resetVisible() {
 function draw() {
   const el = canvas.value
   if (!el) return
-  const ctx = el.getContext('2d')
+  const ctx = hiDPIContext(el, W, H)
   if (!ctx) return
   ctx.clearRect(0, 0, W, H)
   if (mode.value === 'minute') drawMinute(ctx)
@@ -283,9 +284,9 @@ function drawKline(ctx: CanvasRenderingContext2D) {
   }
 
   const maPeriods = [
-    { n: 5, color: '#f5a623' },
-    { n: 10, color: '#409eff' },
-    { n: 20, color: '#9254de' },
+    { n: 5, color: c.ma1 },
+    { n: 10, color: c.ma2 },
+    { n: 20, color: c.ma3 },
   ]
   const offset = all.length - data.length
   if (showMA.value) {
@@ -357,7 +358,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
 
   let avg = 0
   let sum = 0
-  ctx.strokeStyle = '#f5a623'
+  ctx.strokeStyle = c.ma1
   ctx.lineWidth = 1.4
   ctx.beginPath()
   data.forEach((b, i) => {
@@ -369,7 +370,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   })
   ctx.stroke()
 
-  ctx.strokeStyle = '#409eff'
+  ctx.strokeStyle = c.ma2
   ctx.lineWidth = 1.2
   ctx.beginPath()
   data.forEach((b, i) => {
@@ -555,8 +556,8 @@ function onPointerEnd(e: PointerEvent) {
 
 <style scoped>
 .back-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--card);
@@ -565,14 +566,22 @@ function onPointerEnd(e: PointerEvent) {
   margin-right: 8px;
 }
 
+.back-btn:active {
+  opacity: 0.6;
+}
+
 .mode-btn {
   flex: 1;
-  height: 34px;
-  border-radius: 17px;
+  height: 44px;
+  border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
   font-size: 13px;
+}
+
+.mode-btn:active {
+  opacity: 0.7;
 }
 
 .mode-btn.active {
@@ -608,13 +617,17 @@ function onPointerEnd(e: PointerEvent) {
 }
 
 .search-btn {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 16px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
   font-size: 13px;
+}
+
+.search-btn:active {
+  opacity: 0.7;
 }
 
 .search-box {

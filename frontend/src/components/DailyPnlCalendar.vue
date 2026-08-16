@@ -6,22 +6,27 @@
       <button class="nav" :disabled="!canNext" @click="shiftMonth(1)">›</button>
     </div>
 
-    <div class="cal-summary">
-      <span>月盈亏</span>
-      <span :class="monthPnl >= 0 ? 'up' : 'down'">{{ fmtMoney(monthPnl) }}</span>
+    <div v-if="error" class="error-box">
+      {{ error }}<br /><button class="retry-btn" @click="load">重试</button>
     </div>
-
-    <div class="cal-grid">
-      <div v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w" class="cal-weekday">{{ w }}</div>
-      <div v-for="cell in cells" :key="cell.key" class="cal-cell" :class="{ blank: !cell.day }">
-        <template v-if="cell.day">
-          <div class="cal-day" :class="{ today: cell.isToday }">{{ cell.day }}</div>
-          <div v-if="cell.pnl !== null" class="cal-pnl" :class="cell.pnl >= 0 ? 'up' : 'down'">
-            {{ cell.pnl > 0 ? '+' : '' }}{{ cell.pnl.toFixed(0) }}
-          </div>
-        </template>
+    <template v-else>
+      <div class="cal-summary">
+        <span>月盈亏</span>
+        <span :class="monthPnl >= 0 ? 'up' : 'down'">{{ fmtMoney(monthPnl) }}</span>
       </div>
-    </div>
+
+      <div class="cal-grid">
+        <div v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w" class="cal-weekday">{{ w }}</div>
+        <div v-for="cell in cells" :key="cell.key" class="cal-cell" :class="{ blank: !cell.day }">
+          <template v-if="cell.day">
+            <div class="cal-day" :class="{ today: cell.isToday }">{{ cell.day }}</div>
+            <div v-if="cell.pnl !== null" class="cal-pnl" :class="cell.pnl >= 0 ? 'up' : 'down'">
+              {{ cell.pnl > 0 ? '+' : '' }}{{ cell.pnl.toFixed(0) }}
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -32,6 +37,7 @@ import type { DailyPnlPoint } from '../api'
 import { fmtMoney } from '../utils/format'
 
 const points = ref<DailyPnlPoint[]>([])
+const error = ref('')
 
 const today = new Date()
 const year = ref(today.getFullYear())
@@ -81,13 +87,16 @@ function shiftMonth(delta: number) {
   month.value = d.getMonth() + 1
 }
 
-onMounted(async () => {
+async function load() {
+  error.value = ''
   try {
     points.value = await accountApi.dailyPnl()
   } catch (e) {
-    // 收益日历加载失败不阻断页面
+    error.value = '收益日历加载失败'
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <style scoped>
@@ -104,14 +113,18 @@ onMounted(async () => {
 }
 
 .nav {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
   font-size: 18px;
   line-height: 1;
+}
+
+.nav:active:not(:disabled) {
+  opacity: 0.6;
 }
 
 .nav:disabled {

@@ -255,7 +255,7 @@ function buildPayload(): StrategyInput {
   justify-content: space-between;
   gap: 12px;
   font-size: 13px;
-  color: var(--text-secondary, #606266);
+  color: var(--text-2);
 }
 
 .param input {

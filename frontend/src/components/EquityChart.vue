@@ -8,6 +8,7 @@ import type { EquityPoint } from '../api/types'
 import { fmtMoney } from '../utils/format'
 import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
+import { hiDPIContext } from '../utils/canvas'
 
 interface TradeMark {
   date: string
@@ -29,7 +30,7 @@ function draw() {
   const c = chartColors()
   const el = canvas.value
   if (!el) return
-  const ctx = el.getContext('2d')
+  const ctx = hiDPIContext(el, W, H)
   if (!ctx) return
   ctx.clearRect(0, 0, W, H)
 
@@ -144,7 +145,7 @@ function draw() {
   ctx.lineTo(W - padR, ydd(0))
   ctx.stroke()
 
-  ctx.fillStyle = 'rgba(224, 57, 62, 0.15)'
+  ctx.fillStyle = c.downFill
   ctx.strokeStyle = c.down
   ctx.lineWidth = 1.2
   ctx.beginPath()
