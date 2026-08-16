@@ -21,7 +21,7 @@ from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
 from .market import MarketDataService
-from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy
+from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy, Trade
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
 from .schemas import BacktestRequest, GeneratorRequest, OptimizeRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
@@ -487,9 +487,12 @@ def get_positions(db: Session = Depends(get_db)):
 
 
 @app.get("/api/trades")
-def get_trades(db: Session = Depends(get_db)):
-    _, _, trades = accounts.get_snapshot(db)
-    return [
+def get_trades(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
+    q = db.query(Trade).filter(Trade.account_id == acct.id)
+    total = q.count()
+    trades = q.order_by(Trade.id.desc()).offset(offset).limit(limit).all()
+    items = [
         {
             "id": t.id, "code": t.code, "name": t.name, "direction": t.direction,
             "qty": t.qty, "price": t.price, "commission": round(t.commission, 2),
@@ -498,14 +501,27 @@ def get_trades(db: Session = Depends(get_db)):
         }
         for t in trades
     ]
+    all_rows = q.all()
+    sells = [t for t in all_rows if t.direction == "sell"]
+    summary = {
+        "total": total,
+        "buys": sum(1 for t in all_rows if t.direction == "buy"),
+        "sells": len(sells),
+        "pnl": round(sum(t.pnl or 0 for t in all_rows), 2),
+        "wins": sum(1 for t in sells if (t.pnl or 0) > 0),
+        "losses": sum(1 for t in sells if (t.pnl or 0) < 0),
+    }
+    return {"items": items, "total": total, "has_more": offset + len(items) < total, "summary": summary}
 
 
 @app.get("/api/orders")
-def get_orders(db: Session = Depends(get_db)):
-    """委托列表（最近 100 条，含券商类型与外部委托号）。"""
+def get_orders(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    """委托列表（分页，按 id 倒序）。"""
     acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
-    orders = db.query(Order).filter(Order.account_id == acct.id).order_by(Order.id.desc()).limit(100).all()
-    return [
+    q = db.query(Order).filter(Order.account_id == acct.id)
+    total = q.count()
+    orders = q.order_by(Order.id.desc()).offset(offset).limit(limit).all()
+    items = [
         {
             "id": o.id, "code": o.code, "name": o.name, "direction": o.direction,
             "qty": o.qty, "price": o.price, "status": o.status, "reason": o.reason,
@@ -515,6 +531,7 @@ def get_orders(db: Session = Depends(get_db)):
         }
         for o in orders
     ]
+    return {"items": items, "total": total, "has_more": offset + len(items) < total}
 
 
 # ===== 实盘下单二次确认（确认链路与下单链路解耦） =====

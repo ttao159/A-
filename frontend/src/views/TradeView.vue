@@ -73,6 +73,14 @@
             <span>印花税 {{ fmtMoney(t.tax) }}</span>
           </div>
         </div>
+        <button
+          v-if="tradeStore.tradeHasMore"
+          class="btn ghost load-more"
+          :disabled="tradeStore.loadingMore"
+          @click="tradeStore.fetchMoreTrades()"
+        >
+          {{ tradeStore.loadingMore ? '加载中...' : '加载更多' }}
+        </button>
       </template>
 
       <template v-else>
@@ -104,6 +112,14 @@
             <div class="muted">{{ o.broker_type === 'live' ? '实盘' : '模拟' }}</div>
           </div>
         </div>
+        <button
+          v-if="tradeStore.orderHasMore"
+          class="btn ghost load-more"
+          :disabled="tradeStore.loadingMore"
+          @click="tradeStore.fetchMoreOrders()"
+        >
+          {{ tradeStore.loadingMore ? '加载中...' : '加载更多' }}
+        </button>
       </template>
     </div>
 
@@ -153,18 +169,16 @@ const filteredTrades = computed(() => {
 })
 
 const tradeStats = computed(() => {
-  const trades = tradeStore.trades
-  const sells = trades.filter((t) => t.direction === 'sell')
-  const wins = sells.filter((t) => (t.pnl || 0) > 0).length
-  const losses = sells.filter((t) => (t.pnl || 0) < 0).length
+  const s = tradeStore.tradeSummary
+  const sells = s.sells
   return {
-    total: trades.length,
-    buys: trades.filter((t) => t.direction === 'buy').length,
-    sells: sells.length,
-    pnl: trades.reduce((s, t) => s + (t.pnl || 0), 0),
-    wins,
-    losses,
-    winRate: sells.length ? Math.round((wins / sells.length) * 100) : 0,
+    total: s.total,
+    buys: s.buys,
+    sells: s.sells,
+    pnl: s.pnl,
+    wins: s.wins,
+    losses: s.losses,
+    winRate: sells ? Math.round((s.wins / sells) * 100) : 0,
   }
 })
 
@@ -225,6 +239,11 @@ function setTab(t: 'trades' | 'orders') {
 .search-input {
   margin-bottom: 10px;
   height: 38px;
+}
+
+.load-more {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .trade-item {

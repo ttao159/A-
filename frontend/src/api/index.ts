@@ -85,8 +85,27 @@ export const positionApi = {
 }
 
 export const tradeApi = {
-  list: () => http.get<Trade[]>('/trades'),
-  orders: () => http.get<Order[]>('/orders'),
+  list: (offset = 0, limit = 20) => http.get<PagedTrades>(`/trades?offset=${offset}&limit=${limit}`),
+  orders: (offset = 0, limit = 20) => http.get<Paged<Order>>(`/orders?offset=${offset}&limit=${limit}`),
+}
+
+export interface Paged<T> {
+  items: T[]
+  total: number
+  has_more: boolean
+}
+
+export interface TradeSummary {
+  total: number
+  buys: number
+  sells: number
+  pnl: number
+  wins: number
+  losses: number
+}
+
+export interface PagedTrades extends Paged<Trade> {
+  summary: TradeSummary
 }
 
 export const scanApi = {

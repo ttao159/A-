@@ -21,11 +21,11 @@
         </div>
         <div class="field">
           <label>价格（元）</label>
-          <input v-model.number="form.price" type="number" min="0.01" step="0.01" />
+          <input v-model="form.price" type="text" inputmode="decimal" placeholder="0.00" @input="onPriceInput" />
         </div>
         <div class="field">
           <label>数量（100 股整数倍）</label>
-          <input v-model.number="form.qty" type="number" min="100" step="100" />
+          <input v-model="form.qty" type="text" inputmode="numeric" placeholder="100 的整数倍" @input="onQtyInput" />
         </div>
         <div class="field">
           <label>所属策略（可选）</label>
@@ -100,8 +100,8 @@ const requestId = ref('')
 const form = reactive({
   code: '',
   direction: 'buy',
-  price: 0,
-  qty: 100,
+  price: '',
+  qty: '100',
   strategy_id: null as number | null,
 })
 
@@ -135,8 +135,8 @@ watch(
         const last = md.bars[md.bars.length - 1]
         const px = last ? last.price : md.prev_close
         if (px > 0) {
-          form.price = Number(px.toFixed(2))
-          toast(`已按现价 ${fmtPrice(form.price)} 填入`)
+          form.price = px.toFixed(2)
+          toast(`已按现价 ${fmtPrice(px)} 填入`)
         }
       } catch {
         // 获取现价失败时保留手动输入
@@ -145,20 +145,38 @@ watch(
   },
 )
 
+function onPriceInput() {
+  let s = form.price.replace(/[^\d.]/g, '')
+  const firstDot = s.indexOf('.')
+  if (firstDot >= 0) {
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '')
+    const [int, dec] = s.split('.')
+    s = int + '.' + (dec || '').slice(0, 2)
+  }
+  if (s.startsWith('.')) s = '0' + s
+  form.price = s
+}
+
+function onQtyInput() {
+  form.qty = form.qty.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+}
+
 function buildInput(): OrderPrepareInput {
   return {
     code: form.code.trim(),
     direction: form.direction,
-    price: form.price,
-    qty: form.qty,
+    price: Number(form.price),
+    qty: Number(form.qty),
     strategy_id: form.strategy_id,
   }
 }
 
 function validate(): string {
+  const price = Number(form.price)
+  const qty = Number(form.qty)
   if (!form.code) return '请输入股票代码'
-  if (!form.price || form.price <= 0) return '请输入有效价格'
-  if (!form.qty || form.qty % 100 !== 0) return '数量需为 100 股整数倍'
+  if (!price || price <= 0) return '请输入有效价格'
+  if (!qty || qty % 100 !== 0) return '数量需为 100 股整数倍'
   return ''
 }
 
@@ -174,8 +192,8 @@ async function prepare() {
     requestId.value = res.request_id
     order.code = form.code
     order.direction = form.direction
-    order.price = form.price
-    order.qty = form.qty
+    order.price = Number(form.price)
+    order.qty = Number(form.qty)
     step.value = 'confirm'
   } catch (e) {
     toast((e as Error).message)
