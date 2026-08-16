@@ -44,12 +44,31 @@ export interface MinuteData {
 export const accountApi = {
   get: () => http.get<Account>('/account'),
   equity: () => http.get<AccountEquityPoint[]>('/account/equity'),
+  dailyPnl: () => http.get<DailyPnlPoint[]>('/account/daily-pnl'),
   reset: () => http.post<{ ok: boolean }>('/account/reset'),
 }
 
 export interface AccountEquityPoint {
   date: string
   equity: number
+}
+
+export interface DailyPnlPoint {
+  date: string
+  equity: number
+  pnl: number
+}
+
+export interface IndexQuote {
+  code: string
+  name: string
+  price: number
+  change: number
+  change_pct: number
+}
+
+export const indexApi = {
+  list: () => http.get<IndexQuote[]>('/indices'),
 }
 
 export const strategyApi = {

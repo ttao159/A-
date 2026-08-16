@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="card">
-      <button class="btn block" @click="startCreate">新建策略</button>
+      <button class="btn block" @click="showTemplatePicker = true">新建策略</button>
     </div>
 
     <div v-if="strategyStore.loading && !strategyStore.strategies.length" class="empty">加载中...</div>
@@ -36,7 +36,22 @@
     <div v-if="editing" class="scan-mask" @click.self="editing = false">
       <div class="box" style="max-height: 82%; overflow-y: auto; text-align: left; width: 92%">
         <h3 style="margin: 0 0 12px">{{ current ? '编辑策略' : '新建策略' }}</h3>
-        <StrategyEditor :strategy="current" @save="save" @cancel="editing = false" />
+        <StrategyEditor :strategy="current" :template="template" @save="save" @cancel="editing = false" />
+      </div>
+    </div>
+
+    <div v-if="showTemplatePicker" class="scan-mask" @click.self="showTemplatePicker = false">
+      <div class="box" style="max-height: 82%; overflow-y: auto; text-align: left; width: 92%">
+        <h3 style="margin: 0 0 12px">选择策略模板</h3>
+        <div class="tpl-item" @click="pickTemplate(null)">
+          <div class="tpl-name">空白策略</div>
+          <div class="tpl-desc muted">从零开始配置买卖信号与风控参数</div>
+        </div>
+        <div v-for="t in templates" :key="t.key" class="tpl-item" @click="pickTemplate(t)">
+          <div class="tpl-name">{{ t.name }}</div>
+          <div class="tpl-desc muted">{{ t.description }}</div>
+        </div>
+        <button class="btn ghost block" style="margin-top: 12px" @click="showTemplatePicker = false">取消</button>
       </div>
     </div>
   </div>
@@ -51,6 +66,8 @@ import { useStrategyStore } from '../stores/strategy'
 import { usePositionStore } from '../stores/position'
 import { usePullRefresh } from '../composables/pullRefresh'
 import type { Strategy, StrategyInput } from '../api/types'
+import type { StrategyTemplate } from '../utils/strategyTemplates'
+import { STRATEGY_TEMPLATES } from '../utils/strategyTemplates'
 import { fmtMoney } from '../utils/format'
 
 const strategyStore = useStrategyStore()
@@ -62,6 +79,9 @@ const editing = ref(false)
 const current = ref<Strategy | null>(null)
 const previewing = ref<Strategy | null>(null)
 const highlightId = ref<number | null>(null)
+const showTemplatePicker = ref(false)
+const template = ref<StrategyTemplate | null>(null)
+const templates = STRATEGY_TEMPLATES
 
 onMounted(() => {
   if (route.query.sid) highlightId.value = Number(route.query.sid)
@@ -81,13 +101,16 @@ function openPreview(s: Strategy) {
   previewing.value = s
 }
 
-function startCreate() {
+function pickTemplate(t: StrategyTemplate | null) {
+  showTemplatePicker.value = false
   current.value = null
+  template.value = t
   editing.value = true
 }
 
 function startEdit(s: Strategy) {
   current.value = s
+  template.value = null
   editing.value = true
 }
 
@@ -118,5 +141,28 @@ function goBacktest(s: Strategy) {
 .highlighted {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
+}
+
+.tpl-item {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.tpl-item:active {
+  background: var(--border);
+}
+
+.tpl-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tpl-desc {
+  font-size: 12px;
+  margin-top: 4px;
 }
 </style>

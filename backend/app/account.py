@@ -164,6 +164,17 @@ class AccountService:
         pts = list(reversed(pts))
         return [{"date": p.date, "equity": p.equity} for p in pts]
 
+    def daily_pnl(self, db, acct, limit: int = 120):
+        """按日计算盈亏（当日权益 - 前一日权益），供收益日历展示。"""
+        curve = self.equity_curve(db, acct, limit=limit)
+        result = []
+        prev_equity = None
+        for pt in curve:
+            pnl = round(pt["equity"] - prev_equity, 2) if prev_equity is not None else 0.0
+            result.append({"date": pt["date"], "equity": pt["equity"], "pnl": pnl})
+            prev_equity = pt["equity"]
+        return result
+
     def roll_daily(self, db):
         """每个新交易日开始时，将持仓持有天数 +1（用于 T+1 与持有天数信号）。"""
         today = date.today()

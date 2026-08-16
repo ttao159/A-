@@ -16,12 +16,24 @@
 
       <AssetCard v-if="accountStore.account" :account="accountStore.account" />
 
+      <div v-if="indices.length" class="card index-bar">
+        <div v-for="idx in indices" :key="idx.code" class="index-item">
+          <div class="index-name">{{ idx.name }}</div>
+          <div class="index-price">{{ idx.price.toFixed(2) }}</div>
+          <div class="index-change" :class="idx.change >= 0 ? 'up' : 'down'">
+            {{ idx.change >= 0 ? '+' : '' }}{{ idx.change.toFixed(2) }} ({{ idx.change_pct >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%)
+          </div>
+        </div>
+      </div>
+
       <div v-if="lastUpdated" class="updated-hint">最后更新 {{ lastUpdated }}</div>
 
       <EquityCurve
         :points="accountStore.equity"
         :baseline="accountStore.account?.initial_capital"
       />
+
+      <DailyPnlCalendar />
 
       <RiskPanel :strategies="strategyStore.strategies" :is-live="accountStore.isLive" />
 
@@ -88,13 +100,14 @@ import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
+import DailyPnlCalendar from '../components/DailyPnlCalendar.vue'
 import RiskPanel from '../components/RiskPanel.vue'
 import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
-import { alertApi } from '../api'
-import type { Alert } from '../api'
+import { alertApi, indexApi } from '../api'
+import type { Alert, IndexQuote } from '../api'
 import { fmtMoney, fmtPct } from '../utils/format'
 
 const accountStore = useAccountStore()
@@ -104,6 +117,7 @@ const router = useRouter()
 
 const activeId = ref<number | 'all'>('all')
 const alerts = ref<Alert[]>([])
+const indices = ref<IndexQuote[]>([])
 const lastUpdated = ref('')
 
 const ALERT_LABELS: Record<string, string> = {
@@ -171,10 +185,6 @@ const countdown = computed(() => {
   return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':')
 })
 
-onMounted(() => {
-  refresh()
-})
-
 usePullRefresh(refresh)
 
 async function refresh() {
@@ -184,11 +194,20 @@ async function refresh() {
     positionStore.fetch(),
     strategyStore.fetch(),
     fetchAlerts(),
+    fetchIndices(),
   ])
   const d = new Date()
   lastUpdated.value = [d.getHours(), d.getMinutes(), d.getSeconds()]
     .map((x) => String(x).padStart(2, '0'))
     .join(':')
+}
+
+async function fetchIndices() {
+  try {
+    indices.value = await indexApi.list()
+  } catch (e) {
+    // 指数行情加载失败不阻断账户页
+  }
 }
 
 async function fetchAlerts() {
@@ -337,5 +356,34 @@ function openStock(p: { code: string; name: string }) {
   font-size: 12px;
   color: var(--text-2);
   margin: -4px 16px 0;
+}
+
+.index-bar {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.index-item {
+  flex: 1 0 0;
+  min-width: 0;
+  text-align: center;
+}
+
+.index-name {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.index-price {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.index-change {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 </style>

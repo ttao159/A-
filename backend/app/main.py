@@ -314,6 +314,13 @@ def get_account_equity(db: Session = Depends(get_db)):
     return accounts.equity_curve(db, acct, limit=60)
 
 
+@app.get("/api/account/daily-pnl")
+def get_account_daily_pnl(db: Session = Depends(get_db)):
+    """账户每日盈亏（最近 120 个记录日），供收益日历展示。"""
+    acct = accounts.ensure_account(db, config.DEFAULT_INITIAL_CAPITAL)
+    return accounts.daily_pnl(db, acct, limit=120)
+
+
 @app.get("/api/alerts")
 def get_alerts(db: Session = Depends(get_db)):
     """预警提醒列表（最近 50 条）。"""
@@ -440,6 +447,15 @@ def _check_order_limits(db: Session, body: dict):
     ).scalar()
     if float(daily_sum) + amount > config.MAX_DAILY_ORDER_AMOUNT:
         raise HTTPException(400, f"单日累计委托金额将超过上限 {config.MAX_DAILY_ORDER_AMOUNT:.2f}")
+
+
+@app.get("/api/indices")
+def get_indices():
+    """三大指数实时行情（上证指数/深证成指/创业板指）。"""
+    try:
+        return market.get_index_quotes()
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
 
 
 @app.get("/api/stocks")

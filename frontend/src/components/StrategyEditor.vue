@@ -65,6 +65,7 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import type { Strategy, StrategyInput } from '../api/types'
+import type { StrategyTemplate } from '../utils/strategyTemplates'
 
 interface ParamDef {
   key: string
@@ -120,7 +121,7 @@ const RISK_ITEMS = [
   { key: 'maxDrawdown', label: '最大回撤%' },
 ]
 
-const props = defineProps<{ strategy?: Strategy | null }>()
+const props = defineProps<{ strategy?: Strategy | null; template?: StrategyTemplate | null }>()
 
 defineEmits<{ save: [payload: StrategyInput]; cancel: [] }>()
 
@@ -158,7 +159,17 @@ for (const r of RISK_ITEMS) {
 }
 
 if (props.strategy?.config) {
-  const cfg = props.strategy.config as any
+  applyConfig(props.strategy.config as any, false)
+} else if (props.template) {
+  form.name = props.template.name
+  applyConfig(props.template.config as any, true)
+}
+
+function applyConfig(cfg: any, resetEnabled: boolean) {
+  if (resetEnabled) {
+    for (const s of BUY_SIGNALS) form.buyEnabled[s.key] = false
+    for (const s of SELL_SIGNALS) form.sellEnabled[s.key] = false
+  }
   for (const s of BUY_SIGNALS) {
     const c = cfg.buy?.[s.key]
     if (c) {

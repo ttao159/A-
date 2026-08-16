@@ -25,6 +25,12 @@ SINA_LIST_URL = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
+INDEX_SYMBOLS = [
+    ("sh000001", "上证指数"),
+    ("sz399001", "深证成指"),
+    ("sz399006", "创业板指"),
+]
+
 
 class DataUnavailableError(Exception):
     """行情数据源不可用或返回空数据。"""
@@ -95,6 +101,49 @@ class PublicDataService:
             page += 1
         if not result:
             raise DataUnavailableError("未从公开接口获取到有效的沪深主板股票列表")
+        return result
+
+    def get_index_quotes(self) -> list:
+        """返回三大指数实时行情：[{code, name, price, change, change_pct}]。"""
+        syms = ",".join(s for s, _ in INDEX_SYMBOLS)
+        try:
+            req = urllib.request.Request(TENCENT_QUOTE_URL + syms, headers=UA)
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                if resp.status != 200:
+                    raise DataUnavailableError(f"指数行情接口返回 HTTP {resp.status}")
+                raw = resp.read().decode("gbk", errors="replace")
+        except DataUnavailableError:
+            raise
+        except Exception as exc:
+            raise DataUnavailableError(f"请求指数行情失败: {exc}") from exc
+
+        result = []
+        for line in raw.split(";"):
+            line = line.strip()
+            if not line.startswith("v_"):
+                continue
+            m = re.search(r'="([^"]*)"', line)
+            if not m:
+                continue
+            fields = m.group(1).split("~")
+            if len(fields) < 5:
+                continue
+            try:
+                price = float(fields[3])
+                prev_close = float(fields[4])
+            except (ValueError, TypeError):
+                continue
+            change = price - prev_close
+            change_pct = change / prev_close * 100.0 if prev_close else 0.0
+            result.append({
+                "code": fields[2],
+                "name": fields[1],
+                "price": round(price, 2),
+                "change": round(change, 2),
+                "change_pct": round(change_pct, 2),
+            })
+        if not result:
+            raise DataUnavailableError("指数行情解析失败")
         return result
 
     def get_stock_names(self, codes: list) -> dict:
