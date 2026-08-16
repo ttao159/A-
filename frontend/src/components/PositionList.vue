@@ -1,8 +1,13 @@
 <template>
   <div class="card">
-    <div class="card-title">持仓</div>
+    <div class="card-head">
+      <div class="card-title">持仓</div>
+      <button class="sort-btn" @click="sortDesc = !sortDesc">
+        按涨跌幅 {{ sortDesc ? '降序' : '升序' }}
+      </button>
+    </div>
     <div v-if="!positions.length" class="empty">暂无持仓</div>
-    <div v-for="p in positions" :key="p.code" class="pos-item">
+    <div v-for="p in sortedPositions" :key="p.code" class="pos-item">
       <div class="pos-row" @click="$emit('openStock', p)">
         <div class="pos-main">
           <div class="pos-name">
@@ -48,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Position, Strategy } from '../api/types'
 import { fmtMoney, fmtMoneyCompact, fmtPct, fmtPrice } from '../utils/format'
 
@@ -56,6 +61,13 @@ const props = defineProps<{ positions: Position[]; strategies?: Strategy[] }>()
 defineEmits<{ openStrategy: [id: number]; openStock: [p: Position] }>()
 
 const expanded = ref<string | null>(null)
+const sortDesc = ref(true)
+
+const sortedPositions = computed(() => {
+  const list = [...props.positions]
+  list.sort((a, b) => (sortDesc.value ? b.pnl_pct - a.pnl_pct : a.pnl_pct - b.pnl_pct))
+  return list
+})
 
 function toggle(code: string) {
   expanded.value = expanded.value === code ? null : code
@@ -76,6 +88,22 @@ function warnOf(p: Position): { type: 'tp' | 'sl'; label: string } | null {
 </script>
 
 <style scoped>
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sort-btn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 .pos-item {
   border-bottom: 1px solid var(--border);
 }

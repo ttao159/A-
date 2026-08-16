@@ -137,20 +137,25 @@ const visibleAlerts = computed(() => alerts.value.slice(0, ALERT_VISIBLE))
 const now = ref(new Date())
 let clockTimer: number | undefined
 let pollTimer: number | undefined
+let quoteTimer: number | undefined
 
 onMounted(() => {
   refresh()
   clockTimer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
+  quoteTimer = window.setInterval(() => {
+    if (isTradingTime() && document.visibilityState === 'visible') fetchQuotes()
+  }, 15000)
   pollTimer = window.setInterval(() => {
     if (isTradingTime() && document.visibilityState === 'visible') refresh()
-  }, 30000)
+  }, 60000)
 })
 
 onUnmounted(() => {
   if (clockTimer) window.clearInterval(clockTimer)
   if (pollTimer) window.clearInterval(pollTimer)
+  if (quoteTimer) window.clearInterval(quoteTimer)
 })
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -200,6 +205,15 @@ async function refresh() {
     fetchAlerts(),
     fetchIndices(),
   ])
+  setLastUpdated()
+}
+
+async function fetchQuotes() {
+  await Promise.all([positionStore.fetch(), fetchIndices()])
+  setLastUpdated()
+}
+
+function setLastUpdated() {
   const d = new Date()
   lastUpdated.value = [d.getHours(), d.getMinutes(), d.getSeconds()]
     .map((x) => String(x).padStart(2, '0'))
