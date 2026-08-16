@@ -1,6 +1,7 @@
 <template>
   <div>
     <div class="card">
+      <div class="card-title">回测配置</div>
       <div class="field">
         <label>选择策略</label>
         <select v-model="sid">
@@ -9,71 +10,84 @@
           </option>
         </select>
       </div>
-      <div class="row" style="gap: 8px">
-        <div class="field" style="flex: 1; margin: 0">
+      <div class="row date-row">
+        <div class="field date-field">
           <label>开始日期</label>
           <input v-model="startDate" type="date" />
         </div>
-        <div class="field" style="flex: 1; margin: 0">
+        <div class="field date-field">
           <label>结束日期</label>
           <input v-model="endDate" type="date" />
         </div>
       </div>
-      <button class="btn block" style="margin-top: 12px" :disabled="loading" @click="run">
+      <div class="quick-ranges">
+        <button
+          v-for="r in QUICK_RANGES"
+          :key="r.months"
+          class="quick-btn"
+          :class="{ active: quickMonths === r.months }"
+          @click="setQuickRange(r.months)"
+        >
+          {{ r.label }}
+        </button>
+      </div>
+      <button class="btn block" :disabled="loading" @click="run">
         {{ loading ? '回测中...' : '运行回测' }}
       </button>
     </div>
 
     <div v-if="result" ref="resultCard" class="card">
       <div class="card-title">回测结果</div>
-      <div class="metric-grid">
-        <div class="metric">
+      <div class="hero-grid">
+        <div class="hero-metric">
           <div class="muted">累计收益</div>
-          <div :class="pnlClass(result.metrics.total_return_pct)">
+          <div class="hero-value" :class="pnlClass(result.metrics.total_return_pct)">
             {{ fmtPct(result.metrics.total_return_pct) }}
           </div>
         </div>
-        <div class="metric">
+        <div class="hero-metric">
           <div class="muted">年化收益</div>
-          <div :class="pnlClass(result.metrics.annual_return_pct)">
+          <div class="hero-value" :class="pnlClass(result.metrics.annual_return_pct)">
             {{ fmtPct(result.metrics.annual_return_pct) }}
           </div>
         </div>
-        <div class="metric">
+        <div class="hero-metric">
           <div class="muted">最大回撤</div>
-          <div>{{ fmtPct(result.metrics.max_drawdown_pct) }}</div>
+          <div class="hero-value">{{ fmtPct(result.metrics.max_drawdown_pct) }}</div>
         </div>
-        <div class="metric">
+        <div class="hero-metric">
           <div class="muted">胜率</div>
-          <div>{{ fmtPct(result.metrics.win_rate_pct) }}</div>
+          <div class="hero-value">{{ fmtPct(result.metrics.win_rate_pct) }}</div>
         </div>
-        <div class="metric">
-          <div class="muted">盈亏比</div>
-          <div>{{ result.metrics.profit_loss_ratio?.toFixed(2) }}</div>
+      </div>
+      <div class="sub-grid">
+        <div class="sub-metric">
+          <span class="muted">盈亏比</span>
+          <b>{{ result.metrics.profit_loss_ratio?.toFixed(2) ?? '--' }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">交易笔数</div>
-          <div>{{ result.metrics.trade_count }}</div>
+        <div class="sub-metric">
+          <span class="muted">交易笔数</span>
+          <b>{{ result.metrics.trade_count }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">夏普比率</div>
-          <div :class="pnlClass(result.metrics.sharpe_ratio)">{{ result.metrics.sharpe_ratio?.toFixed(2) ?? '--' }}</div>
+        <div class="sub-metric">
+          <span class="muted">夏普比率</span>
+          <b :class="pnlClass(result.metrics.sharpe_ratio)">{{ result.metrics.sharpe_ratio?.toFixed(2) ?? '--' }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">卡玛比率</div>
-          <div :class="pnlClass(result.metrics.calmar_ratio)">{{ result.metrics.calmar_ratio?.toFixed(2) ?? '--' }}</div>
+        <div class="sub-metric">
+          <span class="muted">卡玛比率</span>
+          <b :class="pnlClass(result.metrics.calmar_ratio)">{{ result.metrics.calmar_ratio?.toFixed(2) ?? '--' }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">索提诺比率</div>
-          <div :class="pnlClass(result.metrics.sortino_ratio)">{{ result.metrics.sortino_ratio?.toFixed(2) ?? '--' }}</div>
+        <div class="sub-metric">
+          <span class="muted">索提诺比率</span>
+          <b :class="pnlClass(result.metrics.sortino_ratio)">{{ result.metrics.sortino_ratio?.toFixed(2) ?? '--' }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">年化波动率</div>
-          <div>{{ result.metrics.annual_volatility_pct != null ? fmtPct(result.metrics.annual_volatility_pct) : '--' }}</div>
+        <div class="sub-metric">
+          <span class="muted">年化波动率</span>
+          <b>{{ result.metrics.annual_volatility_pct != null ? fmtPct(result.metrics.annual_volatility_pct) : '--' }}</b>
         </div>
-        <div class="metric">
-          <div class="muted">最长回撤天数</div>
-          <div>{{ result.metrics.max_drawdown_days ?? '--' }}</div>
+        <div class="sub-metric">
+          <span class="muted">最长回撤天数</span>
+          <b>{{ result.metrics.max_drawdown_days ?? '--' }}</b>
         </div>
       </div>
       <div class="metrics-help">
@@ -86,20 +100,20 @@
           </div>
         </div>
       </div>
-      <div v-if="signalStats" class="card" style="margin-top: 0">
-        <div class="card-title">信号统计</div>
+      <div v-if="signalStats" class="sub-box">
+        <div class="sub-box-title">信号统计</div>
         <div class="signal-buy">
           <span>买入信号触发</span>
           <b class="up">{{ signalStats.buy }} 次</b>
         </div>
-        <div class="card-title" style="font-size: 13px">卖出信号触发</div>
+        <div class="sub-box-sub">卖出信号触发</div>
         <div v-if="!sellStatRows.length" class="muted">暂无卖出信号</div>
         <div v-for="r in sellStatRows" :key="r.key" class="signal-row">
           <span>{{ r.label }}</span>
           <b class="down">{{ r.count }} 次</b>
         </div>
       </div>
-      <div v-if="result.equity_curve?.length" style="margin-top: 12px">
+      <div v-if="result.equity_curve?.length" class="section">
         <div class="card-title">权益曲线</div>
         <EquityChart
           :data="result.equity_curve"
@@ -107,7 +121,7 @@
           :trades="tradeMarks"
         />
       </div>
-      <div v-if="tradeStocks.length" style="margin-top: 12px">
+      <div v-if="tradeStocks.length" class="section">
         <div class="card-title">个股买卖点</div>
         <select v-model="selectedCode" class="stock-select">
           <option v-for="s in tradeStocks" :key="s.code" :value="s.code">
@@ -122,18 +136,23 @@
     <div class="card">
       <div class="card-title">参数优化</div>
       <div class="opt-dims">
-        <label v-for="d in OPTIMIZE_DIMS" :key="d.key" class="opt-dim">
-          <input type="checkbox" :value="d.key" v-model="selectedDims" />
-          <span>{{ d.label }}（{{ d.values.join('/') }}）</span>
-        </label>
+        <button
+          v-for="d in OPTIMIZE_DIMS"
+          :key="d.key"
+          class="opt-dim"
+          :class="{ active: selectedDims.includes(d.key) }"
+          @click="toggleDim(d.key)"
+        >
+          <span class="opt-dim-name">{{ d.label }}</span>
+          <span class="opt-dim-vals">{{ d.values.join(' / ') }}</span>
+        </button>
       </div>
       <button
         class="btn block"
-        style="margin-top: 10px"
         :disabled="optimizing || !selectedDims.length"
         @click="runOptimize"
       >
-        {{ optimizing ? `优化中 ${optimizeProgress}/${optimizeTotal}...` : '开始优化' }}
+        {{ optimizing ? `优化中 ${optimizeProgress}/${optimizeTotal}...` : `开始优化${selectedDims.length ? `（${selectedDims.length} 项）` : ''}` }}
       </button>
       <div v-if="optimizeError" class="empty">{{ optimizeError }}</div>
     </div>
@@ -186,7 +205,7 @@ import type { Bar } from '../api'
 import type { BacktestListItem, BacktestResult, OptimizeResultItem } from '../api/types'
 import { useStrategyStore } from '../stores/strategy'
 import { fmtPct, pnlClass } from '../utils/format'
-import { todayStr, yearAgoStr } from '../utils/date'
+import { todayStr, yearAgoStr, monthsAgoStr } from '../utils/date'
 import { toast } from '../utils/toast'
 import { confirmDialog } from '../utils/confirm'
 import { SELL_LABELS } from '../utils/signals'
@@ -202,6 +221,21 @@ const result = ref<BacktestResult | null>(null)
 const history = ref<BacktestListItem[]>([])
 const viewingId = ref<number | null>(null)
 const resultCard = ref<HTMLElement | null>(null)
+
+const QUICK_RANGES = [
+  { label: '近1月', months: 1 },
+  { label: '近3月', months: 3 },
+  { label: '近6月', months: 6 },
+  { label: '近1年', months: 12 },
+]
+
+const quickMonths = ref(12)
+
+function setQuickRange(months: number) {
+  quickMonths.value = months
+  startDate.value = monthsAgoStr(months)
+  endDate.value = todayStr()
+}
 
 const OPTIMIZE_DIMS = [
   { key: 'buy.maCross.shortPeriod', label: '均线短周期', values: [5, 10, 15] },
@@ -362,6 +396,12 @@ function dimLabel(key: string) {
   return OPTIMIZE_DIMS.find((d) => d.key === key)?.label ?? key
 }
 
+function toggleDim(key: string) {
+  const i = selectedDims.value.indexOf(key)
+  if (i >= 0) selectedDims.value.splice(i, 1)
+  else selectedDims.value.push(key)
+}
+
 async function runOptimize() {
   if (!sid.value || !selectedDims.value.length) return
   optimizing.value = true
@@ -433,10 +473,106 @@ async function runOptimize() {
   font-size: 14px;
 }
 
-.metric-grid {
+.hero-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+}
+
+.hero-metric {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+
+.hero-value {
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 16px;
+  margin-top: 10px;
+  padding: 4px 2px;
+}
+
+.sub-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+
+.sub-metric b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub-box {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+.sub-box-title {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.sub-box-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 8px;
+}
+
+.section {
+  margin-top: 14px;
+}
+
+.date-row {
+  gap: 8px;
+}
+
+.date-field {
+  flex: 1;
+  margin: 0;
+}
+
+.quick-ranges {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+
+.quick-btn {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.quick-btn:active {
+  opacity: 0.7;
+}
+
+.quick-btn.active {
+  background: var(--focus-ring);
+  color: var(--primary);
+  border-color: var(--primary);
+  font-weight: 600;
 }
 
 .metrics-help {
@@ -493,19 +629,51 @@ async function runOptimize() {
 .opt-dims {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .opt-dim {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.opt-dim input {
-  width: 16px;
-  height: 16px;
+.opt-dim:active {
+  opacity: 0.8;
+}
+
+.opt-dim-name {
+  font-weight: 500;
+}
+
+.opt-dim-vals {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.opt-dim.active {
+  border-color: var(--primary);
+  background: var(--focus-ring);
+}
+
+.opt-dim.active .opt-dim-name {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.opt-dim.active .opt-dim-vals {
+  color: var(--primary);
 }
 
 .opt-row {

@@ -15,6 +15,12 @@ export function yearAgoStr(): string {
   return localDate(d)
 }
 
+export function monthsAgoStr(n: number): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() - n)
+  return localDate(d)
+}
+
 export function defaultDateRange(): { start_date: string; end_date: string } {
   return { start_date: yearAgoStr(), end_date: todayStr() }
 }
