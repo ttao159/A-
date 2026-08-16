@@ -51,13 +51,23 @@
     <div class="card">
       <div class="card-title">扫描历史</div>
       <div v-if="!reports.items.length" class="empty">暂无记录</div>
-      <div v-for="r in reports.items" :key="r.id" class="list-item">
-        <div style="flex: 1">
-          <div>第 {{ r.id }} 次扫描</div>
-          <div class="muted">{{ (r.created_at ?? '').slice(0, 16) }}</div>
+      <div v-for="r in visibleReports" :key="r.id" class="scan-item">
+        <div class="scan-item-top">
+          <span class="scan-time">{{ fmtScanTime(r.created_at) }}</span>
+          <span class="muted">
+            买 <b class="up">{{ r.buy_count }}</b> · 卖 <b class="down">{{ r.sell_count }}</b> · 拒 <b>{{ r.reject_count }}</b>
+          </span>
         </div>
-        <div class="muted">买 {{ r.buy_count }} · 卖 {{ r.sell_count }} · 拒 {{ r.reject_count }}</div>
+        <div class="scan-item-sub">启用策略 {{ r.strategy_count }} 个 · {{ r.source === 'auto' ? '自动扫描' : '手动扫描' }}</div>
       </div>
+      <button
+        v-if="reports.items.length > SCAN_VISIBLE"
+        class="btn ghost block"
+        style="margin-top: 8px"
+        @click="scanExpanded = !scanExpanded"
+      >
+        {{ scanExpanded ? '收起' : `展开全部 ${reports.items.length} 条记录` }}
+      </button>
     </div>
 
     <div class="card">
@@ -87,14 +97,14 @@
         <div class="progress-bar">
           <div class="fill" :style="{ width: pct + '%' }"></div>
         </div>
-        <div class="muted">{{ progressDone }} / {{ progressTotal }}</div>
+        <div class="muted">{{ progressDone }} / {{ progressTotal }} · 已用时 {{ elapsed }} 秒</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { generatorApi, scanApi } from '../api'
 import type { GenerationRequest, ScanReports, ScanResult } from '../api/types'
 import type { StreamEvent } from '../api/http'
@@ -104,10 +114,17 @@ const generating = ref(false)
 const lastResult = ref<ScanResult | null>(null)
 const reports = reactive<ScanReports>({ scan_schedule: undefined, stats: { total_scans: 0, total_buys: 0, total_sells: 0, total_rejects: 0 }, items: [] })
 
+const SCAN_VISIBLE = 5
+const scanExpanded = ref(false)
+const visibleReports = computed(() =>
+  scanExpanded.value ? reports.items : reports.items.slice(0, SCAN_VISIBLE),
+)
+
 const progressMsg = ref('')
 const progressDone = ref(0)
 const progressTotal = ref(0)
 const pct = ref(0)
+const elapsed = ref(0)
 
 const genRisk = ref('balanced')
 const genCount = ref(3)
@@ -130,6 +147,10 @@ function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
+function fmtScanTime(s: string | null) {
+  return (s ?? '').slice(5, 16).replace('T', ' ')
+}
+
 function handleEvent(e: StreamEvent) {
   if (e.type === 'progress') {
     progressMsg.value = String(e.message ?? '')
@@ -150,12 +171,18 @@ async function startScan() {
   progressDone.value = 0
   progressTotal.value = 0
   pct.value = 0
+  elapsed.value = 0
+  const start = Date.now()
+  const timer = window.setInterval(() => {
+    elapsed.value = Math.round((Date.now() - start) / 1000)
+  }, 1000)
   try {
     await scanApi.stream(handleEvent)
     await loadReports()
   } catch (e) {
     alert((e as Error).message)
   } finally {
+    window.clearInterval(timer)
     scanning.value = false
   }
 }
@@ -221,5 +248,31 @@ async function startGen() {
 
 .status-line {
   margin-top: 10px;
+}
+
+.scan-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.scan-item:last-child {
+  border-bottom: none;
+}
+
+.scan-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scan-time {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.scan-item-sub {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 12px;
 }
 </style>
