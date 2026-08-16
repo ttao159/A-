@@ -12,6 +12,7 @@
   --warning: #d48806;
   --warning-bg: rgba(245, 166, 35, 0.15);
   --danger: #e0393e;
+  --danger-bg: rgba(224, 57, 62, 0.1);
   --live: #e0393e;
   --paper: #1a73e8;
 }
@@ -30,6 +31,7 @@
   --warning: #e0a83c;
   --warning-bg: rgba(224, 168, 60, 0.14);
   --danger: #ff6b6b;
+  --danger-bg: rgba(255, 107, 107, 0.14);
   --live: #ff6b6b;
   --paper: #4c8dff;
 }
@@ -102,11 +104,11 @@ body {
 
 .risk-banner {
   padding: 8px 16px;
-  background: #fff3f3;
+  background: var(--danger-bg);
   color: var(--danger);
   font-size: 13px;
   text-align: center;
-  border-bottom: 1px solid #f7d4d4;
+  border-bottom: 1px solid var(--border);
 }
 
 .app-main {

@@ -76,6 +76,16 @@
           <div>{{ result.metrics.max_drawdown_days ?? '--' }}</div>
         </div>
       </div>
+      <div class="metrics-help">
+        <button class="help-toggle" @click="showHelp = !showHelp">
+          指标说明 {{ showHelp ? '▴' : '▾' }}
+        </button>
+        <div v-if="showHelp" class="help-list">
+          <div v-for="h in METRIC_HELP" :key="h.k" class="help-item">
+            <b>{{ h.k }}</b><span>{{ h.v }}</span>
+          </div>
+        </div>
+      </div>
       <div v-if="signalStats" class="card" style="margin-top: 0">
         <div class="card-title">信号统计</div>
         <div class="signal-buy">
@@ -204,6 +214,21 @@ const optimizeTotal = ref(0)
 const optimizeError = ref('')
 const optimizeResults = ref<OptimizeResultItem[]>([])
 const optimizeSample = ref('')
+
+const showHelp = ref(false)
+const METRIC_HELP = [
+  { k: '累计收益', v: '期末权益相对期初本金的收益百分比' },
+  { k: '年化收益', v: '按交易日折算的年化收益率' },
+  { k: '最大回撤', v: '权益曲线从峰值到谷底的最大跌幅' },
+  { k: '胜率', v: '盈利卖出笔数占卖出总笔数的比例' },
+  { k: '盈亏比', v: '平均单笔盈利与平均单笔亏损之比' },
+  { k: '交易笔数', v: '回测期间成交总笔数' },
+  { k: '夏普比率', v: '超额收益与波动率之比，衡量风险调整后收益' },
+  { k: '卡玛比率', v: '年化收益与最大回撤之比' },
+  { k: '索提诺比率', v: '仅用下行波动率计算的风险调整后收益' },
+  { k: '年化波动率', v: '日收益的年化标准差，衡量收益波动' },
+  { k: '最长回撤天数', v: '权益从峰值到再创新高的最长连续交易日数' },
+]
 
 onMounted(async () => {
   await strategyStore.fetch()
@@ -380,6 +405,52 @@ async function runOptimize() {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+.metrics-help {
+  margin-top: 10px;
+}
+
+.help-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.help-list {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.help-item {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.help-item:last-child {
+  border-bottom: none;
+}
+
+.help-item b {
+  flex: 0 0 72px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.help-item span {
+  color: var(--text-2);
 }
 
 .opt-dims {
