@@ -8,9 +8,9 @@
     </div>
 
     <div class="pv-stats">
-      <div class="pv-stat"><span>本金</span><b>{{ fmtMoney(strategy.initial_capital) }}</b></div>
-      <div class="pv-stat"><span>现金</span><b>{{ fmtMoney(strategy.available_cash) }}</b></div>
-      <div class="pv-stat"><span>市值</span><b>{{ fmtMoney(mv) }}</b></div>
+      <div class="pv-stat"><span>本金</span><b>{{ fmtMoneyCompact(strategy.initial_capital) }}</b></div>
+      <div class="pv-stat"><span>现金</span><b>{{ fmtMoneyCompact(strategy.available_cash) }}</b></div>
+      <div class="pv-stat"><span>市值</span><b>{{ fmtMoneyCompact(mv) }}</b></div>
     </div>
 
     <div class="pv-section">买入信号</div>
@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Position, Strategy } from '../api/types'
-import { fmtMoney } from '../utils/format'
+import { fmtMoneyCompact } from '../utils/format'
 import { RISK_LABELS, signalName, signalParamText } from '../utils/signals'
 
 const props = defineProps<{ strategy: Strategy; positions?: Position[] }>()

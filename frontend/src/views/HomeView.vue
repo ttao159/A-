@@ -51,8 +51,8 @@
           </button>
         </div>
         <div v-if="activeStrategy" class="strat-summary">
-          <span>可用现金 {{ fmtMoney(activeStrategy.available_cash) }}</span>
-          <span>市值 {{ fmtMoney(activeStrategy.mv) }}</span>
+          <span>可用现金 {{ fmtMoneyCompact(activeStrategy.available_cash) }}</span>
+          <span>市值 {{ fmtMoneyCompact(activeStrategy.mv) }}</span>
           <span :class="activeStrategy.retPct >= 0 ? 'up' : 'down'">
             收益率 {{ fmtPct(activeStrategy.retPct) }}
           </span>
@@ -116,7 +116,7 @@ import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
 import { alertApi, indexApi } from '../api'
 import type { Alert, IndexQuote } from '../api'
-import { fmtMoney, fmtPct, fmtDateTime } from '../utils/format'
+import { fmtMoney, fmtMoneyCompact, fmtPct, fmtDateTime } from '../utils/format'
 import { isTradingTime } from '../utils/date'
 import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
 import { confirmDialog } from '../utils/confirm'

@@ -26,7 +26,7 @@
           <span>持有天数</span><b>{{ p.hold_days }} 天</b>
         </div>
         <div class="detail-row">
-          <span>持仓市值</span><b>{{ fmtMoney(p.qty * p.price) }}</b>
+          <span>持仓市值</span><b>{{ fmtMoneyCompact(p.qty * p.price) }}</b>
         </div>
         <div class="detail-row">
           <span>浮动盈亏</span><b :class="p.pnl >= 0 ? 'up' : 'down'">{{ fmtMoney(p.pnl) }}</b>
@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Position, Strategy } from '../api/types'
-import { fmtMoney, fmtPct, fmtPrice } from '../utils/format'
+import { fmtMoney, fmtMoneyCompact, fmtPct, fmtPrice } from '../utils/format'
 
 const props = defineProps<{ positions: Position[]; strategies?: Strategy[] }>()
 defineEmits<{ openStrategy: [id: number]; openStock: [p: Position] }>()

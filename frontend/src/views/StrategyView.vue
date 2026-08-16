@@ -14,7 +14,7 @@
         <div>
           <div style="font-weight: 500">{{ s.name }}</div>
           <div class="muted">
-            分配 {{ fmtMoney(s.initial_capital) }} · 可用 {{ fmtMoney(s.available_cash) }}
+            分配 {{ fmtMoneyCompact(s.initial_capital) }} · 可用 {{ fmtMoneyCompact(s.available_cash) }}
           </div>
         </div>
         <button
@@ -81,7 +81,7 @@ import { usePullRefresh } from '../composables/pullRefresh'
 import type { Strategy, StrategyInput } from '../api/types'
 import type { StrategyTemplate } from '../utils/strategyTemplates'
 import { STRATEGY_TEMPLATES } from '../utils/strategyTemplates'
-import { fmtMoney } from '../utils/format'
+import { fmtMoneyCompact } from '../utils/format'
 import { confirmDialog } from '../utils/confirm'
 
 const strategyStore = useStrategyStore()
