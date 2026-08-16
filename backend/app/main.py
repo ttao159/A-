@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -394,11 +394,29 @@ def confirm_order(request_id: str, db: Session = Depends(get_db)):
         strategy = db.query(Strategy).filter(Strategy.id == body["strategy_id"]).first()
         if not strategy:
             raise HTTPException(404, "策略不存在")
+    _check_order_limits(db, body)
     broker = get_broker(config.BROKER_TYPE)
     order = broker.place_order(
         db, body["code"], body["name"], body["direction"],
         body["price"], body["qty"], body.get("reason", ""), strategy=strategy)
     return {"status": order.status, "reason": order.reason, "order_id": order.id}
+
+
+def _check_order_limits(db: Session, body: dict):
+    """实盘模式下校验单笔与单日累计委托金额上限。"""
+    if config.BROKER_TYPE != "live":
+        return
+    amount = float(body.get("price", 0)) * int(body.get("qty", 0))
+    if amount > config.MAX_SINGLE_ORDER_AMOUNT:
+        raise HTTPException(400, f"单笔委托金额 {amount:.2f} 超过上限 {config.MAX_SINGLE_ORDER_AMOUNT:.2f}")
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    daily_sum = db.query(func.coalesce(func.sum(Order.price * Order.qty), 0.0)).filter(
+        Order.broker_type == "live",
+        Order.status == "filled",
+        Order.created_at >= today_start,
+    ).scalar()
+    if float(daily_sum) + amount > config.MAX_DAILY_ORDER_AMOUNT:
+        raise HTTPException(400, f"单日累计委托金额将超过上限 {config.MAX_DAILY_ORDER_AMOUNT:.2f}")
 
 
 @app.get("/api/stocks")

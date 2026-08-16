@@ -5,6 +5,9 @@
       <span v-if="accountStore.isLive" class="badge live">实盘</span>
       <span v-else class="badge paper">模拟盘</span>
     </header>
+    <div v-if="accountStore.isLive" class="risk-banner">
+      实盘交易存在风险，请谨慎操作并核实每笔委托
+    </div>
     <div class="ptr-indicator" :style="{ height: pullH + 'px' }">
       <span v-if="refreshing">刷新中...</span>
       <span v-else-if="pullH >= THRESHOLD">释放刷新</span>
@@ -29,13 +32,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAccountStore } from './stores/account'
 import { triggerPullRefresh } from './composables/pullRefresh'
 
 const route = useRoute()
 const accountStore = useAccountStore()
+
+onMounted(() => accountStore.fetch())
 
 const mainRef = ref<HTMLElement | null>(null)
 const pullH = ref(0)

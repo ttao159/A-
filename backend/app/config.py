@@ -20,3 +20,7 @@ SCAN_MINUTE = 5
 
 # 当前券商模式：paper（模拟盘）/ live（实盘，未接入）
 BROKER_TYPE = "paper"
+
+# 实盘风控限额（仅 BROKER_TYPE=live 时生效）
+MAX_SINGLE_ORDER_AMOUNT = 500_000.0     # 单笔委托金额上限（元）
+MAX_DAILY_ORDER_AMOUNT = 2_000_000.0    # 单日累计委托金额上限（元）

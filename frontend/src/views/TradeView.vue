@@ -8,6 +8,7 @@
         <button class="btn" :class="tab === 'orders' ? '' : 'ghost'" style="flex: 1" @click="setTab('orders')">
           委托
         </button>
+        <button class="btn ghost" style="flex: 1" @click="showOrder = true">下单</button>
       </div>
     </div>
 
@@ -52,17 +53,21 @@
         </div>
       </template>
     </div>
+
+    <OrderPanel :visible="showOrder" @close="showOrder = false" @done="load" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import OrderPanel from '../components/OrderPanel.vue'
 import { useTradeStore } from '../stores/trade'
 import { usePullRefresh } from '../composables/pullRefresh'
 import { fmtMoney, fmtPrice } from '../utils/format'
 
 const tradeStore = useTradeStore()
 const tab = ref<'trades' | 'orders'>('trades')
+const showOrder = ref(false)
 
 onMounted(load)
 usePullRefresh(load)
