@@ -151,7 +151,13 @@ body {
   color: var(--text-2);
   font-size: 11px;
   min-height: 48px;
-  transition: color 0.15s;
+  transition: color 0.15s, transform 0.1s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-item:active {
+  transform: scale(0.92);
+  opacity: 0.75;
 }
 
 .tab-item svg {
@@ -263,10 +269,12 @@ body {
   cursor: pointer;
   background: var(--primary);
   color: #fff;
+  transition: transform 0.1s ease, opacity 0.15s ease;
 }
 
 .btn:active {
   opacity: 0.85;
+  transform: scale(0.96);
 }
 
 .btn.ghost {

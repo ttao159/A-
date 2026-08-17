@@ -14,9 +14,18 @@
       实盘交易存在风险，请谨慎操作并核实每笔委托
     </div>
     <div class="ptr-indicator" :style="{ height: pullH + 'px' }">
-      <span v-if="refreshing">刷新中...</span>
-      <span v-else-if="pullH >= THRESHOLD">释放刷新</span>
-      <span v-else>下拉刷新</span>
+      <template v-if="refreshing">
+        <span class="ptr-spinner"></span>
+        <span>刷新中...</span>
+      </template>
+      <template v-else-if="pullH >= THRESHOLD">
+        <span class="ptr-arrow">↓</span>
+        <span>释放刷新</span>
+      </template>
+      <template v-else>
+        <span class="ptr-arrow" :style="{ transform: `rotate(${Math.min(pullH / THRESHOLD, 1) * 180}deg)` }">↓</span>
+        <span>下拉刷新</span>
+      </template>
     </div>
     <main
       ref="mainRef"
@@ -45,6 +54,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAccountStore } from './stores/account'
 import { triggerPullRefresh } from './composables/pullRefresh'
+import { toast } from './utils/toast'
 import Icon from './components/Icon.vue'
 
 const route = useRoute()
@@ -114,6 +124,7 @@ async function onTouchEnd() {
     refreshing.value = true
     try {
       await triggerPullRefresh()
+      toast('刷新成功')
     } finally {
       refreshing.value = false
     }
@@ -147,5 +158,31 @@ async function onTouchEnd() {
 .theme-btn:active {
   color: var(--primary);
   border-color: var(--primary);
+  transform: scale(0.92);
+}
+
+.ptr-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  margin-right: 6px;
+  transition: transform 0.2s;
+}
+
+.ptr-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: ptr-spin 0.8s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

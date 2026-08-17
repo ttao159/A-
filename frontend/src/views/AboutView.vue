@@ -3,6 +3,8 @@
     <div class="card">
       <div class="card-title">账户说明</div>
       <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
+      <div class="info-row"><span>安全模式</span><b>{{ accountStore.isLive ? '真实资金·注意风险' : '本地模拟·无真实资金' }}</b></div>
+      <div class="info-row"><span>数据存储</span><b>本机 · 无登录认证</b></div>
       <div class="info-row"><span>初始资金</span><b>{{ fmtMoney(accountStore.account?.initial_capital ?? 0) }}</b></div>
       <div class="info-row"><span>资金曲线</span><b>按日记录总资产</b></div>
       <div class="info-row"><span>扫描时间</span><b>{{ schedule }}</b></div>
@@ -59,6 +61,10 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">优化</span>下拉刷新：加载动画、箭头旋转指示与刷新成功提示</div>
+        <div class="changelog-item"><span class="changelog-tag">优化</span>全局按压反馈：按钮与底部导航按压缩放过渡</div>
+        <div class="changelog-item"><span class="changelog-tag">优化</span>资产卡信息层级：现金/市值资产分布条、核心数据聚合</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>账户安全标识：本地模式与实盘风险提示</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>账户页：今日盈亏、指数涨跌点数与闪烁、策略收益率高亮、盘前倒计时</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>实时收益高亮：总盈亏大号强调、实时角标、刷新闪烁</div>
         <div class="changelog-item"><span class="changelog-tag">修复</span>持仓收益实时显示：现价改用实时行情接口，盘中随行情更新</div>

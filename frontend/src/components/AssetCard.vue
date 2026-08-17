@@ -15,6 +15,16 @@
       <span class="muted">今日盈亏</span>
       <span class="today-pnl" :class="[todayClass, { flash: todayFlashing }]">{{ todayText }}</span>
     </div>
+    <div class="asset-bar">
+      <div class="bar-track">
+        <div class="bar-cash" :style="{ width: cashPct + '%' }"></div>
+        <div class="bar-mv" :style="{ width: mvPct + '%' }"></div>
+      </div>
+      <div class="bar-legend">
+        <span class="legend-item"><i class="dot-cash"></i>现金 {{ cashPct.toFixed(0) }}%</span>
+        <span class="legend-item"><i class="dot-mv"></i>市值 {{ mvPct.toFixed(0) }}%</span>
+      </div>
+    </div>
     <div class="asset-grid">
       <div class="asset-cell">
         <div class="muted">可用现金</div>
@@ -59,6 +69,18 @@ const pnlText = computed(() => {
     : 0
   return `${fmtMoneyCompact(props.account.total_pnl)} (${fmtPct(pct)})`
 })
+
+const cashPct = computed(() => {
+  const t = props.account.total_asset
+  if (t <= 0) return 0
+  return Math.min(100, Math.max(0, (props.account.available_cash / t) * 100))
+})
+
+const mvPct = computed(() => {
+  const t = props.account.total_asset
+  if (t <= 0) return 0
+  return Math.min(100, Math.max(0, (props.account.market_value / t) * 100))
+})
 </script>
 
 <style scoped>
@@ -99,7 +121,7 @@ const pnlText = computed(() => {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  margin: 8px 0 12px;
+  margin: 8px 0 10px;
 }
 
 .today-pnl {
@@ -118,6 +140,61 @@ const pnlText = computed(() => {
 .today-pnl.down {
   background: var(--down-bg);
   color: var(--down);
+}
+
+.asset-bar {
+  margin-bottom: 12px;
+}
+
+.bar-track {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+  gap: 2px;
+}
+
+.bar-cash {
+  background: var(--primary);
+  border-radius: 4px 0 0 4px;
+  transition: width 0.3s ease;
+}
+
+.bar-mv {
+  background: var(--up);
+  border-radius: 0 4px 4px 0;
+  transition: width 0.3s ease;
+}
+
+.bar-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot-cash,
+.dot-mv {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.dot-cash {
+  background: var(--primary);
+}
+
+.dot-mv {
+  background: var(--up);
 }
 
 .asset-grid {
