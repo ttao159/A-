@@ -13,6 +13,9 @@
     <div v-if="accountStore.isLive" class="risk-banner">
       实盘交易存在风险，请谨慎操作并核实每笔委托
     </div>
+    <div v-if="!netStatus.online" class="net-banner">
+      网络连接中断，正在自动重连...
+    </div>
     <div class="ptr-indicator" :style="{ height: pullH + 'px' }">
       <template v-if="refreshing">
         <span class="ptr-spinner"></span>
@@ -54,6 +57,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAccountStore } from './stores/account'
 import { triggerPullRefresh } from './composables/pullRefresh'
+import { netStatus } from './composables/netStatus'
 import { toast } from './utils/toast'
 import Icon from './components/Icon.vue'
 
@@ -89,6 +93,7 @@ const tabs = [
   { path: '/strategy', iconName: 'target', label: '策略' },
   { path: '/backtest', iconName: 'bar-chart', label: '回测' },
   { path: '/trade', iconName: 'swap', label: '交易' },
+  { path: '/screener', iconName: 'filter', label: '选股' },
   { path: '/generator', iconName: 'search', label: '扫描' },
   { path: '/about', iconName: 'info', label: '说明' },
 ]
@@ -168,6 +173,15 @@ async function onTouchEnd() {
   font-size: 14px;
   margin-right: 6px;
   transition: transform 0.2s;
+}
+
+.net-banner {
+  padding: 8px 16px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 13px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
 }
 
 .ptr-spinner {

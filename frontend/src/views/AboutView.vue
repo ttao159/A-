@@ -13,7 +13,8 @@
     <div class="card">
       <div class="card-title">操作指南</div>
       <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新；支持 AI 账户健康度诊断。</span></div>
-      <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
+      <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关；支持 AI 技术诊断。</span></div>
+      <div class="guide-item"><b>选股</b><span>按价格、涨跌幅、换手率、市值、成交额条件筛选全市场，命中个股可直达详情。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
       <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，点击查看以弹窗展示结果，支持删除。</span></div>
       <div class="guide-item"><b>交易</b><span>手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</span></div>
@@ -61,6 +62,10 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">新增</span>条件选股：价格/涨跌幅/换手率/市值/成交额多条件筛选</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>AI 个股诊断：多空观点/目标价/止损/支撑阻力，未配置 LLM 时启发式降级</div>
+        <div class="changelog-item"><span class="changelog-tag">新增</span>今日盈亏归因：板块/个股级当日盈亏贡献标签</div>
+        <div class="changelog-item"><span class="changelog-tag">优化</span>网络断线自动重连、指数退避重试与恢复后数据补全</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>AI 账户诊断：健康评分、亮点/风险/建议，未配置 LLM 时启发式降级</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>下拉刷新：加载动画、箭头旋转指示与刷新成功提示</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>全局按压反馈：按钮与底部导航按压缩放过渡</div>

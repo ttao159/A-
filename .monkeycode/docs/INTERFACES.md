@@ -165,6 +165,22 @@
 ### GET `/api/scan/reports/{rid}`
 单次扫描报告详情，含买入/卖出/拒绝明细。
 
+## AI 分析
+
+### POST `/api/account/diagnose`
+账户诊断：健康评分、亮点/风险/建议。LLM 可用时使用 LLM 分析，否则启发式降级，`available=false`。
+
+### POST `/api/stocks/{code}/diagnose`
+个股技术面诊断（日线不足 30 根返回 404）：多空观点、信心、目标价/止损/支撑/阻力。LLM 可用时使用 LLM 分析，否则启发式降级。
+
+### GET `/api/account/pnl-attribution`
+今日盈亏归因：按行业板块聚合（映射未就绪时降级个股粒度），返回当日持仓盈亏贡献 Top 项与基准。
+
+## 条件选股
+
+### POST `/api/screener`
+全市场主板筛选。请求体可选字段：`price_min/max`、`change_pct_min/max`、`turnover_min/max`、`market_cap_min/max`（亿元）、`amount_min/max`（亿元）、`sort_by`（change_pct/turnover/market_cap/amount/price）、`sort_dir`（asc/desc）、`limit`（≤200）。返回匹配总数、快照时间与结果列表。
+
 ## 健康检查
 
 ### GET `/health`

@@ -59,5 +59,10 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 20 })
     <template v-else-if="name === 'moon'">
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
     </template>
+    <template v-else-if="name === 'filter'">
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M10 18h4" />
+    </template>
   </svg>
 </template>

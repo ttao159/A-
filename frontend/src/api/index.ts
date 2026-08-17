@@ -48,6 +48,20 @@ export const accountApi = {
   dailyPnl: () => http.get<DailyPnlPoint[]>('/account/daily-pnl'),
   reset: () => http.post<{ ok: boolean }>('/account/reset'),
   diagnose: () => http.post<AccountDiagnosis>('/account/diagnose'),
+  attribution: () => http.get<PnlAttribution>('/account/pnl-attribution'),
+}
+
+export interface PnlAttributionItem {
+  label: string
+  pnl: number
+  pct: number
+}
+
+export interface PnlAttribution {
+  granularity: string
+  today_pnl: number
+  base: number
+  items: PnlAttributionItem[]
 }
 
 export interface AccountDiagnosis {
@@ -166,6 +180,22 @@ export const stockApi = {
   bars: (code: string, days = 90, period = 'day') =>
     http.get<Bar[]>(`/stocks/${code}/bars?days=${days}&period=${period}`),
   minute: (code: string) => http.get<MinuteData>(`/stocks/${code}/minute`),
+  diagnose: (code: string) => http.post<StockDiagnosis>(`/stocks/${code}/diagnose`),
+}
+
+export interface StockDiagnosis {
+  available: boolean
+  fallback?: string
+  model?: string
+  bull_case: string
+  bear_case: string
+  target_price: number | null
+  stop_loss: number | null
+  support: number | null
+  resistance: number | null
+  verdict: string
+  action: string
+  confidence: number
 }
 
 export const orderApi = {
@@ -187,4 +217,40 @@ export interface Alert {
 
 export const alertApi = {
   list: (limit = 50) => http.get<Alert[]>(`/alerts?limit=${limit}`),
+}
+
+export interface ScreenerRequest {
+  price_min?: number
+  price_max?: number
+  change_pct_min?: number
+  change_pct_max?: number
+  turnover_min?: number
+  turnover_max?: number
+  market_cap_min?: number
+  market_cap_max?: number
+  amount_min?: number
+  amount_max?: number
+  sort_by?: string
+  sort_dir?: string
+  limit?: number
+}
+
+export interface ScreenerItem {
+  code: string
+  name: string
+  price: number
+  change_pct: number
+  turnover: number
+  market_cap: number
+  amount: number
+}
+
+export interface ScreenerResult {
+  total: number
+  updated_at: string
+  items: ScreenerItem[]
+}
+
+export const screenerApi = {
+  run: (req: ScreenerRequest) => http.post<ScreenerResult>('/screener', req),
 }

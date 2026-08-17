@@ -1,16 +1,41 @@
 import { toast } from '../utils/toast'
+import { markOffline, markOnline } from '../composables/netStatus'
 
 const BASE = '/api'
+const MAX_RETRIES = 2
+
+let lastNetworkToastAt = 0
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+function throttledNetworkToast() {
+  const now = Date.now()
+  if (now - lastNetworkToastAt < 3000) return
+  lastNetworkToastAt = now
+  toast('网络连接失败，正在重试')
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      ...options,
-    })
-  } catch {
-    toast('网络连接失败，请检查网络后重试')
+  let res: Response | null = null
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options,
+      })
+      markOnline()
+      break
+    } catch {
+      markOffline()
+      if (attempt < MAX_RETRIES) {
+        await sleep(600 * 2 ** attempt)
+      }
+    }
+  }
+  if (!res) {
+    throttledNetworkToast()
     throw new Error('网络连接失败')
   }
   if (!res.ok) {
@@ -42,11 +67,27 @@ export async function streamNDJSON(
   body: unknown,
   onEvent: (evt: StreamEvent) => void,
 ): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let res: Response | null = null
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      markOnline()
+      break
+    } catch {
+      markOffline()
+      if (attempt < MAX_RETRIES) {
+        await sleep(600 * 2 ** attempt)
+      }
+    }
+  }
+  if (!res) {
+    throttledNetworkToast()
+    throw new Error('网络连接失败')
+  }
   if (!res.ok || !res.body) {
     let detail = ''
     try {

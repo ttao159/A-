@@ -38,7 +38,9 @@
           @pointercancel="onPointerEnd"
           @pointerleave="onPointerEnd"
         ></canvas>
-        <div class="legend">
+        <div v-if="!netStatus.online" class="net-offline-hint">网络中断，恢复后自动补全行情</div>
+      <div v-else-if="catchingUp" class="net-offline-hint">数据补全中...</div>
+      <div class="legend">
           <span v-if="mode === 'minute'">{{ minuteInfo }}</span>
           <span v-else>{{ legendText }}</span>
           <label v-if="mode !== 'minute'" class="ma-toggle">
@@ -48,6 +50,8 @@
         </div>
       </div>
     </div>
+
+    <StockDiagnosis :code="code" />
 
     <div v-if="searching" class="scan-mask" @click.self="searching = false">
       <div class="box search-box">
@@ -69,10 +73,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { stockApi } from '../api'
 import type { Bar, MinuteData, Stock } from '../api'
+import StockDiagnosis from '../components/StockDiagnosis.vue'
 import { fmtPrice } from '../utils/format'
 import { isTradingTime } from '../utils/date'
 import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
+import { netStatus } from '../composables/netStatus'
 import { hiDPIContext } from '../utils/canvas'
 
 const route = useRoute()
@@ -141,6 +147,15 @@ onMounted(() => {
 })
 
 onUnmounted(stopPolling)
+
+const catchingUp = ref(false)
+watch(() => netStatus.online, (on) => {
+  if (!on) return
+  catchingUp.value = true
+  load(true).finally(() => {
+    catchingUp.value = false
+  })
+})
 
 useThemeRedraw(() => draw())
 
@@ -614,6 +629,13 @@ function onPointerEnd(e: PointerEvent) {
 
 .chart-canvas {
   touch-action: none;
+}
+
+.net-offline-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--warning);
+  margin-bottom: 6px;
 }
 
 .search-btn {

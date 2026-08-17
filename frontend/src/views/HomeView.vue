@@ -18,6 +18,8 @@
 
       <SecurityCard v-if="accountStore.account" :broker-type="accountStore.account.broker_type" />
 
+      <PnlAttribution />
+
       <AccountDiagnosis />
 
       <div v-if="indices.length" class="card index-bar">
@@ -36,6 +38,7 @@
       </div>
 
       <div v-if="lastUpdated" class="updated-hint">最后更新 {{ lastUpdated }}</div>
+      <div v-if="catchingUp" class="catchup-hint">数据补全中...</div>
 
       <EquityCurve
         :points="accountStore.equity"
@@ -119,10 +122,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import SecurityCard from '../components/SecurityCard.vue'
+import PnlAttribution from '../components/PnlAttribution.vue'
 import AccountDiagnosis from '../components/AccountDiagnosis.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
@@ -132,6 +136,7 @@ import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
+import { netStatus } from '../composables/netStatus'
 import { useFlashValue } from '../composables/useFlash'
 import { alertApi, indexApi } from '../api'
 import type { Alert, IndexQuote } from '../api'
@@ -151,6 +156,7 @@ const indices = ref<IndexQuote[]>([])
 const indicesError = ref('')
 const alertsError = ref('')
 const lastUpdated = ref('')
+const catchingUp = ref(false)
 const indexFlash = reactive<Record<string, boolean>>({})
 
 const ALERT_VISIBLE = 5
@@ -233,16 +239,28 @@ const countdown = computed(() => {
 usePullRefresh(refresh)
 
 async function refresh() {
-  await Promise.all([
-    accountStore.fetch(),
-    accountStore.fetchEquity(),
-    positionStore.fetch(),
-    strategyStore.fetch(),
-    fetchAlerts(),
-    fetchIndices(),
-  ])
-  setLastUpdated()
+  try {
+    await Promise.all([
+      accountStore.fetch(),
+      accountStore.fetchEquity(),
+      positionStore.fetch(),
+      strategyStore.fetch(),
+      fetchAlerts(),
+      fetchIndices(),
+    ])
+    setLastUpdated()
+  } catch {
+    // 网络异常由全局状态条提示，轮询会自动重试
+  }
 }
+
+watch(() => netStatus.online, (on) => {
+  if (!on) return
+  catchingUp.value = true
+  refresh().finally(() => {
+    catchingUp.value = false
+  })
+})
 
 async function fetchQuotes() {
   await Promise.all([positionStore.fetch(), accountStore.fetch(), fetchIndices()])
@@ -477,6 +495,13 @@ function goAlerts() {
   font-size: 12px;
   color: var(--text-2);
   margin: -4px 16px 0;
+}
+
+.catchup-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--warning);
+  margin: 4px 16px 0;
 }
 
 .index-bar {

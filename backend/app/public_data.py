@@ -210,7 +210,7 @@ class PublicDataService:
                 try:
                     price = float(fields[3])
                     prev_close = float(fields[4])
-                except (ValueError, TypeError):
+                except (TypeError, ValueError):
                     continue
                 if price <= 0:
                     continue
@@ -223,6 +223,51 @@ class PublicDataService:
                 }
         if not result:
             raise DataUnavailableError("未获取到有效的实时行情")
+        return result
+
+    def get_market_quotes(self) -> list:
+        """返回沪深主板全市场实时行情快照（新浪分页拉取）。
+
+        每项含 code/name/price/change_pct/turnover/market_cap(亿)/amount(亿)。
+        任何失败路径抛 DataUnavailableError。
+        """
+        result = []
+        page = 1
+        while page <= 200:
+            url = f"{SINA_LIST_URL}?page={page}&num=100&sort=symbol&asc=1&node=hs_a"
+            data = _http_get_json(url)
+            if not isinstance(data, list) or not data:
+                break
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                code = str(item.get("code") or "")
+                if not is_main_board(code):
+                    continue
+                try:
+                    price = float(item.get("trade") or 0)
+                    change_pct = float(item.get("changepercent") or 0)
+                    turnover = float(item.get("turnoverratio") or 0)
+                    market_cap = float(item.get("mktcap") or 0)
+                    amount = float(item.get("amount") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if price <= 0:
+                    continue
+                result.append({
+                    "code": code,
+                    "name": str(item.get("name") or ""),
+                    "price": round(price, 3),
+                    "change_pct": round(change_pct, 2),
+                    "turnover": round(turnover, 2),
+                    "market_cap": round(market_cap / 1e4, 2),
+                    "amount": round(amount / 1e8, 2),
+                })
+            if len(data) < 100:
+                break
+            page += 1
+        if not result:
+            raise DataUnavailableError("未从公开接口获取到全市场行情")
         return result
 
     def get_daily_bars(self, code: str, start: str, end: str, adjust: str = "qfq") -> pd.DataFrame:

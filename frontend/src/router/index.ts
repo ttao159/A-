@@ -29,6 +29,11 @@ const router = createRouter({
       component: () => import('../views/GeneratorView.vue'),
     },
     {
+      path: '/screener',
+      name: 'screener',
+      component: () => import('../views/ScreenerView.vue'),
+    },
+    {
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),

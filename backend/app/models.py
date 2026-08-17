@@ -151,6 +151,15 @@ class DailyBarCache(Base):
     __table_args__ = (UniqueConstraint("code", "period", "adjust", name="uq_bar_cache"),)
 
 
+class IndustryCache(Base):
+    __tablename__ = "industry_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(20), nullable=False, index=True)
+    industry = Column(String(50), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class GenerationReport(Base):
     __tablename__ = "generation_reports"
 

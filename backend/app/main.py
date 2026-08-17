@@ -20,6 +20,7 @@ from .account import AccountService
 from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
+from .industry_map import industry_map
 from .market import MarketDataService
 from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy, Trade
 from .public_data import DataUnavailableError
@@ -545,6 +546,48 @@ def get_account_daily_pnl(db: Session = Depends(get_db)):
     return accounts.daily_pnl(db, acct, limit=120)
 
 
+@app.get("/api/account/pnl-attribution")
+def get_pnl_attribution(db: Session = Depends(get_db)):
+    """今日盈亏归因：按持仓当日涨跌贡献聚合（优先板块，行业映射未就绪时按个股）。"""
+    _, positions, _ = accounts.get_snapshot(db)
+    if not positions:
+        return {"granularity": "none", "today_pnl": 0.0, "base": 0.0, "items": []}
+    quotes = market.get_realtime_quotes([p.code for p in positions]) if positions else {}
+    strategies = db.query(Strategy).all()
+    cash = sum(s.available_cash or 0.0 for s in strategies)
+    industry_data = industry_map.get_industry_map()
+    granularity = "industry" if industry_data else "stock"
+
+    per_item = []
+    market_value_before = 0.0
+    for p in positions:
+        rt = quotes.get(p.code)
+        if not rt or (rt.get("prev_close") or 0) <= 0:
+            continue
+        pnl = p.qty * (rt["price"] - rt["prev_close"])
+        market_value_before += p.qty * rt["prev_close"]
+        label = industry_data.get(p.code, p.name) if granularity == "industry" else p.name
+        per_item.append({"code": p.code, "name": p.name, "label": label, "pnl": round(pnl, 2)})
+
+    base = cash + market_value_before
+    today_pnl = sum(x["pnl"] for x in per_item)
+    groups: dict[str, float] = {}
+    for x in per_item:
+        groups[x["label"]] = groups.get(x["label"], 0.0) + x["pnl"]
+
+    items = [
+        {"label": label, "pnl": round(pnl, 2),
+         "pct": round(pnl / base * 100, 2) if base else 0.0}
+        for label, pnl in sorted(groups.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    ]
+    return {
+        "granularity": granularity,
+        "today_pnl": round(today_pnl, 2),
+        "base": round(base, 2),
+        "items": items,
+    }
+
+
 @app.get("/api/alerts")
 def get_alerts(limit: int = 50, db: Session = Depends(get_db)):
     """预警提醒列表（最近 N 条，默认 50，上限 500）。"""
@@ -744,6 +787,42 @@ def get_stock_minute(code: str):
         raise HTTPException(502, str(exc))
 
 
+@app.post("/api/stocks/{code}/diagnose")
+def diagnose_stock(code: str, db: Session = Depends(get_db)):
+    """AI 个股技术诊断：基于日线技术指标调用智能体，未配置 LLM 时启发式降级。"""
+    from .agents import stock_diagnosis
+    from .indicators import compute_indicators
+
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=300)).isoformat()
+    try:
+        bars = market.get_daily_bars(code, start, end)
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
+    if bars is None or len(bars) < 30:
+        raise HTTPException(404, "行情数据不足，无法诊断")
+    ind = compute_indicators(bars)
+    if not ind:
+        raise HTTPException(404, "行情数据不足，无法诊断")
+
+    name = code
+    try:
+        names = market.get_stock_names([code])
+        name = names.get(code, code)
+    except Exception:
+        pass
+
+    context = {
+        "code": code,
+        "name": name,
+        "price": ind.get("price"),
+        "recent_high": ind.get("recent_high"),
+        "recent_low": ind.get("recent_low"),
+        "indicators": ind,
+    }
+    return stock_diagnosis(context)
+
+
 @app.post("/api/scan")
 def trigger_scan(db: Session = Depends(get_db)):
     """手动触发一次全市场扫描交易。"""
@@ -797,6 +876,73 @@ def trigger_scan_stream():
             yield json.dumps(evt, ensure_ascii=False) + "\n"
 
     return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+
+@app.post("/api/screener")
+def screen_stocks(body: dict, db: Session = Depends(get_db)):
+    """条件选股：基于全市场实时行情按价格/涨跌幅/换手率/市值/成交额筛选排序。"""
+    try:
+        quotes = market.get_market_quotes()
+    except DataUnavailableError as exc:
+        raise HTTPException(502, str(exc))
+
+    f = body or {}
+
+    def num(v):
+        if v is None or v == "":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    price_min, price_max = num(f.get("price_min")), num(f.get("price_max"))
+    chg_min, chg_max = num(f.get("change_pct_min")), num(f.get("change_pct_max"))
+    to_min, to_max = num(f.get("turnover_min")), num(f.get("turnover_max"))
+    mc_min, mc_max = num(f.get("market_cap_min")), num(f.get("market_cap_max"))
+    amt_min, amt_max = num(f.get("amount_min")), num(f.get("amount_max"))
+
+    out = []
+    for q in quotes:
+        if price_min is not None and q["price"] < price_min:
+            continue
+        if price_max is not None and q["price"] > price_max:
+            continue
+        if chg_min is not None and q["change_pct"] < chg_min:
+            continue
+        if chg_max is not None and q["change_pct"] > chg_max:
+            continue
+        if to_min is not None and q["turnover"] < to_min:
+            continue
+        if to_max is not None and q["turnover"] > to_max:
+            continue
+        if mc_min is not None and q["market_cap"] < mc_min:
+            continue
+        if mc_max is not None and q["market_cap"] > mc_max:
+            continue
+        if amt_min is not None and q["amount"] < amt_min:
+            continue
+        if amt_max is not None and q["amount"] > amt_max:
+            continue
+        out.append(q)
+
+    sorters = {
+        "change_pct": lambda x: x["change_pct"],
+        "turnover": lambda x: x["turnover"],
+        "market_cap": lambda x: x["market_cap"],
+        "amount": lambda x: x["amount"],
+        "price": lambda x: x["price"],
+    }
+    sort_by = f.get("sort_by", "change_pct")
+    out.sort(key=sorters.get(sort_by, sorters["change_pct"]),
+             reverse=f.get("sort_dir", "desc") != "asc")
+
+    limit = max(1, min(int(f.get("limit") or 50), 200))
+    return {
+        "total": len(out),
+        "updated_at": datetime.now().strftime("%H:%M:%S"),
+        "items": out[:limit],
+    }
 
 
 @app.get("/api/scan/reports")

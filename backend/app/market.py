@@ -31,9 +31,22 @@ class MarketDataService(PublicDataService):
     def __init__(self):
         self._kline_cache = {}
         self._quote_cache = {}
+        self._market_cache = None
         self._list_cache = None
         self._list_ts = 0.0
         self._lock = threading.Lock()
+
+    def get_market_quotes(self):
+        """全市场实时行情快照，带 15 秒内存缓存。"""
+        now = time.time()
+        with self._lock:
+            hit = self._market_cache
+            if hit and now - hit[0] < 15:
+                return hit[1]
+        result = super().get_market_quotes()
+        with self._lock:
+            self._market_cache = (now, result)
+        return result
 
     def get_stock_list(self):
         now = time.time()

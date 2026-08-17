@@ -251,3 +251,127 @@ def account_diagnosis(context: dict, timeout: int = 60) -> dict:
         result = _heuristic_account_diagnosis(context)
         result["fallback"] = f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"
         return result
+
+
+_STOCK_DIAGNOSIS_FORMAT = (
+    '{"bull_case":"看多理由","bear_case":"看空理由",'
+    '"target_price":数字,"stop_loss":数字,"support":数字,"resistance":数字,'
+    '"verdict":"一句话结论","action":"看多|中性|看空","confidence":0-100}'
+)
+
+
+def _build_stock_diagnosis_prompt(context: dict) -> str:
+    return (
+        "你是A股个股技术诊断分析师。请根据以下技术指标对个股做多空诊断。"
+        "只输出一个 JSON 对象（不要输出其他文字），格式：\n"
+        f"{_STOCK_DIAGNOSIS_FORMAT}\n"
+        "要求：bull_case/bear_case 各给出 1-2 句基于具体指标的理由；"
+        "target_price/stop_loss/support/resistance 必须为数值并基于现价与技术位置合理估算；"
+        "action 取 看多/中性/看空；confidence 为 0-100 的把握度。\n"
+        f"个股技术数据：\n{json.dumps(context, ensure_ascii=False)}"
+    )
+
+
+def _heuristic_stock_diagnosis(ctx: dict) -> dict:
+    """未配置 LLM 时的规则化个股诊断。"""
+    ind = ctx.get("indicators") or {}
+    price = float(ind.get("price") or 0)
+    trend = ind.get("trend", "震荡")
+    vol_pct = float(ind.get("vol_pct") or 0)
+    vol_ratio = float(ind.get("vol_ratio") or 1)
+    rsi = ind.get("rsi14")
+    boll_pos = ind.get("boll_pos")
+    boll_up = ind.get("boll_up")
+    boll_low = ind.get("boll_low")
+    change_pct = float(ind.get("change_pct") or 0)
+
+    bull: list[str] = []
+    bear: list[str] = []
+    if trend == "多头":
+        bull.append("均线多头排列（MA5>MA10>MA20），中期趋势向上")
+    if ind.get("macd_golden"):
+        bull.append("MACD 金叉，动能转强")
+    if rsi is not None and 40 <= rsi <= 60:
+        bull.append(f"RSI {rsi:.0f}，量能健康未超买")
+    if vol_ratio >= 1.5 and change_pct > 0:
+        bull.append(f"放量上涨（量比 {vol_ratio:.1f}）")
+    if boll_pos is not None and 0.3 <= boll_pos <= 0.75:
+        bull.append("价格运行于布林带中上轨之间，趋势延续")
+
+    if trend == "空头":
+        bear.append("均线空头排列（MA5<MA10<MA20），中期趋势向下")
+    if ind.get("macd_dead"):
+        bear.append("MACD 死叉，动能转弱")
+    if rsi is not None and rsi >= 70:
+        bear.append(f"RSI {rsi:.0f} 超买，短线回调风险")
+    if boll_pos is not None and boll_pos >= 1.0:
+        bear.append("价格突破布林上轨，短线超买或加速赶顶")
+    if vol_ratio >= 1.5 and change_pct < 0:
+        bear.append(f"放量下跌（量比 {vol_ratio:.1f}）")
+
+    if not bull:
+        bull.append("暂无明显多头信号")
+    if not bear:
+        bear.append("暂无明显空头信号")
+
+    if trend == "多头" and not (rsi is not None and rsi >= 70):
+        action = "看多"
+    elif trend == "空头" or (rsi is not None and rsi >= 75):
+        action = "看空"
+    else:
+        action = "中性"
+
+    span = max(vol_pct * 1.5, 3.0)
+    target = price * (1 + span / 100)
+    stop = price * (1 - max(vol_pct * 1.2, 2.5) / 100)
+    resistance = float(boll_up or ind.get("recent_high") or target)
+    support = float(boll_low or ind.get("recent_low") or stop)
+
+    confidence = 50
+    if action == "看多":
+        confidence = min(85, 55 + int(vol_pct * 2))
+    elif action == "看空":
+        confidence = min(85, 55 + int(vol_pct * 2))
+
+    verdict = f"{ctx.get('name', '')} 现价 {price:.2f}（{change_pct:+.2f}%），技术面{trend}，综合判断{action}"
+
+    return {
+        "available": False,
+        "fallback": "heuristic",
+        "bull_case": "；".join(bull),
+        "bear_case": "；".join(bear),
+        "target_price": round(target, 2),
+        "stop_loss": round(stop, 2),
+        "support": round(support, 2),
+        "resistance": round(resistance, 2),
+        "verdict": verdict,
+        "action": action,
+        "confidence": confidence,
+    }
+
+
+def stock_diagnosis(context: dict, timeout: int = 60) -> dict:
+    """个股技术诊断：配置 LLM 时由智能体生成，否则启发式降级。"""
+    if not llm_available():
+        return _heuristic_stock_diagnosis(context)
+    try:
+        parsed = _call_llm(_build_stock_diagnosis_prompt(context), timeout)
+        for key in ("bull_case", "bear_case", "verdict", "action"):
+            if not parsed.get(key):
+                parsed[key] = ""
+        for key in ("target_price", "stop_loss", "support", "resistance"):
+            try:
+                parsed[key] = round(float(parsed[key]), 2)
+            except (TypeError, ValueError, KeyError):
+                parsed[key] = None
+        try:
+            parsed["confidence"] = max(0, min(100, int(parsed.get("confidence", 50))))
+        except (TypeError, ValueError):
+            parsed["confidence"] = 50
+        parsed["available"] = True
+        parsed["model"] = LLM_MODEL
+        return parsed
+    except Exception as exc:
+        result = _heuristic_stock_diagnosis(context)
+        result["fallback"] = f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"
+        return result
