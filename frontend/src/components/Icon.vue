@@ -99,5 +99,14 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 20 })
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
     </template>
+    <template v-else-if="name === 'plus'">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </template>
+    <template v-else-if="name === 'more-h'">
+      <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    </template>
   </svg>
 </template>

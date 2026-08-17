@@ -36,21 +36,7 @@
         <Icon name="wallet" :size="16" class="guide-icon" />
         <div class="guide-body">
           <div class="guide-name">账户</div>
-          <div class="guide-desc">查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新；支持 AI 账户健康度诊断。</div>
-        </div>
-      </div>
-      <div id="guide-strategy" class="guide-item">
-        <Icon name="target" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">策略</div>
-          <div class="guide-desc">新建/编辑策略，查看详情预览，一键启停与删除。</div>
-        </div>
-      </div>
-      <div id="guide-backtest" class="guide-item">
-        <Icon name="bar-chart" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">回测</div>
-          <div class="guide-desc">选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，点击查看结果弹窗，支持删除。</div>
+          <div class="guide-desc">查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新；支持 AI 账户健康度诊断与今日盈亏归因。</div>
         </div>
       </div>
       <div id="guide-trade" class="guide-item">
@@ -60,18 +46,18 @@
           <div class="guide-desc">手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
         </div>
       </div>
-      <div id="guide-screener" class="guide-item">
-        <Icon name="filter" :size="16" class="guide-icon" />
+      <div id="guide-center" class="guide-item">
+        <Icon name="target" :size="16" class="guide-icon" />
         <div class="guide-body">
-          <div class="guide-name">选股</div>
-          <div class="guide-desc">按价格、涨跌幅、换手率、市值、成交额条件筛选全市场，命中个股可直达详情。</div>
+          <div class="guide-name">策略中心</div>
+          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区，建议检查条件设置或运行回测。</div>
         </div>
       </div>
-      <div id="guide-scan" class="guide-item">
-        <Icon name="search" :size="16" class="guide-icon" />
+      <div id="guide-about" class="guide-item">
+        <Icon name="info" :size="16" class="guide-icon" />
         <div class="guide-body">
-          <div class="guide-name">扫描</div>
-          <div class="guide-desc">一键全市场扫描，按策略信号自动交易；支持按风险偏好生成策略组合，历史记录可筛选查看与删除，支持 AI 智能体多观点分析。</div>
+          <div class="guide-name">说明</div>
+          <div class="guide-desc">本页查看账户说明、数据来源、交易费用、风控与版本更新记录。</div>
         </div>
       </div>
     </div>
@@ -136,6 +122,10 @@
       </button>
       <Transition name="collapse">
         <div v-show="expanded" class="changelog">
+          <div class="changelog-item"><span class="changelog-tag">优化</span>底部导航精简为 4 项（账户/交易/策略中心/说明），策略中心内含策略/回测/选股/扫描二级页签</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>策略卡片操作：详情/编辑/回测收进「更多」菜单，删除独立置右并带二次确认</div>
+          <div class="changelog-item"><span class="changelog-tag">新增</span>未启用策略区：零收益零仓位策略自动折叠并提示检查条件设置</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>新建策略改为右下角悬浮按钮；头部增加模拟盘/实盘切换下拉（实盘未接入）</div>
           <div class="changelog-item"><span class="changelog-tag">新增</span>条件选股：价格/涨跌幅/换手率/市值/成交额多条件筛选</div>
           <div class="changelog-item"><span class="changelog-tag">新增</span>AI 个股诊断：多空观点/目标价/止损/支撑阻力，未配置 LLM 时启发式降级</div>
           <div class="changelog-item"><span class="changelog-tag">新增</span>今日盈亏归因：板块/个股级当日盈亏贡献标签</div>
@@ -180,11 +170,9 @@ const accountStore = useAccountStore()
 
 const guides = [
   { id: 'guide-account', label: '账户', icon: 'wallet' },
-  { id: 'guide-strategy', label: '策略', icon: 'target' },
-  { id: 'guide-backtest', label: '回测', icon: 'bar-chart' },
   { id: 'guide-trade', label: '交易', icon: 'swap' },
-  { id: 'guide-screener', label: '选股', icon: 'filter' },
-  { id: 'guide-scan', label: '扫描', icon: 'search' },
+  { id: 'guide-center', label: '策略中心', icon: 'target' },
+  { id: 'guide-about', label: '说明', icon: 'info' },
 ]
 
 const expanded = ref(false)

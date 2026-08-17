@@ -6,8 +6,15 @@
         <button class="theme-btn" @click="toggleTheme" aria-label="切换主题">
           <Icon :name="isDark ? 'sun' : 'moon'" :size="18" />
         </button>
-        <span v-if="accountStore.isLive" class="badge live">实盘</span>
-        <span v-else class="badge paper">模拟盘</span>
+        <select
+          class="mode-select"
+          :value="accountStore.isLive ? 'live' : 'paper'"
+          aria-label="交易模式"
+          @change="onModeChange"
+        >
+          <option value="paper">模拟盘</option>
+          <option value="live">实盘</option>
+        </select>
       </div>
     </header>
     <div v-if="accountStore.isLive" class="risk-banner">
@@ -44,7 +51,13 @@
       </router-view>
     </main>
     <nav class="tab-bar">
-      <router-link v-for="tab in tabs" :key="tab.path" :to="tab.path" class="tab-item">
+      <router-link
+        v-for="tab in tabs"
+        :key="tab.path"
+        :to="tab.path"
+        class="tab-item"
+        :class="{ 'router-link-active': tab.exact ? route.path === tab.path : route.path.startsWith(tab.path) }"
+      >
         <Icon :name="tab.iconName" :size="22" />
         <span class="tab-label">{{ tab.label }}</span>
       </router-link>
@@ -89,25 +102,25 @@ let startY = 0
 let pulling = false
 
 const tabs = [
-  { path: '/', iconName: 'wallet', label: '账户' },
-  { path: '/strategy', iconName: 'target', label: '策略' },
-  { path: '/backtest', iconName: 'bar-chart', label: '回测' },
+  { path: '/', iconName: 'wallet', label: '账户', exact: true },
   { path: '/trade', iconName: 'swap', label: '交易' },
-  { path: '/screener', iconName: 'filter', label: '选股' },
-  { path: '/generator', iconName: 'search', label: '扫描' },
+  { path: '/strategy', iconName: 'target', label: '策略中心' },
   { path: '/about', iconName: 'info', label: '说明' },
 ]
 
-const EXTRA_TITLES: Record<string, string> = {
-  '/alerts': '预警',
-}
-
 const title = computed(() => {
-  const found = tabs.find((t) => t.path === route.path)
-  if (found) return `A股助手 · ${found.label}`
-  if (EXTRA_TITLES[route.path]) return `A股助手 · ${EXTRA_TITLES[route.path]}`
+  const t = route.meta.title as string | undefined
+  if (t) return `A股助手 · ${t}`
   return 'A股自动交易助手'
 })
+
+function onModeChange(e: Event) {
+  const sel = e.target as HTMLSelectElement
+  if (sel.value === 'live') {
+    toast('实盘功能尚未接入，当前为模拟盘')
+    sel.value = accountStore.isLive ? 'live' : 'paper'
+  }
+}
 
 function onTouchStart(e: TouchEvent) {
   if ((mainRef.value?.scrollTop ?? 0) <= 0) {
@@ -144,6 +157,24 @@ async function onTouchEnd() {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.mode-select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.mode-select option {
+  background: var(--card);
+  color: var(--text);
 }
 
 .theme-btn {
