@@ -204,6 +204,28 @@ body {
   color: var(--down);
 }
 
+.realtime-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--up);
+  color: var(--up);
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+}
+
+@keyframes flash-pulse {
+  0% { filter: brightness(1.6); }
+  100% { filter: brightness(1); }
+}
+
+.flash {
+  animation: flash-pulse 0.7s ease-out;
+}
+
 .text-primary {
   color: var(--primary);
 }

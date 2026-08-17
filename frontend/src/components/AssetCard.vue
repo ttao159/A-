@@ -8,9 +8,8 @@
     </div>
     <div class="asset-total">{{ fmtMoneyCompact(account.total_asset) }}</div>
     <div class="asset-pnl">
-      <span class="pill" :class="account.total_pnl >= 0 ? 'up' : 'down'">
-        {{ pnlText }}
-      </span>
+      <span class="pnl-big" :class="[pnlClass, { flash: flashing }]">{{ pnlText }}</span>
+      <span class="realtime-tag">实时</span>
     </div>
     <div class="asset-grid">
       <div class="asset-cell">
@@ -33,8 +32,13 @@
 import { computed } from 'vue'
 import type { Account } from '../api/types'
 import { fmtMoneyCompact, fmtPct } from '../utils/format'
+import { useFlashValue } from '../composables/useFlash'
 
 const props = defineProps<{ account: Account }>()
+
+const flashing = useFlashValue(() => props.account.total_pnl)
+
+const pnlClass = computed(() => (props.account.total_pnl >= 0 ? 'up' : 'down'))
 
 const pnlText = computed(() => {
   const pct = props.account.initial_capital
@@ -52,8 +56,30 @@ const pnlText = computed(() => {
 }
 
 .asset-pnl {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.pnl-big {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.pnl-big.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.pnl-big.down {
+  background: var(--down-bg);
+  color: var(--down);
 }
 
 .asset-grid {

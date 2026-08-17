@@ -68,7 +68,10 @@
         <div class="stat-row">
           <span>盈利 {{ profitCount }} 只</span>
           <span>亏损 {{ lossCount }} 只</span>
-          <span :class="floatPnl >= 0 ? 'up' : 'down'">浮动盈亏 {{ fmtMoney(floatPnl) }}</span>
+          <span class="float-pnl" :class="[floatPnl >= 0 ? 'up' : 'down', { flash: floatFlashing }]">
+            浮动盈亏 {{ fmtMoney(floatPnl) }}
+            <span class="realtime-tag">实时</span>
+          </span>
         </div>
       </div>
 
@@ -121,6 +124,7 @@ import { useAccountStore } from '../stores/account'
 import { usePositionStore } from '../stores/position'
 import { useStrategyStore } from '../stores/strategy'
 import { usePullRefresh } from '../composables/pullRefresh'
+import { useFlashValue } from '../composables/useFlash'
 import { alertApi, indexApi } from '../api'
 import type { Alert, IndexQuote } from '../api'
 import { fmtMoney, fmtMoneyCompact, fmtPct, fmtDateTime } from '../utils/format'
@@ -267,6 +271,8 @@ const profitCount = computed(() => filteredPositions.value.filter((p) => p.pnl >
 const lossCount = computed(() => filteredPositions.value.filter((p) => p.pnl < 0).length)
 const floatPnl = computed(() => filteredPositions.value.reduce((s, p) => s + p.pnl, 0))
 
+const floatFlashing = useFlashValue(() => floatPnl.value)
+
 async function onReset() {
   const ok = await confirmDialog({
     title: '重置模拟账户',
@@ -362,6 +368,27 @@ function goAlerts() {
   display: flex;
   gap: 16px;
   font-size: 14px;
+}
+
+.float-pnl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.float-pnl.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.float-pnl.down {
+  background: var(--down-bg);
+  color: var(--down);
 }
 
 .alert-item {
