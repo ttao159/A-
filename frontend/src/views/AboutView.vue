@@ -59,6 +59,7 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">修复</span>持仓收益实时显示：现价改用实时行情接口，盘中随行情更新</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>历史回测查看改为弹窗展示，关闭后停留列表原位</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>回测页排版：快捷日期区间、核心指标突出、参数优化触控选择</div>
         <div class="changelog-item"><span class="changelog-tag">新增</span>回测历史查看与删除、生成历史分类筛选与删除</div>

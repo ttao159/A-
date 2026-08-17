@@ -176,6 +176,55 @@ class PublicDataService:
                 names[code] = fields[1]
         return names
 
+    def get_realtime_quotes(self, codes: list) -> dict:
+        """批量获取个股实时行情，返回 {code: {price, prev_close, change, change_pct}}。
+
+        使用腾讯实时行情接口（qt.gtimg.cn），仅返回有效价格（price > 0）。
+        失败路径抛 DataUnavailableError；单只失败自动跳过。
+        """
+        if not codes:
+            return {}
+        result = {}
+        for i in range(0, len(codes), 50):
+            batch = codes[i:i + 50]
+            syms = ",".join(_tencent_symbol(c) for c in batch)
+            try:
+                req = urllib.request.Request(TENCENT_QUOTE_URL + syms, headers=UA)
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                    if resp.status != 200:
+                        continue
+                    raw = resp.read().decode("gbk", errors="replace")
+            except Exception:
+                continue
+            for line in raw.split(";"):
+                line = line.strip()
+                if not line.startswith("v_"):
+                    continue
+                m = re.search(r'="([^"]*)"', line)
+                if not m:
+                    continue
+                fields = m.group(1).split("~")
+                if len(fields) < 5:
+                    continue
+                code = fields[2]
+                try:
+                    price = float(fields[3])
+                    prev_close = float(fields[4])
+                except (ValueError, TypeError):
+                    continue
+                if price <= 0:
+                    continue
+                change = price - prev_close
+                result[code] = {
+                    "price": price,
+                    "prev_close": prev_close,
+                    "change": round(change, 3),
+                    "change_pct": round(change / prev_close * 100.0, 3) if prev_close else 0.0,
+                }
+        if not result:
+            raise DataUnavailableError("未获取到有效的实时行情")
+        return result
+
     def get_daily_bars(self, code: str, start: str, end: str, adjust: str = "qfq") -> pd.DataFrame:
         """返回真实日线：date/open/high/low/close/volume，按日期升序。"""
         return self.get_kline(code, "day", start, end, adjust)

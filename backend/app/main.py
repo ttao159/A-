@@ -425,15 +425,20 @@ def get_account(db: Session = Depends(get_db)):
     acct, positions, _ = accounts.get_snapshot(db)
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=10)).isoformat()
+    quotes = market.get_realtime_quotes([p.code for p in positions]) if positions else {}
     market_value = 0.0
     for p in positions:
         price = p.avg_cost
-        try:
-            bars = market.get_daily_bars(p.code, start, end)
-            if bars is not None and len(bars):
-                price = float(bars["close"].iloc[-1])
-        except Exception:
-            pass
+        rt = quotes.get(p.code)
+        if rt:
+            price = rt["price"]
+        else:
+            try:
+                bars = market.get_daily_bars(p.code, start, end)
+                if bars is not None and len(bars):
+                    price = float(bars["close"].iloc[-1])
+            except Exception:
+                pass
         market_value += p.qty * price
     strategies = db.query(Strategy).all()
     cash = sum(s.available_cash or 0.0 for s in strategies)
@@ -486,15 +491,20 @@ def get_positions(db: Session = Depends(get_db)):
     strategy_names = {s.id: s.name for s in db.query(Strategy).all()}
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=10)).isoformat()
+    quotes = market.get_realtime_quotes([p.code for p in positions]) if positions else {}
     result = []
     for p in positions:
         price = p.avg_cost
-        try:
-            bars = market.get_daily_bars(p.code, start, end)
-            if bars is not None and len(bars):
-                price = float(bars["close"].iloc[-1])
-        except Exception:
-            pass
+        rt = quotes.get(p.code)
+        if rt:
+            price = rt["price"]
+        else:
+            try:
+                bars = market.get_daily_bars(p.code, start, end)
+                if bars is not None and len(bars):
+                    price = float(bars["close"].iloc[-1])
+            except Exception:
+                pass
         pnl_pct = (price - p.avg_cost) / p.avg_cost * 100.0 if p.avg_cost else 0.0
         result.append({
             "code": p.code, "name": p.name, "qty": p.qty,

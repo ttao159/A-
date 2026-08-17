@@ -26,9 +26,11 @@ class MarketDataService(PublicDataService):
     LIST_TTL = 3600     # 股票列表缓存 1 小时
     PERIOD_TTL = 3600   # 周/月/年 K 线内存缓存 1 小时
     DISK_TTL = 1800     # 磁盘日线缓存 30 分钟
+    REALTIME_TTL = 15   # 个股实时行情内存缓存 15 秒
 
     def __init__(self):
         self._kline_cache = {}
+        self._quote_cache = {}
         self._list_cache = None
         self._list_ts = 0.0
         self._lock = threading.Lock()
@@ -40,6 +42,25 @@ class MarketDataService(PublicDataService):
         result = super().get_stock_list()
         self._list_cache = result
         self._list_ts = now
+        return result
+
+    # ===== 个股实时行情（短 TTL 缓存） =====
+    def get_realtime_quotes(self, codes: list) -> dict:
+        """获取个股实时行情，带 15 秒内存缓存；失败时返回空字典（调用方回退日线）。"""
+        if not codes:
+            return {}
+        key = ("realtime", tuple(sorted(codes)))
+        now = time.time()
+        with self._lock:
+            hit = self._quote_cache.get(key)
+            if hit and now - hit[0] < self.REALTIME_TTL:
+                return hit[1]
+        try:
+            result = super().get_realtime_quotes(codes)
+        except DataUnavailableError:
+            result = {}
+        with self._lock:
+            self._quote_cache[key] = (now, result)
         return result
 
     # ===== 日线（带磁盘缓存） =====

@@ -210,6 +210,56 @@ class TestGetStockNames:
             assert PublicDataService().get_stock_names(["600519"]) == {}
 
 
+class TestGetRealtimeQuotes:
+    def test_parses_gbk_quote(self):
+        class FakeResp:
+            status = 200
+
+            def read(self):
+                return TENCENT_QUOTE_GBK.encode("gbk")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with mock.patch("app.public_data.urllib.request.urlopen", return_value=FakeResp()):
+            quotes = PublicDataService().get_realtime_quotes(["600519", "000001"])
+        assert quotes["600519"]["price"] == 1341.99
+        assert quotes["600519"]["prev_close"] == 1355.29
+        assert quotes["600519"]["change"] == round(1341.99 - 1355.29, 3)
+        assert quotes["000001"]["price"] == 11.11
+        assert quotes["000001"]["prev_close"] == 11.25
+
+    def test_empty_codes(self):
+        assert PublicDataService().get_realtime_quotes([]) == {}
+
+    def test_failure_raises(self):
+        with mock.patch("app.public_data.urllib.request.urlopen", side_effect=Exception("net")):
+            with pytest.raises(DataUnavailableError):
+                PublicDataService().get_realtime_quotes(["600519"])
+
+    def test_zero_price_skipped(self):
+        sample = 'v_sh600519="1~贵州茅台~600519~0.00~1355.29";'
+
+        class FakeResp:
+            status = 200
+
+            def read(self):
+                return sample.encode("gbk")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with mock.patch("app.public_data.urllib.request.urlopen", return_value=FakeResp()):
+            with pytest.raises(DataUnavailableError):
+                PublicDataService().get_realtime_quotes(["600519"])
+
+
 class TestMarketDataServiceCache:
     def test_daily_bars_cached_within_ttl(self):
         svc = MarketDataService()
@@ -250,10 +300,27 @@ class TestMarketDataServiceCache:
     def test_period_kline_cached(self):
         svc = MarketDataService()
         with mock.patch.object(PublicDataService, "get_kline",
-                               return_value=pd.DataFrame()) as spy:
+                                return_value=pd.DataFrame()) as spy:
             svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
             svc.get_kline("600519", "month", "2024-01-01", "2025-12-31")
             assert spy.call_count == 1
+
+    def test_realtime_quotes_cached_within_ttl(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_realtime_quotes",
+                                return_value={"600519": {"price": 1341.99}}) as spy:
+            svc.get_realtime_quotes(["600519"])
+            svc.get_realtime_quotes(["600519"])
+            assert spy.call_count == 1
+
+    def test_realtime_quotes_failure_returns_empty(self):
+        svc = MarketDataService()
+        with mock.patch.object(PublicDataService, "get_realtime_quotes",
+                                side_effect=DataUnavailableError("down")):
+            assert svc.get_realtime_quotes(["600519"]) == {}
+
+    def test_realtime_quotes_empty_codes(self):
+        assert MarketDataService().get_realtime_quotes([]) == {}
 
     def test_disk_get_returns_string_dates(self):
         svc = MarketDataService()
