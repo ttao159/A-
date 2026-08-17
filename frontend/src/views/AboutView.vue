@@ -12,7 +12,7 @@
 
     <div class="card">
       <div class="card-title">操作指南</div>
-      <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新。</span></div>
+      <div class="guide-item"><b>账户</b><span>查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新；支持 AI 账户健康度诊断。</span></div>
       <div class="guide-item"><b>股票</b><span>点击持仓代码进入详情，支持日K/分时切换、双指缩放、十字光标与均线开关。</span></div>
       <div class="guide-item"><b>策略</b><span>新建/编辑策略，查看详情预览，一键启停与删除。</span></div>
       <div class="guide-item"><b>回测</b><span>选择策略与日期区间运行回测，支持近 1 月/3 月/6 月/1 年快捷区间；核心指标突出展示，历史回测可按盈亏分类、按收益/胜率/回撤排序，点击查看以弹窗展示结果，支持删除。</span></div>
@@ -61,6 +61,7 @@
       <div class="card-title">版本信息</div>
       <div class="info-row"><span>当前版本</span><b>v{{ version }}</b></div>
       <div class="changelog">
+        <div class="changelog-item"><span class="changelog-tag">新增</span>AI 账户诊断：健康评分、亮点/风险/建议，未配置 LLM 时启发式降级</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>下拉刷新：加载动画、箭头旋转指示与刷新成功提示</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>全局按压反馈：按钮与底部导航按压缩放过渡</div>
         <div class="changelog-item"><span class="changelog-tag">优化</span>资产卡信息层级：现金/市值资产分布条、核心数据聚合</div>

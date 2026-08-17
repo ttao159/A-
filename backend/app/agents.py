@@ -147,3 +147,107 @@ def deep_analysis(context: dict, timeout: int = 60) -> dict:
     except Exception as exc:
         return {"available": False, "fallback": "heuristic",
                 "verdict": f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"}
+
+
+_ACCOUNT_DIAGNOSIS_FORMAT = (
+    '{"summary":"总体评价","score":0-100,'
+    '"highlights":["亮点1","亮点2"],"risks":["风险1","风险2"],'
+    '"suggestions":["建议1","建议2"]}'
+)
+
+
+def _build_account_diagnosis_prompt(context: dict) -> str:
+    return (
+        "你是A股量化账户诊断顾问。请根据账户快照做一次健康度诊断，"
+        "评估资金利用、持仓结构、风险暴露与交易纪律。"
+        "只输出一个 JSON 对象（不要输出其他文字），格式：\n"
+        f"{_ACCOUNT_DIAGNOSIS_FORMAT}\n"
+        "要求：summary 用一句话概括整体状态；score 为 0-100 的健康分；"
+        "highlights 列出 1-3 条做得好的方面；risks 列出 1-4 条风险点"
+        "（如仓位过高、单票集中度过高、回撤、现金利用率低等）；"
+        "suggestions 给出 1-4 条可操作建议，尽量结合快照中的具体数字。\n"
+        f"账户快照：\n{json.dumps(context, ensure_ascii=False)}"
+    )
+
+
+def _heuristic_account_diagnosis(ctx: dict) -> dict:
+    """未配置 LLM 时的规则化降级诊断。"""
+    highlights: list[str] = []
+    risks: list[str] = []
+    suggestions: list[str] = []
+
+    total_asset = float(ctx.get("total_asset") or 0)
+    initial = float(ctx.get("initial_capital") or 0)
+    cash = float(ctx.get("available_cash") or 0)
+    market_value = float(ctx.get("market_value") or 0)
+    ret_pct = (total_asset - initial) / initial * 100 if initial else 0.0
+    pos_ratio = market_value / total_asset * 100 if total_asset else 0.0
+    cash_ratio = cash / total_asset * 100 if total_asset else 0.0
+
+    if ret_pct > 0:
+        highlights.append(f"累计收益 {ret_pct:+.2f}%")
+    elif ret_pct < 0:
+        risks.append(f"累计亏损 {ret_pct:.2f}%")
+
+    positions = ctx.get("positions") or []
+    if positions:
+        max_w = max((p.get("weight") or 0) for p in positions)
+        max_name = next((p["name"] for p in positions if (p.get("weight") or 0) == max_w), "")
+        if max_w > 0.5:
+            risks.append(f"持仓集中度偏高：{max_name} 占资产 {max_w * 100:.0f}%")
+        else:
+            highlights.append(f"持仓相对分散，最大单票权重 {max_w * 100:.0f}%")
+        if pos_ratio > 90:
+            risks.append(f"仓位过高（{pos_ratio:.0f}%），需预留现金应对波动")
+        elif pos_ratio < 20:
+            suggestions.append(f"仓位偏低（{pos_ratio:.0f}%），资金利用率不足")
+    elif cash_ratio > 60:
+        suggestions.append("当前空仓，现金占比高，建议结合策略信号评估建仓时机")
+
+    win_rate = ctx.get("win_rate")
+    if win_rate is not None:
+        wr = float(win_rate)
+        if wr >= 0.6:
+            highlights.append(f"已平仓胜率 {wr * 100:.0f}%")
+        elif wr <= 0.4:
+            risks.append(f"已平仓胜率偏低（{wr * 100:.0f}%）")
+
+    score = 60.0
+    score += max(-20.0, min(20.0, ret_pct))
+    if total_asset:
+        score -= max(0.0, min(15.0, (pos_ratio - 85) / 5))
+    if positions:
+        score -= max(0.0, min(15.0, max_w * 20))
+    score = max(5, min(98, int(score)))
+
+    return {
+        "available": False,
+        "fallback": "heuristic",
+        "summary": f"账户累计收益 {ret_pct:+.2f}%，仓位 {pos_ratio:.0f}%",
+        "score": score,
+        "highlights": highlights or ["账户运行正常"],
+        "risks": risks or ["暂无明显风险"],
+        "suggestions": suggestions or ["保持既有策略纪律，持续跟踪持仓与回撤"],
+    }
+
+
+def account_diagnosis(context: dict, timeout: int = 60) -> dict:
+    """账户健康度诊断：配置 LLM 时由智能体生成，否则启发式降级。"""
+    if not llm_available():
+        return _heuristic_account_diagnosis(context)
+    try:
+        parsed = _call_llm(_build_account_diagnosis_prompt(context), timeout)
+        for key in ("summary", "highlights", "risks", "suggestions"):
+            if key not in parsed or not isinstance(parsed[key], list):
+                parsed[key] = []
+        try:
+            parsed["score"] = max(0, min(100, int(parsed.get("score", 60))))
+        except (TypeError, ValueError):
+            parsed["score"] = 60
+        parsed["available"] = True
+        parsed["model"] = LLM_MODEL
+        return parsed
+    except Exception as exc:
+        result = _heuristic_account_diagnosis(context)
+        result["fallback"] = f"LLM 分析失败（{type(exc).__name__}），使用启发式结论"
+        return result

@@ -18,6 +18,8 @@
 
       <SecurityCard v-if="accountStore.account" :broker-type="accountStore.account.broker_type" />
 
+      <AccountDiagnosis />
+
       <div v-if="indices.length" class="card index-bar">
         <div v-for="idx in indices" :key="idx.code" class="index-item" :class="{ flash: indexFlash[idx.code] }">
           <div class="index-name">{{ idx.name }}</div>
@@ -121,6 +123,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import SecurityCard from '../components/SecurityCard.vue'
+import AccountDiagnosis from '../components/AccountDiagnosis.vue'
 import PositionList from '../components/PositionList.vue'
 import EquityCurve from '../components/EquityCurve.vue'
 import DailyPnlCalendar from '../components/DailyPnlCalendar.vue'

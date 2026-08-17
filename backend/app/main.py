@@ -467,6 +467,77 @@ def get_account_equity(db: Session = Depends(get_db)):
     return accounts.equity_curve(db, acct, limit=60)
 
 
+@app.post("/api/account/diagnose")
+def diagnose_account(db: Session = Depends(get_db)):
+    """AI 账户健康度诊断：基于账户快照调用智能体，未配置 LLM 时启发式降级。"""
+    from .agents import account_diagnosis
+
+    acct, positions, _ = accounts.get_snapshot(db)
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=10)).isoformat()
+    quotes = market.get_realtime_quotes([p.code for p in positions]) if positions else {}
+    market_value = 0.0
+    pos_list = []
+    for p in positions:
+        price = p.avg_cost
+        rt = quotes.get(p.code)
+        if rt:
+            price = rt["price"]
+        else:
+            try:
+                bars = market.get_daily_bars(p.code, start, end)
+                if bars is not None and len(bars):
+                    price = float(bars["close"].iloc[-1])
+            except Exception:
+                pass
+        mv = p.qty * price
+        market_value += mv
+        pnl_pct = (price - p.avg_cost) / p.avg_cost * 100.0 if p.avg_cost else 0.0
+        pos_list.append({
+            "code": p.code, "name": p.name, "qty": p.qty,
+            "avg_cost": round(p.avg_cost, 3), "price": round(price, 3),
+            "pnl": round((price - p.avg_cost) * p.qty, 2),
+            "pnl_pct": round(pnl_pct, 2),
+        })
+    strategies = db.query(Strategy).all()
+    cash = sum(s.available_cash or 0.0 for s in strategies)
+    capital = sum(s.initial_capital or 0.0 for s in strategies)
+    total = cash + market_value
+    accounts.record_equity(db, acct, total)
+    curve = accounts.equity_curve(db, acct, limit=30)
+
+    for p in pos_list:
+        p["weight"] = round(p["qty"] * p["price"] / total, 4) if total else 0
+
+    sells = [t for t in db.query(Trade).filter(
+        Trade.account_id == acct.id, Trade.direction == "sell").all() if t.pnl is not None]
+    wins = sum(1 for t in sells if t.pnl > 0)
+    win_rate = wins / len(sells) if sells else None
+    alert_count = db.query(Alert).filter(Alert.account_id == acct.id).count()
+
+    today_pnl = 0.0
+    if len(curve) >= 2 and curve[-1]["date"] == date.today().isoformat():
+        today_pnl = round(curve[-1]["equity"] - curve[-2]["equity"], 2)
+
+    ctx = {
+        "broker_type": config.BROKER_TYPE,
+        "total_asset": round(total, 2),
+        "initial_capital": round(capital, 2),
+        "total_pnl": round(total - capital, 2),
+        "today_pnl": today_pnl,
+        "available_cash": round(cash, 2),
+        "market_value": round(market_value, 2),
+        "position_count": len(pos_list),
+        "strategy_count": len(strategies),
+        "win_rate": round(win_rate, 4) if win_rate is not None else None,
+        "closed_pnl": round(sum(t.pnl for t in sells), 2),
+        "alert_count": alert_count,
+        "equity_curve": curve,
+        "positions": pos_list,
+    }
+    return account_diagnosis(ctx)
+
+
 @app.get("/api/account/daily-pnl")
 def get_account_daily_pnl(db: Session = Depends(get_db)):
     """账户每日盈亏（最近 120 个记录日），供收益日历展示。"""

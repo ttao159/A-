@@ -47,6 +47,18 @@ export const accountApi = {
   equity: () => http.get<AccountEquityPoint[]>('/account/equity'),
   dailyPnl: () => http.get<DailyPnlPoint[]>('/account/daily-pnl'),
   reset: () => http.post<{ ok: boolean }>('/account/reset'),
+  diagnose: () => http.post<AccountDiagnosis>('/account/diagnose'),
+}
+
+export interface AccountDiagnosis {
+  available: boolean
+  fallback?: string
+  model?: string
+  summary: string
+  score: number
+  highlights: string[]
+  risks: string[]
+  suggestions: string[]
 }
 
 export interface AccountEquityPoint {
