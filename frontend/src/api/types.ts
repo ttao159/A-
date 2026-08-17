@@ -41,6 +41,7 @@ export interface Account {
   market_value: number
   total_asset: number
   total_pnl: number
+  today_pnl: number
 }
 
 export interface Position {

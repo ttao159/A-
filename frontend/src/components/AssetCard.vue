@@ -11,6 +11,10 @@
       <span class="pnl-big" :class="[pnlClass, { flash: flashing }]">{{ pnlText }}</span>
       <span class="realtime-tag">实时</span>
     </div>
+    <div class="today-row">
+      <span class="muted">今日盈亏</span>
+      <span class="today-pnl" :class="[todayClass, { flash: todayFlashing }]">{{ todayText }}</span>
+    </div>
     <div class="asset-grid">
       <div class="asset-cell">
         <div class="muted">可用现金</div>
@@ -31,14 +35,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Account } from '../api/types'
-import { fmtMoneyCompact, fmtPct } from '../utils/format'
+import { fmtMoneyCompact, fmtPct, pnlClass as pnlColor } from '../utils/format'
 import { useFlashValue } from '../composables/useFlash'
 
 const props = defineProps<{ account: Account }>()
 
 const flashing = useFlashValue(() => props.account.total_pnl)
+const todayFlashing = useFlashValue(() => props.account.today_pnl)
 
-const pnlClass = computed(() => (props.account.total_pnl >= 0 ? 'up' : 'down'))
+const pnlClass = computed(() => pnlColor(props.account.total_pnl))
+
+const todayClass = computed(() => pnlColor(props.account.today_pnl))
+
+const todayText = computed(() => {
+  const v = props.account.today_pnl
+  const sign = v > 0 ? '+' : ''
+  return `${sign}${fmtMoneyCompact(v)}`
+})
 
 const pnlText = computed(() => {
   const pct = props.account.initial_capital
@@ -59,7 +72,6 @@ const pnlText = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .pnl-big {
@@ -78,6 +90,32 @@ const pnlText = computed(() => {
 }
 
 .pnl-big.down {
+  background: var(--down-bg);
+  color: var(--down);
+}
+
+.today-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 8px 0 12px;
+}
+
+.today-pnl {
+  font-weight: 700;
+  font-size: 14px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-pnl.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.today-pnl.down {
   background: var(--down-bg);
   color: var(--down);
 }

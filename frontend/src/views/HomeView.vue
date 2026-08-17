@@ -10,18 +10,19 @@
         </div>
         <div class="clock-right">
           <div class="clock-status" :class="{ trading: status.trading }">{{ status.label }}</div>
-          <div v-if="status.trading" class="muted">距收盘 {{ countdown }}</div>
+          <div v-if="countdownInfo" class="muted">{{ countdownInfo.label }} {{ countdown }}</div>
         </div>
       </div>
 
       <AssetCard v-if="accountStore.account" :account="accountStore.account" />
 
       <div v-if="indices.length" class="card index-bar">
-        <div v-for="idx in indices" :key="idx.code" class="index-item">
+        <div v-for="idx in indices" :key="idx.code" class="index-item" :class="{ flash: indexFlash[idx.code] }">
           <div class="index-name">{{ idx.name }}</div>
           <div class="index-price">{{ idx.price.toFixed(2) }}</div>
-          <div class="pill index-change" :class="idx.change >= 0 ? 'up' : 'down'">
-            {{ idx.change >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%
+          <div class="index-change">
+            <span class="pill" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%</span>
+            <div class="index-chg" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change.toFixed(2) }}</div>
           </div>
         </div>
       </div>
@@ -57,8 +58,9 @@
         <div v-if="activeStrategy" class="strat-summary">
           <span>可用现金 {{ fmtMoneyCompact(activeStrategy.available_cash) }}</span>
           <span>市值 {{ fmtMoneyCompact(activeStrategy.mv) }}</span>
-          <span :class="activeStrategy.retPct >= 0 ? 'up' : 'down'">
+          <span class="strat-ret" :class="[activeStrategy.retPct >= 0 ? 'up' : 'down', { flash: stratFlashing }]">
             收益率 {{ fmtPct(activeStrategy.retPct) }}
+            <span class="realtime-tag">实时</span>
           </span>
         </div>
       </div>
@@ -113,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AssetCard from '../components/AssetCard.vue'
 import PositionList from '../components/PositionList.vue'
@@ -143,6 +145,7 @@ const indices = ref<IndexQuote[]>([])
 const indicesError = ref('')
 const alertsError = ref('')
 const lastUpdated = ref('')
+const indexFlash = reactive<Record<string, boolean>>({})
 
 const ALERT_VISIBLE = 5
 const visibleAlerts = computed(() => alerts.value.slice(0, ALERT_VISIBLE))
@@ -195,11 +198,25 @@ const status = computed(() => {
   return { label: '已收盘', trading: false }
 })
 
-const countdown = computed(() => {
+const countdownInfo = computed(() => {
   const d = now.value
-  const close = new Date(d)
-  close.setHours(15, 0, 0, 0)
-  let diff = close.getTime() - d.getTime()
+  const day = d.getDay()
+  if (day === 0 || day === 6) return null
+  const mins = d.getHours() * 60 + d.getMinutes()
+  if (mins < 570) return { label: '距开盘', h: 9, m: 30 }
+  if (mins < 690) return { label: '距收盘', h: 15, m: 0 }
+  if (mins < 780) return { label: '距午盘', h: 13, m: 0 }
+  if (mins < 900) return { label: '距收盘', h: 15, m: 0 }
+  return null
+})
+
+const countdown = computed(() => {
+  const t = countdownInfo.value
+  if (!t) return ''
+  const d = now.value
+  const target = new Date(d)
+  target.setHours(t.h, t.m, 0, 0)
+  let diff = target.getTime() - d.getTime()
   if (diff < 0) diff = 0
   const h = Math.floor(diff / 3600000)
   const m = Math.floor((diff % 3600000) / 60000)
@@ -222,7 +239,7 @@ async function refresh() {
 }
 
 async function fetchQuotes() {
-  await Promise.all([positionStore.fetch(), fetchIndices()])
+  await Promise.all([positionStore.fetch(), accountStore.fetch(), fetchIndices()])
   setLastUpdated()
 }
 
@@ -235,7 +252,18 @@ function setLastUpdated() {
 
 async function fetchIndices() {
   try {
-    indices.value = await indexApi.list()
+    const next = await indexApi.list()
+    const oldMap = new Map(indices.value.map((i) => [i.code, i.price]))
+    for (const n of next) {
+      const old = oldMap.get(n.code)
+      if (old !== undefined && old !== n.price) {
+        indexFlash[n.code] = true
+        window.setTimeout(() => {
+          indexFlash[n.code] = false
+        }, 700)
+      }
+    }
+    indices.value = next
     indicesError.value = ''
   } catch (e) {
     indicesError.value = '指数行情加载失败'
@@ -272,6 +300,7 @@ const lossCount = computed(() => filteredPositions.value.filter((p) => p.pnl < 0
 const floatPnl = computed(() => filteredPositions.value.reduce((s, p) => s + p.pnl, 0))
 
 const floatFlashing = useFlashValue(() => floatPnl.value)
+const stratFlashing = useFlashValue(() => activeStrategy.value?.retPct ?? 0)
 
 async function onReset() {
   const ok = await confirmDialog({
@@ -362,6 +391,26 @@ function goAlerts() {
   margin-top: 10px;
   font-size: 13px;
   color: var(--text-2);
+}
+
+.strat-ret {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.strat-ret.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.strat-ret.down {
+  background: var(--down-bg);
+  color: var(--down);
 }
 
 .stat-row {
@@ -461,5 +510,15 @@ function goAlerts() {
 
 .index-change {
   margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.index-chg {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 </style>

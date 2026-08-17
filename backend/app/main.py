@@ -445,6 +445,10 @@ def get_account(db: Session = Depends(get_db)):
     capital = sum(s.initial_capital or 0.0 for s in strategies)
     total = cash + market_value
     accounts.record_equity(db, acct, total)
+    curve = accounts.equity_curve(db, acct, limit=2)
+    today_pnl = 0.0
+    if len(curve) >= 2 and curve[-1]["date"] == date.today().isoformat():
+        today_pnl = round(curve[-1]["equity"] - curve[-2]["equity"], 2)
     return {
         "broker_type": config.BROKER_TYPE,
         "initial_capital": round(capital, 2),
@@ -452,6 +456,7 @@ def get_account(db: Session = Depends(get_db)):
         "market_value": round(market_value, 2),
         "total_asset": round(total, 2),
         "total_pnl": round(total - capital, 2),
+        "today_pnl": today_pnl,
     }
 
 
