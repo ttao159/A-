@@ -17,10 +17,10 @@
 
       <div class="cal-grid">
         <div v-for="w in ['一', '二', '三', '四', '五', '六', '日']" :key="w" class="cal-weekday">{{ w }}</div>
-        <div v-for="cell in cells" :key="cell.key" class="cal-cell" :class="{ blank: !cell.day }">
+        <div v-for="cell in cells" :key="cell.key" class="cal-cell" :class="{ blank: !cell.day, has: cell.day && cell.pnl !== null, pos: cell.pnl !== null && cell.pnl >= 0, neg: cell.pnl !== null && cell.pnl < 0 }">
           <template v-if="cell.day">
             <div class="cal-day" :class="{ today: cell.isToday }">{{ cell.day }}</div>
-            <div v-if="cell.pnl !== null" class="cal-pnl" :class="cell.pnl >= 0 ? 'up' : 'down'">
+            <div v-if="cell.pnl !== null" class="cal-pnl">
               {{ cell.pnl > 0 ? '+' : '' }}{{ cell.pnl.toFixed(0) }}
             </div>
           </template>
@@ -169,9 +169,21 @@ onMounted(load)
   background: transparent;
 }
 
+.cal-cell.pos {
+  background: var(--up-bg);
+}
+
+.cal-cell.neg {
+  background: var(--down-bg);
+}
+
 .cal-day {
   font-size: 13px;
   color: var(--text);
+}
+
+.cal-cell.has .cal-day {
+  opacity: 0.75;
 }
 
 .cal-day.today {
@@ -183,11 +195,21 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 1;
 }
 
 .cal-pnl {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+
+.cal-cell.pos .cal-pnl {
+  color: var(--up);
+}
+
+.cal-cell.neg .cal-pnl {
+  color: var(--down);
 }
 </style>

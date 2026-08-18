@@ -122,6 +122,11 @@
       </button>
       <Transition name="collapse">
         <div v-show="expanded" class="changelog">
+          <div class="changelog-item"><span class="changelog-tag">优化</span>账户页卡片式分区：账户概览/资金曲线/收益日历/持仓明细/预警/系统状态可折叠，状态本地记忆</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>今日盈亏归因改横向条形图，直观展示各持仓贡献度</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>资金曲线：Y 轴刻度、悬停显示数值、近7天/近30天/近3月切换</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>收益日历红绿底色块显示盈亏，金额加粗放大</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>市场概览移至顶部横幅，系统状态信息下沉至底部折叠</div>
           <div class="changelog-item"><span class="changelog-tag">优化</span>底部导航精简为 4 项（账户/交易/策略中心/说明），策略中心内含策略/回测/选股/扫描二级页签</div>
           <div class="changelog-item"><span class="changelog-tag">优化</span>策略卡片操作：详情/编辑/回测收进「更多」菜单，删除独立置右并带二次确认</div>
           <div class="changelog-item"><span class="changelog-tag">新增</span>未启用策略区：零收益零仓位策略自动折叠并提示检查条件设置</div>

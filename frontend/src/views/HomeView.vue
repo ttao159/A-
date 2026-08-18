@@ -14,78 +14,92 @@
         </div>
       </div>
 
-      <AssetCard v-if="accountStore.account" :account="accountStore.account" />
-
-      <SecurityCard v-if="accountStore.account" :broker-type="accountStore.account.broker_type" />
-
-      <PnlAttribution />
-
-      <AccountDiagnosis />
-
-      <div v-if="indices.length" class="card index-bar">
-        <div v-for="idx in indices" :key="idx.code" class="index-item" :class="{ flash: indexFlash[idx.code] }">
-          <div class="index-name">{{ idx.name }}</div>
-          <div class="index-price">{{ idx.price.toFixed(2) }}</div>
-          <div class="index-change">
-            <span class="pill" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%</span>
-            <div class="index-chg" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change.toFixed(2) }}</div>
+      <div class="card market-card">
+        <div class="market-head">
+          <span class="market-title">市场概览</span>
+          <span v-if="lastUpdated" class="updated-hint-inline">更新 {{ lastUpdated }}</span>
+        </div>
+        <div v-if="indices.length" class="index-bar">
+          <div v-for="idx in indices" :key="idx.code" class="index-item" :class="{ flash: indexFlash[idx.code] }">
+            <div class="index-name">{{ idx.name }}</div>
+            <div class="index-price">{{ idx.price.toFixed(2) }}</div>
+            <div class="index-change">
+              <span class="pill" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change_pct.toFixed(2) }}%</span>
+              <div class="index-chg" :class="idx.change >= 0 ? 'up' : 'down'">{{ idx.change >= 0 ? '+' : '' }}{{ idx.change.toFixed(2) }}</div>
+            </div>
           </div>
         </div>
-      </div>
-      <div v-else-if="indicesError" class="card index-bar index-err">
-        <span>{{ indicesError }}</span>
-        <button class="retry-btn" @click="fetchIndices">重试</button>
-      </div>
-
-      <div v-if="lastUpdated" class="updated-hint">最后更新 {{ lastUpdated }}</div>
-      <div v-if="catchingUp" class="catchup-hint">数据补全中...</div>
-
-      <EquityCurve
-        :points="accountStore.equity"
-        :baseline="accountStore.account?.initial_capital"
-      />
-
-      <DailyPnlCalendar />
-
-      <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
-        <div class="strategy-tabs">
-          <button class="strat-tab" :class="{ active: activeId === 'all' }" @click="activeId = 'all'">
-            全部
-          </button>
-          <button
-            v-for="s in strategyStore.enabled"
-            :key="s.id"
-            class="strat-tab"
-            :class="{ active: activeId === s.id }"
-            @click="activeId = s.id"
-          >
-            {{ s.name }}
-          </button>
+        <div v-else-if="indicesError" class="index-bar index-err">
+          <span>{{ indicesError }}</span>
+          <button class="retry-btn" @click="fetchIndices">重试</button>
         </div>
-        <div v-if="activeStrategy" class="strat-summary">
-          <span>可用现金 {{ fmtMoneyCompact(activeStrategy.available_cash) }}</span>
-          <span>市值 {{ fmtMoneyCompact(activeStrategy.mv) }}</span>
-          <span class="strat-ret" :class="[activeStrategy.retPct >= 0 ? 'up' : 'down', { flash: stratFlashing }]">
-            收益率 {{ fmtPct(activeStrategy.retPct) }}
-            <span class="realtime-tag">实时</span>
-          </span>
-        </div>
+        <div v-if="catchingUp" class="catchup-hint">数据补全中...</div>
       </div>
 
-      <div class="card">
-        <div class="card-title">持仓概览</div>
-        <div class="stat-row">
-          <span>盈利 {{ profitCount }} 只</span>
-          <span>亏损 {{ lossCount }} 只</span>
-          <span class="float-pnl" :class="[floatPnl >= 0 ? 'up' : 'down', { flash: floatFlashing }]">
-            浮动盈亏 {{ fmtMoney(floatPnl) }}
-            <span class="realtime-tag">实时</span>
-          </span>
-        </div>
-      </div>
+      <FoldCard title="账户概览" icon="wallet" persist-key="home-account">
+        <AssetCard v-if="accountStore.account" :account="accountStore.account" />
+        <PnlAttribution />
+        <AccountDiagnosis />
+      </FoldCard>
 
-      <div class="card">
-        <div class="card-title">预警提醒</div>
+      <FoldCard title="资金曲线" icon="trending-up" persist-key="home-equity">
+        <EquityCurve
+          :points="accountStore.equity"
+          :baseline="accountStore.account?.initial_capital"
+        />
+      </FoldCard>
+
+      <FoldCard title="收益日历" icon="calendar" persist-key="home-calendar">
+        <DailyPnlCalendar />
+      </FoldCard>
+
+      <FoldCard title="持仓明细" icon="bar-chart" persist-key="home-positions" :count="filteredPositions.length">
+        <div v-if="strategyStore.enabled.length" class="card" style="padding: 12px 16px">
+          <div class="strategy-tabs">
+            <button class="strat-tab" :class="{ active: activeId === 'all' }" @click="activeId = 'all'">
+              全部
+            </button>
+            <button
+              v-for="s in strategyStore.enabled"
+              :key="s.id"
+              class="strat-tab"
+              :class="{ active: activeId === s.id }"
+              @click="activeId = s.id"
+            >
+              {{ s.name }}
+            </button>
+          </div>
+          <div v-if="activeStrategy" class="strat-summary">
+            <span>可用现金 {{ fmtMoneyCompact(activeStrategy.available_cash) }}</span>
+            <span>市值 {{ fmtMoneyCompact(activeStrategy.mv) }}</span>
+            <span class="strat-ret" :class="[activeStrategy.retPct >= 0 ? 'up' : 'down', { flash: stratFlashing }]">
+              收益率 {{ fmtPct(activeStrategy.retPct) }}
+              <span class="realtime-tag">实时</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">持仓概览</div>
+          <div class="stat-row">
+            <span>盈利 {{ profitCount }} 只</span>
+            <span>亏损 {{ lossCount }} 只</span>
+            <span class="float-pnl" :class="[floatPnl >= 0 ? 'up' : 'down', { flash: floatFlashing }]">
+              浮动盈亏 {{ fmtMoney(floatPnl) }}
+              <span class="realtime-tag">实时</span>
+            </span>
+          </div>
+        </div>
+
+        <PositionList
+          :positions="filteredPositions"
+          :strategies="strategyStore.strategies"
+          @open-strategy="openStrategy"
+          @open-stock="openStock"
+        />
+      </FoldCard>
+
+      <FoldCard title="预警提醒" icon="activity" persist-key="home-alerts" :count="alerts.length" :default-open="false">
         <div v-if="alertsError" class="error-box">
           {{ alertsError }}<br /><button class="retry-btn" @click="fetchAlerts">重试</button>
         </div>
@@ -105,14 +119,12 @@
             查看全部 {{ alerts.length }} 条
           </button>
         </template>
-      </div>
+      </FoldCard>
 
-      <PositionList
-        :positions="filteredPositions"
-        :strategies="strategyStore.strategies"
-        @open-strategy="openStrategy"
-        @open-stock="openStock"
-      />
+      <FoldCard title="系统状态" icon="shield" persist-key="home-security" :default-open="false">
+        <SecurityCard v-if="accountStore.account" :broker-type="accountStore.account.broker_type" />
+        <div class="muted sec-note">本地单用户环境 · 无登录认证 · 数据存储本机</div>
+      </FoldCard>
 
       <div class="card">
         <button class="btn ghost block" @click="onReset">重置模拟账户</button>
@@ -124,6 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import FoldCard from '../components/FoldCard.vue'
 import AssetCard from '../components/AssetCard.vue'
 import SecurityCard from '../components/SecurityCard.vue'
 import PnlAttribution from '../components/PnlAttribution.vue'
@@ -384,6 +397,34 @@ function goAlerts() {
   color: var(--up);
 }
 
+.market-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.market-title {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.updated-hint-inline {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.catchup-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--warning);
+  margin-top: 6px;
+}
+
+.sec-note {
+  font-size: 12px;
+}
+
 .strategy-tabs {
   display: flex;
   gap: 8px;
@@ -488,20 +529,6 @@ function goAlerts() {
 
 .alert-msg {
   flex: 1;
-}
-
-.updated-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-2);
-  margin: -4px 16px 0;
-}
-
-.catchup-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--warning);
-  margin: 4px 16px 0;
 }
 
 .index-bar {
