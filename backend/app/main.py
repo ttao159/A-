@@ -896,6 +896,24 @@ def screen_stocks(body: dict, db: Session = Depends(get_db)):
         except (TypeError, ValueError):
             return None
 
+    def signals_for(q):
+        sigs = []
+        pct = q["change_pct"]
+        to = q["turnover"]
+        if pct >= 9.8:
+            sigs.append("涨停")
+        elif pct <= -9.8:
+            sigs.append("跌停")
+        if pct >= 3:
+            sigs.append("放量上攻" if to >= 5 else "强势上涨")
+        elif pct <= -3:
+            sigs.append("破位下杀")
+        if to >= 10:
+            sigs.append("高换手")
+        if not sigs:
+            sigs.append("平盘")
+        return sigs
+
     price_min, price_max = num(f.get("price_min")), num(f.get("price_max"))
     chg_min, chg_max = num(f.get("change_pct_min")), num(f.get("change_pct_max"))
     to_min, to_max = num(f.get("turnover_min")), num(f.get("turnover_max"))
@@ -924,7 +942,9 @@ def screen_stocks(body: dict, db: Session = Depends(get_db)):
             continue
         if amt_max is not None and q["amount"] > amt_max:
             continue
-        out.append(q)
+        item = dict(q)
+        item["signals"] = signals_for(q)
+        out.append(item)
 
     sorters = {
         "change_pct": lambda x: x["change_pct"],

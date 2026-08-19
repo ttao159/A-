@@ -195,10 +195,12 @@ export interface AgentAnalysis {
 
 export interface GenStrategy {
   index: number
+  template_name?: string
   signals: { buy: string[]; sell: string[] }
   config: Record<string, unknown>
   metrics: BacktestMetrics
   decision: GenDecision
+  reasoning?: string
   equity_curve: EquityPoint[]
   trades: Record<string, unknown>[]
 }

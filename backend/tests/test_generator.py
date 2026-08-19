@@ -126,7 +126,9 @@ class TestGenerateStrategies:
         assert len(strategies) == 5
 
     def test_each_strategy_structure_valid(self):
-        for cfg in generate_strategies(3, "balanced"):
+        for item in generate_strategies(3, "balanced"):
+            assert set(item) == {"template_name", "config"}
+            cfg = item["config"]
             assert set(cfg) == {"buy", "sell", "risk"}
             assert any(v.get("enabled") for v in cfg["buy"].values())
             assert any(v.get("enabled") for v in cfg["sell"].values())
@@ -137,15 +139,15 @@ class TestGenerateStrategies:
         assert len(set(serialized)) >= 2
 
     def test_risk_profile_mapping_applied(self):
-        cons = generate_strategies(1, "conservative")[0]["risk"]
-        agg = generate_strategies(1, "aggressive")[0]["risk"]
+        cons = generate_strategies(1, "conservative")[0]["config"]["risk"]
+        agg = generate_strategies(1, "aggressive")[0]["config"]["risk"]
         assert cons["maxPositionPercent"] < agg["maxPositionPercent"]
         assert cons["maxSingleLoss"] < agg["maxSingleLoss"]
         assert cons["maxDrawdown"] < agg["maxDrawdown"]
 
     def test_risk_profiles_match_mapping_table(self):
         for name, params in RISK_PROFILES.items():
-            cfg = generate_strategies(1, name)[0]
+            cfg = generate_strategies(1, name)[0]["config"]
             assert cfg["risk"] == params
 
     def test_templates_reference_existing_signals(self):

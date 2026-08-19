@@ -5,6 +5,8 @@
 
 import math
 
+import pandas as pd
+
 
 def _sma(values: list, period: int) -> list:
     """简单移动平均，长度不足返回空列表（从 period-1 开始）。"""
@@ -150,3 +152,60 @@ def compute_indicators(df) -> dict:
         "ret_60": round(ret_60, 2) if ret_60 is not None else None,
         "trend": trend,
     }
+
+
+def ma(values, period: int) -> pd.Series:
+    """简单移动平均，返回与输入等长的 Series，前 period-1 个为 NaN。"""
+    return values.rolling(period).mean()
+
+
+def highest(values, period: int) -> pd.Series:
+    """滚动最高价，返回与输入等长的 Series，前 period-1 个为 NaN。"""
+    return values.rolling(period).max()
+
+
+def volume_ma(values, period: int) -> pd.Series:
+    """成交量均线，返回与输入等长的 Series，前 period-1 个为 NaN。"""
+    return values.rolling(period).mean()
+
+
+def macd(close, fast: int = 12, slow: int = 26, signal: int = 9):
+    """MACD，返回 (dif, dea) 两个与输入等长的 Series。"""
+    ema_fast = close.ewm(span=fast, adjust=False).mean()
+    ema_slow = close.ewm(span=slow, adjust=False).mean()
+    dif = ema_fast - ema_slow
+    dea = dif.ewm(span=signal, adjust=False).mean()
+    return dif, dea
+
+
+def rsi(close, period: int = 14) -> pd.Series:
+    """RSI（Wilder 平滑），返回与输入等长的 Series。"""
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, 1.0)
+    out = 100.0 - 100.0 / (1.0 + rs)
+    return out.where(avg_loss != 0, 100.0)
+
+
+def bollinger(close, period: int = 20, num_std: float = 2.0):
+    """布林带，返回 (mid, upper, lower) 三个与输入等长的 Series。"""
+    mid = close.rolling(period).mean()
+    std = close.rolling(period).std(ddof=0)
+    upper = mid + num_std * std
+    lower = mid - num_std * std
+    return mid, upper, lower
+
+
+def kdj(high, low, close, n: int = 9):
+    """KDJ，返回 (k, d, j) 三个与输入等长的 Series。"""
+    low_n = low.rolling(n).min()
+    high_n = high.rolling(n).max()
+    rsv = (close - low_n) / (high_n - low_n).replace(0, 1.0) * 100.0
+    rsv = rsv.where(high_n != low_n, 50.0)
+    k = rsv.ewm(alpha=1.0 / 3, adjust=False).mean()
+    d = k.ewm(alpha=1.0 / 3, adjust=False).mean()
+    j = 3.0 * k - 2.0 * d
+    return k, d, j

@@ -106,31 +106,56 @@
     <div class="card">
       <div class="card-title">策略生成器</div>
       <div class="field">
-        <label>风险偏好</label>
+        <label>生成方式</label>
         <div class="risk-seg">
           <button
-            v-for="opt in RISK_OPTIONS"
-            :key="opt.value"
+            v-for="m in GEN_MODES"
+            :key="m.value"
             class="risk-btn"
-            :class="{ active: genRisk === opt.value }"
-            @click="genRisk = opt.value"
+            :class="{ active: genMode === m.value }"
+            @click="genMode = m.value"
           >
-            {{ opt.label }}
+            {{ m.label }}
           </button>
         </div>
       </div>
-      <div class="field">
-        <label>生成数量</label>
-        <input v-model.number="genCount" type="number" min="1" max="10" />
-      </div>
-      <div class="field">
-        <label>目标年化（%）</label>
-        <input v-model.number="genTarget" type="number" min="0" step="1" />
-      </div>
-      <div v-if="genError" class="gen-error">{{ genError }}</div>
-      <button class="btn block" :disabled="generating" @click="startGen">
-        {{ generating ? '生成中...' : '生成策略' }}
-      </button>
+
+      <template v-if="genMode === 'auto'">
+        <div class="field">
+          <label>风险偏好</label>
+          <div class="risk-seg">
+            <button
+              v-for="opt in RISK_OPTIONS"
+              :key="opt.value"
+              class="risk-btn"
+              :class="{ active: genRisk === opt.value }"
+              @click="genRisk = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label>生成数量</label>
+          <input v-model.number="genCount" type="number" min="1" max="10" />
+        </div>
+        <div class="field">
+          <label>目标年化（%）</label>
+          <input v-model.number="genTarget" type="number" min="0" step="1" />
+        </div>
+        <div v-if="genError" class="gen-error">{{ genError }}</div>
+        <button class="btn block" :disabled="generating" @click="startGen">
+          {{ generating ? '生成中...' : '生成策略' }}
+        </button>
+      </template>
+
+      <template v-else>
+        <div class="muted tmpl-desc">{{ currentTemplate?.description }}</div>
+        <button class="btn block" @click="applyTemplate">
+          {{ currentTemplate ? `套用「${currentTemplate.name}」模板` : '套用模板' }}
+        </button>
+      </template>
+
       <div v-if="genMsg" class="muted" style="margin-top: 8px">{{ genMsg }}</div>
     </div>
 
@@ -156,6 +181,11 @@
             <span class="muted">置信 {{ recStrategy.decision.confidence }}%</span>
           </div>
           <div class="gen-decision-summary">{{ recStrategy.decision.summary }}</div>
+        </div>
+
+        <div v-if="recStrategy.reasoning" class="gen-reasoning">
+          <div class="gen-reasoning-title">推理过程</div>
+          <div class="gen-reasoning-text">{{ recStrategy.reasoning }}</div>
         </div>
 
         <div v-if="genResult.agent_analysis" class="gen-agents">
@@ -187,12 +217,15 @@
           </div>
         </div>
 
-        <button class="btn block" style="margin-top: 10px" @click="saveGenStrategy(recStrategy)">保存为策略</button>
+        <div class="row" style="gap: 8px; margin-top: 10px">
+          <button class="btn ghost" @click="editStrategy(recStrategy)">编辑参数</button>
+          <button class="btn block" style="flex: 2" @click="saveGenStrategy(recStrategy)">保存为策略</button>
+        </div>
       </div>
 
       <div class="card-title" style="font-size: 13px; margin-top: 12px">策略对比</div>
       <div v-for="s in sortedStrategies" :key="s.index" class="cmp-row">
-        <div style="flex: 1">
+        <div style="flex: 1; min-width: 0">
           <div style="font-weight: 500">
             #{{ s.index + 1 }}{{ s.index === genResult.recommended_index ? ' ★推荐' : '' }}
           </div>
@@ -200,15 +233,19 @@
           <div class="muted" style="font-size: 12px">
             {{ (s.decision && s.decision.rating) || '—' }} · 年化 {{ s.metrics.annual_return_pct ?? '-' }}% · 回撤 {{ s.metrics.max_drawdown_pct ?? '-' }}%
           </div>
+          <div v-if="s.reasoning" class="cmp-reasoning">{{ s.reasoning }}</div>
         </div>
-        <button
-          class="btn ghost"
-          :class="{ saved: savedIndexes.includes(s.index) }"
-          :disabled="savedIndexes.includes(s.index)"
-          @click="saveGenStrategy(s)"
-        >
-          {{ savedIndexes.includes(s.index) ? '已保存' : '保存' }}
-        </button>
+        <div class="cmp-actions">
+          <button class="btn ghost small" @click="editStrategy(s)">编辑</button>
+          <button
+            class="btn ghost small"
+            :class="{ saved: savedIndexes.includes(s.index) }"
+            :disabled="savedIndexes.includes(s.index)"
+            @click="saveGenStrategy(s)"
+          >
+            {{ savedIndexes.includes(s.index) ? '已保存' : '保存' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -281,6 +318,17 @@
       </div>
     </div>
 
+    <div v-if="editorStrategy" class="scan-mask" @click.self="onEditorCancel">
+      <div class="box editor-box">
+        <h3 style="margin: 0 0 10px">编辑策略参数</h3>
+        <StrategyEditor
+          :strategy="editorStrategy"
+          @save="onEditorSave"
+          @cancel="onEditorCancel"
+        />
+      </div>
+    </div>
+
     <div v-if="scanning || generating" class="scan-mask">
       <div class="box">
         <div class="spinner"></div>
@@ -304,7 +352,9 @@ import type {
   GenStrategy,
   ScanReports,
   ScanResult,
+  Strategy,
   StrategyConfig,
+  StrategyInput,
 } from '../api/types'
 import type { StreamEvent } from '../api/http'
 import { useStrategyStore } from '../stores/strategy'
@@ -314,7 +364,9 @@ import { toast } from '../utils/toast'
 import { confirmDialog } from '../utils/confirm'
 import { fmtDateTime, pnlClass } from '../utils/format'
 import { defaultDateRange } from '../utils/date'
+import { STRATEGY_TEMPLATES } from '../utils/strategyTemplates'
 import Skeleton from '../components/Skeleton.vue'
+import StrategyEditor from '../components/StrategyEditor.vue'
 
 const strategyStore = useStrategyStore()
 const accountStore = useAccountStore()
@@ -348,6 +400,23 @@ const genMsg = ref('')
 const genError = ref('')
 const genResult = ref<GenerationReport | null>(null)
 const genHistory = ref<GenerationReportItem[]>([])
+
+const genMode = ref<'auto' | 'short' | 'swing'>('auto')
+const GEN_MODES = [
+  { value: 'auto', label: '智能生成' },
+  { value: 'short', label: '短线' },
+  { value: 'swing', label: '波段' },
+] as const
+const MODE_TEMPLATE: Record<string, string> = { short: 'shortTerm', swing: 'swing' }
+
+const currentTemplate = computed(() => {
+  const key = MODE_TEMPLATE[genMode.value]
+  return STRATEGY_TEMPLATES.find((t) => t.key === key) ?? null
+})
+
+const editingIndex = ref<number | null>(null)
+const editorStrategy = ref<Strategy | null>(null)
+const strategyNames = ref<Record<number, string>>({})
 
 const detailReport = ref<ScanResult | null>(null)
 const detailId = ref<number | null>(null)
@@ -644,7 +713,7 @@ async function removeGenHistory(g: GenerationReportItem) {
 async function saveGenStrategy(s: GenStrategy) {
   try {
     await strategyStore.create({
-      name: `AI生成策略 #${s.index + 1} ${sigNames(s.signals).split(' / ')[0]}`,
+      name: strategyNames.value[s.index] || `AI生成策略 #${s.index + 1} ${sigNames(s.signals).split(' / ')[0]}`,
       enabled: true,
       initial_capital: 1000000,
       config: s.config as unknown as StrategyConfig,
@@ -654,6 +723,70 @@ async function saveGenStrategy(s: GenStrategy) {
   } catch (e) {
     toast((e as Error).message)
   }
+}
+
+function applyTemplate() {
+  const t = currentTemplate.value
+  if (!t) return
+  const buy = Object.keys(t.config.buy).filter((k) => t.config.buy[k].enabled)
+  const sell = Object.keys(t.config.sell).filter((k) => t.config.sell[k].enabled)
+  const strategy: GenStrategy = {
+    index: 0,
+    signals: { buy, sell },
+    config: { buy: t.config.buy, sell: t.config.sell, risk: t.config.risk } as unknown as Record<string, unknown>,
+    metrics: {},
+    decision: { rating: '模板', risk_level: '—', action: '关注', confidence: 0, summary: t.description },
+    reasoning: t.description,
+    equity_curve: [],
+    trades: [],
+  }
+  genResult.value = {
+    request: { risk_profile: 'balanced', count: 1 },
+    strategies: [strategy],
+    ranking: [{ index: 0, score: 0 }],
+    recommended_index: 0,
+  }
+  savedIndexes.value = []
+  strategyNames.value = {}
+  genMsg.value = `已套用「${t.name}」模板，可编辑参数后保存`
+}
+
+function editStrategy(s: GenStrategy) {
+  editingIndex.value = s.index
+  editorStrategy.value = {
+    id: 0,
+    name: strategyNames.value[s.index] || `AI生成策略 #${s.index + 1}`,
+    enabled: true,
+    config: s.config as unknown as StrategyConfig,
+    initial_capital: 1000000,
+    available_cash: 0,
+    created_at: null,
+    updated_at: null,
+  }
+}
+
+function onEditorSave(payload: StrategyInput) {
+  const idx = editingIndex.value
+  const cfg = payload.config
+  if (idx != null && cfg) {
+    const s = genResult.value?.strategies.find((x) => x.index === idx)
+    if (s) {
+      s.config = cfg as unknown as Record<string, unknown>
+      s.signals = {
+        buy: Object.keys(cfg.buy).filter((k) => cfg.buy[k].enabled),
+        sell: Object.keys(cfg.sell).filter((k) => cfg.sell[k].enabled),
+      }
+      if (payload.name) strategyNames.value[idx] = payload.name
+      genMsg.value = '参数已更新，点击「保存为策略」提交'
+    }
+  }
+  editingIndex.value = null
+  editorStrategy.value = null
+}
+
+function onEditorCancel() {
+  editingIndex.value = null
+  editorStrategy.value = null
 }
 </script>
 
@@ -1002,5 +1135,62 @@ async function saveGenStrategy(s: GenStrategy) {
 
 .gen-agents-fallback {
   color: var(--text-2);
+}
+
+.tmpl-desc {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.gen-reasoning {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px dashed var(--primary);
+  border-radius: 8px;
+}
+
+.gen-reasoning-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.gen-reasoning-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.cmp-reasoning {
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.cmp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.editor-box {
+  max-height: 78vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+}
+
+.editor-box .card {
+  margin: 0;
+  border: none;
+  box-shadow: none;
 }
 </style>

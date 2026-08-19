@@ -243,6 +243,7 @@ export interface ScreenerItem {
   turnover: number
   market_cap: number
   amount: number
+  signals: string[]
 }
 
 export interface ScreenerResult {

@@ -79,15 +79,21 @@
     <div v-if="result" class="card">
       <div class="result-head">
         <span>匹配 {{ result.total }} 只</span>
-        <span class="muted">更新 {{ result.updated_at }}</span>
+        <span class="result-actions">
+          <span class="muted">更新 {{ result.updated_at }}</span>
+          <button class="btn ghost small export-btn" :disabled="!result.items.length" @click="exportCsv">
+            导出 CSV
+          </button>
+        </span>
       </div>
-      <div class="screener-table">
+      <div v-if="result.items.length" class="screener-table">
         <div class="srow head">
           <span class="c-name">名称</span>
           <span class="c-num">现价</span>
           <span class="c-num">涨跌幅</span>
           <span class="c-num">换手</span>
           <span class="c-num">市值</span>
+          <span class="c-num">成交额</span>
         </div>
         <div
           v-for="s in result.items"
@@ -98,6 +104,9 @@
           <span class="c-name">
             <span class="stock-name">{{ s.name }}</span>
             <span class="muted stock-code">{{ s.code }}</span>
+            <span class="sig-list">
+              <span v-for="sg in s.signals" :key="sg" class="sig-tag" :class="sigClass(sg)">{{ sg }}</span>
+            </span>
           </span>
           <span class="c-num">{{ s.price.toFixed(2) }}</span>
           <span class="c-num" :class="s.change_pct >= 0 ? 'up' : 'down'">
@@ -105,8 +114,21 @@
           </span>
           <span class="c-num">{{ s.turnover.toFixed(1) }}%</span>
           <span class="c-num">{{ s.market_cap.toFixed(0) }}亿</span>
+          <span class="c-num">{{ s.amount.toFixed(1) }}亿</span>
         </div>
-        <div v-if="!result.items.length" class="empty">无匹配结果，请放宽条件</div>
+      </div>
+      <div v-else class="empty-state">
+        <Icon name="search" :size="28" />
+        <div class="empty-title">无匹配结果</div>
+        <div class="muted">未找到符合当前筛选条件的股票，请放宽价格、涨跌幅或市值区间后重试</div>
+      </div>
+    </div>
+
+    <div v-else-if="!loading" class="card">
+      <div class="empty-state">
+        <Icon name="search" :size="28" />
+        <div class="empty-title">开始选股</div>
+        <div class="muted">设置上方筛选条件后点击「开始筛选」，结果将展示信号与指标快照</div>
       </div>
     </div>
   </div>
@@ -116,6 +138,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { screenerApi, type ScreenerRequest, type ScreenerResult } from '../api'
+import Icon from '../components/Icon.vue'
 
 const router = useRouter()
 
@@ -163,6 +186,41 @@ async function run() {
 
 function openStock(s: { code: string; name: string }) {
   router.push({ path: `/stock/${s.code}`, query: { name: s.name } })
+}
+
+function sigClass(sig: string): string {
+  if (['涨停', '放量上攻', '强势上涨'].includes(sig)) return 'up'
+  if (['跌停', '破位下杀'].includes(sig)) return 'down'
+  if (['高换手'].includes(sig)) return 'warn'
+  return 'flat'
+}
+
+function escapeCsv(v: string): string {
+  return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v
+}
+
+function exportCsv() {
+  const items = result.value?.items ?? []
+  if (!items.length) return
+  const header = ['代码', '名称', '现价', '涨跌幅%', '换手率%', '总市值(亿)', '成交额(亿)', '信号']
+  const rows = items.map((s) => [
+    s.code,
+    s.name,
+    s.price.toFixed(2),
+    s.change_pct.toFixed(2),
+    s.turnover.toFixed(2),
+    s.market_cap.toFixed(2),
+    s.amount.toFixed(2),
+    (s.signals ?? []).join('|'),
+  ])
+  const csv = [header, ...rows].map((r) => r.map(escapeCsv).join(',')).join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `选股结果_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 </script>
 
@@ -286,5 +344,79 @@ function openStock(s: { code: string; name: string }) {
 
 .down {
   color: var(--down);
+}
+
+.result-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.sig-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.sig-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.sig-tag.up {
+  color: var(--up);
+  background: var(--up-bg);
+}
+
+.sig-tag.down {
+  color: var(--down);
+  background: var(--down-bg);
+}
+
+.sig-tag.warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.sig-tag.flat {
+  color: var(--text-2);
+  background: var(--bg);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.empty-state svg {
+  color: var(--text-2);
+  opacity: 0.6;
+}
+
+.empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty-state .muted {
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

@@ -101,4 +101,49 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       },
     },
   },
+  {
+    key: 'shortTerm',
+    name: '短线快进快出',
+    description: '5/10 均线金叉 + 放量突破买入，快速止盈止损，最大持有 5 天',
+    config: {
+      buy: {
+        maCross: { enabled: true, shortPeriod: 5, longPeriod: 10 },
+        volumeBreak: { enabled: true, multiple: 1.5, avgDays: 5 },
+      },
+      sell: {
+        takeProfit: { enabled: true, percent: 5 },
+        stopLoss: { enabled: true, percent: 3 },
+        maxHoldDays: { enabled: true, days: 5 },
+      },
+      risk: {
+        maxPositionPercent: 10,
+        maxHoldings: 8,
+        maxSingleLoss: 5,
+        totalStopLoss: 10,
+        maxDrawdown: 15,
+      },
+    },
+  },
+  {
+    key: 'swing',
+    name: '波段趋势',
+    description: '20/60 均线金叉买入，移动止盈与均线死叉卖出，适合波段持股',
+    config: {
+      buy: {
+        maCross: { enabled: true, shortPeriod: 20, longPeriod: 60 },
+      },
+      sell: {
+        maDeathCross: { enabled: true, shortPeriod: 20, longPeriod: 60 },
+        trailingStop: { enabled: true, drawdown: 12 },
+        stopLoss: { enabled: true, percent: 8 },
+      },
+      risk: {
+        maxPositionPercent: 20,
+        maxHoldings: 6,
+        maxSingleLoss: 12,
+        totalStopLoss: 18,
+        maxDrawdown: 20,
+      },
+    },
+  },
 ]

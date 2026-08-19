@@ -14,8 +14,7 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title"><Icon name="wallet" :size="16" /><span>账户说明</span></div>
+    <FoldCard title="账户说明" icon="wallet" default-open persist-key="about-account">
       <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
       <div class="info-row"><span>安全模式</span><b>{{ accountStore.isLive ? '真实资金·注意风险' : '本地模拟·无真实资金' }}</b></div>
       <div class="info-row"><span>数据存储</span><b>本机 · 无登录认证</b></div>
@@ -28,10 +27,31 @@
         <span class="with-icon"><Icon name="calendar" :size="14" />扫描时间</span>
         <b>{{ schedule }}</b>
       </div>
-    </div>
+    </FoldCard>
 
-    <div class="card">
-      <div class="card-title"><Icon name="book" :size="16" /><span>操作指南</span></div>
+    <FoldCard title="交易费用（A 股规则）" icon="receipt" default-open persist-key="about-fee">
+      <div class="info-row"><span>佣金</span><b>万 2.5（最低 5 元）</b></div>
+      <div class="info-row"><span>印花税</span><b>0.05%（仅卖出）</b></div>
+      <div class="info-row"><span>过户费</span><b>0.001%</b></div>
+    </FoldCard>
+
+    <FoldCard title="扫描范围" icon="activity" default-open persist-key="about-scope">
+      <div class="note note-static">
+        沪深 A 股主板，剔除创业板（300/301）与科创板（688/689），规避高波动与涨跌幅限制差异。
+      </div>
+    </FoldCard>
+
+    <FoldCard title="数据来源" icon="database" default-open persist-key="about-source">
+      <div class="info-row"><span>股票列表</span><b>新浪财经公开接口</b></div>
+      <div class="info-row"><span>日线 / 分时 / 实时</span><b>腾讯行情公开接口</b></div>
+      <div class="info-row"><span>全市场快照</span><b>新浪行情公开接口</b></div>
+      <div class="info-row"><span>策略生成</span><b>内置智能体推理</b></div>
+      <div class="note note-warning">
+        行情存在延迟，非交易所原生实时行情，仅使用真实公开行情，不做合成数据。
+      </div>
+    </FoldCard>
+
+    <FoldCard title="操作指南" icon="book" default-open persist-key="about-guide">
       <div id="guide-account" class="guide-item">
         <Icon name="wallet" :size="16" class="guide-icon" />
         <div class="guide-body">
@@ -43,14 +63,14 @@
         <Icon name="swap" :size="16" class="guide-icon" />
         <div class="guide-body">
           <div class="guide-name">交易</div>
-          <div class="guide-desc">手动下单，查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
+          <div class="guide-desc">手动下单（输入代码/名称自动联想，仅支持沪深主板），查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
         </div>
       </div>
       <div id="guide-center" class="guide-item">
         <Icon name="target" :size="16" class="guide-icon" />
         <div class="guide-body">
           <div class="guide-name">策略中心</div>
-          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区，建议检查条件设置或运行回测。</div>
+          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区。</div>
         </div>
       </div>
       <div id="guide-about" class="guide-item">
@@ -60,40 +80,15 @@
           <div class="guide-desc">本页查看账户说明、数据来源、交易费用、风控与版本更新记录。</div>
         </div>
       </div>
-    </div>
+    </FoldCard>
 
-    <div class="card">
-      <div class="card-title"><Icon name="database" :size="16" /><span>数据来源</span></div>
-      <div class="info-row"><span>股票列表</span><b>新浪财经公开接口</b></div>
-      <div class="info-row"><span>日线 / 分时 / 实时</span><b>腾讯行情公开接口</b></div>
-      <div class="info-row"><span>全市场快照</span><b>新浪行情公开接口</b></div>
-      <div class="info-row"><span>策略生成</span><b>内置智能体推理</b></div>
-      <div class="muted data-note">仅使用真实公开行情，不做合成数据。</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><Icon name="activity" :size="16" /><span>扫描范围</span></div>
-      <div class="muted data-note">
-        沪深 A 股主板，剔除创业板（300/301）与科创板（688/689），规避高波动与涨跌幅限制差异。
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><Icon name="receipt" :size="16" /><span>交易费用（A 股规则）</span></div>
-      <div class="info-row"><span>佣金</span><b>万 2.5（最低 5 元）</b></div>
-      <div class="info-row"><span>印花税</span><b>0.05%（仅卖出）</b></div>
-      <div class="info-row"><span>过户费</span><b>0.001%</b></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><Icon name="shield" :size="16" /><span>风控说明</span></div>
+    <FoldCard title="风控说明" icon="shield" default-open persist-key="about-risk">
       <div class="info-row"><span>单笔委托上限</span><b>50 万元</b></div>
       <div class="info-row"><span>单日委托上限</span><b>200 万元</b></div>
       <div class="info-row"><span>生效条件</span><b>仅实盘模式</b></div>
-    </div>
+    </FoldCard>
 
-    <div class="card">
-      <div class="card-title"><Icon name="target" :size="16" /><span>策略参数说明</span></div>
+    <FoldCard title="策略参数说明" icon="target" :default-open="false" persist-key="about-params">
       <div class="guide-item no-icon">
         <div class="guide-body">
           <div class="guide-name">买入信号</div>
@@ -112,57 +107,63 @@
           <div class="guide-desc">单只最大仓位、最大持仓数、单只最大亏损、组合整体止损、最大回撤，触发即强制生效。</div>
         </div>
       </div>
-    </div>
+    </FoldCard>
 
-    <div class="card">
-      <button class="card-title title-btn" @click="expanded = !expanded">
-        <Icon name="info" :size="16" /><span>版本信息</span>
+    <FoldCard title="版本信息" icon="info" :default-open="false" persist-key="about-version">
+      <div class="version-head">
         <span class="version-tag">v{{ version }}</span>
-        <Icon :name="expanded ? 'chevron-up' : 'chevron-down'" :size="18" class="chev" />
-      </button>
-      <Transition name="collapse">
-        <div v-show="expanded" class="changelog">
-          <div class="changelog-item"><span class="changelog-tag">优化</span>资金曲线加载动画占位，数据返回后再渲染</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>API 统一错误提示：4xx/5xx 自动 Toast（节流防刷屏），网络异常重试提示</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>本地数据持久化：持仓/账户/资金曲线刷新不丢失</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>首屏加载动画，避免白屏</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>构建分包：vue 运行时独立缓存，入口体积 57.8KB→16.3KB</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>预生成 Gzip/Brotli 压缩资源，传输体积减少约 60-70%</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>账户页卡片式分区：账户概览/资金曲线/收益日历/持仓明细/预警/系统状态可折叠，状态本地记忆</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>今日盈亏归因改横向条形图，直观展示各持仓贡献度</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>资金曲线：Y 轴刻度、悬停显示数值、近7天/近30天/近3月切换</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>收益日历红绿底色块显示盈亏，金额加粗放大</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>市场概览移至顶部横幅，系统状态信息下沉至底部折叠</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>底部导航精简为 4 项（账户/交易/策略中心/说明），策略中心内含策略/回测/选股/扫描二级页签</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>策略卡片操作：详情/编辑/回测收进「更多」菜单，删除独立置右并带二次确认</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>未启用策略区：零收益零仓位策略自动折叠并提示检查条件设置</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>新建策略改为右下角悬浮按钮；头部增加模拟盘/实盘切换下拉（实盘未接入）</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>条件选股：价格/涨跌幅/换手率/市值/成交额多条件筛选</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>AI 个股诊断：多空观点/目标价/止损/支撑阻力，未配置 LLM 时启发式降级</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>今日盈亏归因：板块/个股级当日盈亏贡献标签</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>网络断线自动重连、指数退避重试与恢复后数据补全</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>AI 账户诊断：健康评分、亮点/风险/建议，未配置 LLM 时启发式降级</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>下拉刷新：加载动画、箭头旋转指示与刷新成功提示</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>全局按压反馈：按钮与底部导航按压缩放过渡</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>资产卡信息层级：现金/市值资产分布条、核心数据聚合</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>账户安全标识：本地模式与实盘风险提示</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>账户页：今日盈亏、指数涨跌点数与闪烁、策略收益率高亮、盘前倒计时</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>实时收益高亮：总盈亏大号强调、实时角标、刷新闪烁</div>
-          <div class="changelog-item"><span class="changelog-tag">修复</span>持仓收益实时显示：现价改用实时行情接口，盘中随行情更新</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>历史回测查看改为弹窗展示，关闭后停留列表原位</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>回测页排版：快捷日期区间、核心指标突出、参数优化触控选择</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>回测历史查看与删除、生成历史分类筛选与删除</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>扫描历史详情、实盘扫描确认与下次扫描倒计时</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>K线双指缩放、十字光标与均线显示开关</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>委托与成交分页加载、下单数字键盘</div>
-          <div class="changelog-item"><span class="changelog-tag">优化</span>全站暗色适配、图表高清与触控体验</div>
-          <div class="changelog-item"><span class="changelog-tag">新增</span>AI 策略生成与智能体多观点分析</div>
+        <button class="btn ghost small" :disabled="checking" @click="checkUpdate">
+          {{ checking ? '检查中...' : '检测新版本' }}
+        </button>
+      </div>
+
+      <div class="sub-title">维护公告</div>
+      <div v-for="(n, i) in NOTICES" :key="'n' + i" class="notice-item" :class="`notice-${n.level}`">
+        <div class="notice-head">
+          <span class="notice-title">{{ n.title }}</span>
+          <span class="muted">{{ n.date }}</span>
         </div>
-      </Transition>
-    </div>
+        <div class="notice-content">{{ n.content }}</div>
+      </div>
+
+      <div class="sub-title">版本日志</div>
+      <div class="changelog-filter">
+        <button
+          v-for="t in TAG_FILTERS"
+          :key="t"
+          class="changelog-tab"
+          :class="{ active: tagFilter === t }"
+          @click="tagFilter = t"
+        >
+          {{ t }}
+        </button>
+      </div>
+      <div v-for="g in groupedChangelog" :key="g.version" class="version-group">
+        <button
+          class="version-group-head"
+          :class="{ archived: g.version !== version }"
+          @click="g.version === version ? null : toggleArchive(g.version)"
+        >
+          <span>v{{ g.version }}{{ g.version === version ? '（当前）' : '（归档）' }}</span>
+          <span class="muted">{{ g.entries.length }} 条</span>
+          <Icon
+            v-if="g.version !== version"
+            :name="archivedOpen.includes(g.version) ? 'chevron-up' : 'chevron-down'"
+            :size="16"
+          />
+        </button>
+        <div v-if="g.version === version || archivedOpen.includes(g.version)">
+          <div v-for="e in g.entries" :key="e.content" class="changelog-item">
+            <span class="changelog-tag" :class="tagClass(e.tag)">{{ e.tag }}</span>
+            <span>{{ e.content }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-if="!groupedChangelog.length" class="muted">暂无版本记录</div>
+    </FoldCard>
 
     <div class="card">
-      <div class="disclaimer">
+      <div class="note note-danger">
         本系统仅供学习与技术演示，模拟盘不构成任何投资建议。实盘交易存在风险，接入前请谨慎评估并核实每笔委托。
       </div>
     </div>
@@ -170,11 +171,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useAccountStore } from '../stores/account'
 import Icon from '../components/Icon.vue'
+import FoldCard from '../components/FoldCard.vue'
 import { scanApi } from '../api'
 import { fmtMoney } from '../utils/format'
+import { toast } from '../utils/toast'
+import { NOTICES, CHANGELOG } from '../utils/changelog'
+import { compareVersions } from '../utils/version'
 import { version } from '../../package.json'
 
 const accountStore = useAccountStore()
@@ -185,8 +190,6 @@ const guides = [
   { id: 'guide-center', label: '策略中心', icon: 'target' },
   { id: 'guide-about', label: '说明', icon: 'info' },
 ]
-
-const expanded = ref(false)
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -206,6 +209,61 @@ onMounted(async () => {
     // 调度信息加载失败时保留默认文案
   }
 })
+
+const TAG_FILTERS = ['全部', '新增', '优化', '修复', '安全'] as const
+const tagFilter = ref<'全部' | '新增' | '优化' | '修复' | '安全'>('全部')
+const archivedOpen = ref<string[]>([])
+const checking = ref(false)
+
+const filteredChangelog = computed(() => {
+  if (tagFilter.value === '全部') return CHANGELOG
+  return CHANGELOG.filter((e) => e.tag === tagFilter.value)
+})
+
+const groupedChangelog = computed(() => {
+  const groups: { version: string; entries: typeof CHANGELOG }[] = []
+  for (const e of filteredChangelog.value) {
+    let g = groups.find((x) => x.version === e.version)
+    if (!g) {
+      g = { version: e.version, entries: [] }
+      groups.push(g)
+    }
+    g.entries.push(e)
+  }
+  return groups
+})
+
+function tagClass(tag: string): string {
+  if (tag === '新增') return 'tag-new'
+  if (tag === '修复') return 'tag-fix'
+  if (tag === '安全') return 'tag-safe'
+  return 'tag-opt'
+}
+
+function toggleArchive(v: string) {
+  archivedOpen.value = archivedOpen.value.includes(v)
+    ? archivedOpen.value.filter((x) => x !== v)
+    : [...archivedOpen.value, v]
+}
+
+async function checkUpdate() {
+  checking.value = true
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}versions.json`)
+    if (!res.ok) throw new Error(String(res.status))
+    const data = (await res.json()) as { latest?: string }
+    const latest = data.latest || ''
+    if (latest && compareVersions(latest, version) > 0) {
+      toast(`发现新版本 v${latest}，请前往更新`)
+    } else {
+      toast('当前已是最新版本')
+    }
+  } catch {
+    toast('检查更新失败，请稍后重试')
+  } finally {
+    checking.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -255,41 +313,6 @@ onMounted(async () => {
   color: var(--primary);
   border-color: var(--primary);
   background: var(--focus-ring);
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.card-title svg {
-  color: var(--primary);
-}
-
-.title-btn {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  color: inherit;
-}
-
-.title-btn .chev {
-  margin-left: auto;
-  color: var(--text-2);
-}
-
-.version-tag {
-  margin-left: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--primary);
-  background: var(--focus-ring);
-  padding: 1px 6px;
-  border-radius: 4px;
 }
 
 .info-row {
@@ -348,14 +371,150 @@ onMounted(async () => {
   color: var(--text-2);
 }
 
-.data-note {
+.note {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
   font-size: 13px;
   line-height: 1.6;
-  margin-top: 8px;
 }
 
-.changelog {
-  margin-top: 8px;
+.note-static {
+  border: 1px solid var(--primary);
+  background: var(--focus-ring);
+  color: var(--primary);
+}
+
+.note-warning {
+  border: 1px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.note-danger {
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.version-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.version-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--focus-ring);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.btn.small {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.sub-title {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.notice-item {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.notice-static {
+  border: 1px solid var(--primary);
+  background: var(--focus-ring);
+}
+
+.notice-warning {
+  border: 1px solid var(--warning);
+  background: var(--warning-bg);
+}
+
+.notice-danger {
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+}
+
+.notice-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notice-title {
+  font-weight: 600;
+}
+
+.notice-content {
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.changelog-filter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.changelog-tab {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.changelog-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.version-group {
+  margin-top: 6px;
+}
+
+.version-group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: default;
+}
+
+.version-group-head.archived {
+  cursor: pointer;
+}
+
+.version-group-head svg {
+  margin-left: auto;
+  color: var(--text-2);
 }
 
 .changelog-item {
@@ -371,29 +530,27 @@ onMounted(async () => {
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 600;
-  color: var(--primary);
-  background: var(--focus-ring);
   padding: 1px 6px;
   border-radius: 4px;
 }
 
-.collapse-enter-active,
-.collapse-leave-active {
-  transition: opacity 0.2s ease;
+.tag-new {
+  color: var(--primary);
+  background: var(--focus-ring);
 }
 
-.collapse-enter-from,
-.collapse-leave-to {
-  opacity: 0;
+.tag-opt {
+  color: var(--text-2);
+  background: var(--bg);
 }
 
-.disclaimer {
-  background: var(--warning-bg);
-  border: 1px solid var(--warning);
+.tag-fix {
   color: var(--warning);
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 13px;
-  line-height: 1.6;
+  background: var(--warning-bg);
+}
+
+.tag-safe {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 </style>

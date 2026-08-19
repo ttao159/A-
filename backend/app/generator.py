@@ -167,13 +167,19 @@ def _build_config(tpl: dict, variant: int, risk: dict) -> dict:
 
 
 def generate_strategies(count: int, risk_profile: str) -> list:
-    """生成 count 个候选策略配置，保证信号组合两两存在差异。"""
+    """生成 count 个候选策略配置，保证信号组合两两存在差异。
+
+    返回 [{template_name, config}]，template_name 用于生成推理过程说明。
+    """
     risk = RISK_PROFILES[risk_profile]
     strategies = []
     for i in range(count):
         tpl = SIGNAL_TEMPLATES[i % len(SIGNAL_TEMPLATES)]
         variant = i // len(SIGNAL_TEMPLATES)
-        strategies.append(_build_config(tpl, variant, risk))
+        strategies.append({
+            "template_name": tpl["name"],
+            "config": _build_config(tpl, variant, risk),
+        })
     return strategies
 
 
@@ -224,7 +230,41 @@ def _signal_summary(config: dict) -> dict:
     return {"buy": buy_keys, "sell": sell_keys}
 
 
+def _build_reasoning(template_name: str, config: dict, metrics: dict, decision: dict) -> str:
+    """基于模板、信号组合与回测指标生成推理过程说明（启发式，不依赖 LLM）。"""
+    sig = _signal_summary(config)
+    buy = "、".join(sig["buy"]) or "无"
+    sell = "、".join(sig["sell"]) or "无"
+    m = metrics or {}
+    annual = m.get("annual_return_pct", 0.0)
+    dd = m.get("max_drawdown_pct", 0.0)
+    win = m.get("win_rate_pct", 0.0)
+    trades = m.get("trade_count", 0)
+    return (
+        f"采用「{template_name}」模板：买入信号 {buy}，卖出信号 {sell}。"
+        f"回测区间内共成交 {trades} 次，年化收益 {annual:.1f}%、最大回撤 {dd:.1f}%、"
+        f"胜率 {win:.0f}%，综合评级「{decision.get('rating', '—')}」，"
+        f"建议{decision.get('action', '关注')}。"
+    )
+
+
 def build_report(payload: dict, results: list, scores: dict, ranking: list) -> dict:
+    strategies = []
+    for r in results:
+        metrics = r.get("metrics", {})
+        decision = make_decision(metrics, scores[r["index"]])
+        strategies.append({
+            "index": r["index"],
+            "template_name": r.get("template_name", "智能生成"),
+            "signals": _signal_summary(r["config"]),
+            "config": r["config"],
+            "metrics": metrics,
+            "decision": decision,
+            "reasoning": _build_reasoning(
+                r.get("template_name", "智能生成"), r["config"], metrics, decision),
+            "equity_curve": r.get("equity_curve", []),
+            "trades": r.get("trades", []),
+        })
     return {
         "request": {
             "targets": payload["targets"],
@@ -234,18 +274,7 @@ def build_report(payload: dict, results: list, scores: dict, ranking: list) -> d
             "count": payload["count"],
             "target_annual_return": payload.get("target_annual_return", 0.0),
         },
-        "strategies": [
-            {
-                "index": r["index"],
-                "signals": _signal_summary(r["config"]),
-                "config": r["config"],
-                "metrics": r.get("metrics", {}),
-                "decision": make_decision(r.get("metrics", {}), scores[r["index"]]),
-                "equity_curve": r.get("equity_curve", []),
-                "trades": r.get("trades", []),
-            }
-            for r in results
-        ],
+        "strategies": strategies,
         "ranking": [{"index": r["index"], "score": scores[r["index"]]} for r in ranking],
         "recommended_index": ranking[0]["index"] if ranking else None,
     }
@@ -316,10 +345,12 @@ def run_generation(payload: dict, market, progress=None) -> dict:
 
     results = []
     total = len(strategies)
-    for idx, cfg in enumerate(strategies):
+    for idx, item in enumerate(strategies):
+        cfg = item["config"]
         _emit("backtest", f"正在回测策略 {idx + 1}/{total} ...", idx, total)
         result = backtest.run_backtest(cfg, cached, start, end)
-        results.append({"index": idx, "config": cfg, **result})
+        results.append({"index": idx, "config": cfg,
+                        "template_name": item["template_name"], **result})
 
     scores = {r["index"]: score_strategy(r.get("metrics", {}), target) for r in results}
     ranking = sorted(results, key=lambda r: scores[r["index"]], reverse=True)

@@ -4,9 +4,26 @@
       <h3 style="margin: 0 0 12px">手动下单</h3>
 
       <template v-if="step === 'form'">
-        <div class="field">
+        <div class="field suggest-field">
           <label>股票代码</label>
-          <input v-model="form.code" placeholder="如 600000" />
+          <input
+            v-model="form.code"
+            placeholder="输入代码或名称搜索"
+            @focus="showSuggest = true"
+            @blur="onCodeBlur"
+          />
+          <div v-if="blockedTip" class="board-tip">{{ blockedTip }}</div>
+          <div v-else-if="showSuggest && suggestions.length" class="suggest-list">
+            <div
+              v-for="s in suggestions"
+              :key="s.code"
+              class="suggest-item"
+              @mousedown.prevent="pick(s)"
+            >
+              <span class="s-name">{{ s.name }}</span>
+              <span class="s-code">{{ s.code }}</span>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label>方向</label>
@@ -77,11 +94,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { orderApi, stockApi } from '../api'
+import type { Stock } from '../api'
 import type { OrderPrepareInput } from '../api/types'
 import { useAccountStore } from '../stores/account'
 import { useStrategyStore } from '../stores/strategy'
+import { isBlockedBoard } from '../utils/board'
 import { fmtMoney, fmtPrice } from '../utils/format'
 import { toast } from '../utils/toast'
 
@@ -105,11 +124,17 @@ const form = reactive({
   strategy_id: null as number | null,
 })
 
-const order = reactive<{ code: string; direction: string; price: number; qty: number }>({
-  code: '',
-  direction: 'buy',
-  price: 0,
-  qty: 100,
+const stockList = ref<Stock[]>([])
+const showSuggest = ref(false)
+const blockedTip = ref('')
+
+const suggestions = computed(() => {
+  const q = form.code.trim()
+  if (!q) return []
+  const num = /^\d+$/.test(q)
+  return stockList.value
+    .filter((s) => (num ? s.code.startsWith(q) : s.name.includes(q) || s.code.startsWith(q)))
+    .slice(0, 8)
 })
 
 watch(
@@ -117,10 +142,39 @@ watch(
   (v) => {
     if (v) {
       step.value = 'form'
+      showSuggest.value = false
       if (!strategyStore.strategies.length) strategyStore.fetch()
+      if (!stockList.value.length) {
+        stockApi.list().then((list) => (stockList.value = list)).catch(() => {})
+      }
     }
   },
 )
+
+watch(
+  () => form.code,
+  (code) => {
+    const t = code.trim()
+    blockedTip.value =
+      /^(300|301|688|689)/.test(t) && t.length >= 3 ? '本系统不支持该板块（创业板/科创板）' : ''
+  },
+)
+
+function pick(s: Stock) {
+  form.code = s.code
+  showSuggest.value = false
+}
+
+function onCodeBlur() {
+  setTimeout(() => (showSuggest.value = false), 150)
+}
+
+const order = reactive<{ code: string; direction: string; price: number; qty: number }>({
+  code: '',
+  direction: 'buy',
+  price: 0,
+  qty: 100,
+})
 
 let priceTimer: ReturnType<typeof setTimeout> | undefined
 watch(
@@ -175,6 +229,7 @@ function validate(): string {
   const price = Number(form.price)
   const qty = Number(form.qty)
   if (!form.code) return '请输入股票代码'
+  if (isBlockedBoard(form.code.trim())) return '本系统不支持该板块（创业板/科创板）'
   if (!price || price <= 0) return '请输入有效价格'
   if (!qty || qty % 100 !== 0) return '数量需为 100 股整数倍'
   return ''
@@ -227,6 +282,53 @@ function close() {
   background: var(--bg);
   border-radius: 8px;
   padding: 12px;
+}
+
+.suggest-field {
+  position: relative;
+}
+
+.suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.suggest-item:active {
+  background: var(--bg);
+}
+
+.s-name {
+  font-size: 14px;
+}
+
+.s-code {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.board-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--danger);
 }
 
 .confirm-box .row {
