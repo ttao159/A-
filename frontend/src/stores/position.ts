@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia'
 import { positionApi } from '../api'
 import type { Position } from '../api/types'
+import { loadLS, saveLS } from '../utils/storage'
+
+const CACHE_POSITIONS = 'cache:positions'
 
 export const usePositionStore = defineStore('position', {
   state: () => ({
-    positions: [] as Position[],
+    positions: loadLS<Position[]>(CACHE_POSITIONS) ?? [],
     loading: false,
     error: '',
   }),
@@ -14,6 +17,7 @@ export const usePositionStore = defineStore('position', {
       this.error = ''
       try {
         this.positions = await positionApi.list()
+        saveLS(CACHE_POSITIONS, this.positions)
       } catch (e) {
         this.error = (e as Error).message
       } finally {

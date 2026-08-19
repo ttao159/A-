@@ -122,6 +122,12 @@
       </button>
       <Transition name="collapse">
         <div v-show="expanded" class="changelog">
+          <div class="changelog-item"><span class="changelog-tag">优化</span>资金曲线加载动画占位，数据返回后再渲染</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>API 统一错误提示：4xx/5xx 自动 Toast（节流防刷屏），网络异常重试提示</div>
+          <div class="changelog-item"><span class="changelog-tag">新增</span>本地数据持久化：持仓/账户/资金曲线刷新不丢失</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>首屏加载动画，避免白屏</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>构建分包：vue 运行时独立缓存，入口体积 57.8KB→16.3KB</div>
+          <div class="changelog-item"><span class="changelog-tag">优化</span>预生成 Gzip/Brotli 压缩资源，传输体积减少约 60-70%</div>
           <div class="changelog-item"><span class="changelog-tag">优化</span>账户页卡片式分区：账户概览/资金曲线/收益日历/持仓明细/预警/系统状态可折叠，状态本地记忆</div>
           <div class="changelog-item"><span class="changelog-tag">优化</span>今日盈亏归因改横向条形图，直观展示各持仓贡献度</div>
           <div class="changelog-item"><span class="changelog-tag">优化</span>资金曲线：Y 轴刻度、悬停显示数值、近7天/近30天/近3月切换</div>

@@ -13,8 +13,12 @@
         </button>
       </div>
     </div>
+    <div v-if="loading" class="ec-loading">
+      <span class="ec-spinner"></span>
+      <span>数据加载中...</span>
+    </div>
     <canvas
-      v-if="filtered.length >= 2"
+      v-else-if="filtered.length >= 2"
       ref="canvas"
       :width="W"
       :height="H"
@@ -37,7 +41,7 @@ import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
 import { hiDPIContext } from '../utils/canvas'
 
-const props = defineProps<{ points: AccountEquityPoint[]; baseline?: number }>()
+const props = defineProps<{ points: AccountEquityPoint[]; baseline?: number; loading?: boolean }>()
 
 const RANGES = [
   { key: '7d', label: '近7天', days: 7 },
@@ -259,5 +263,31 @@ function draw() {
   border-color: var(--primary);
   background: var(--focus-ring);
   font-weight: 600;
+}
+
+.ec-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 150px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.ec-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: ec-spin 0.8s linear infinite;
+}
+
+@keyframes ec-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

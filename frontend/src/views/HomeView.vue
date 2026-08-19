@@ -46,6 +46,7 @@
         <EquityCurve
           :points="accountStore.equity"
           :baseline="accountStore.account?.initial_capital"
+          :loading="accountStore.loading && !accountStore.equity.length"
         />
       </FoldCard>
 

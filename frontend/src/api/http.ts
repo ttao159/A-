@@ -5,6 +5,8 @@ const BASE = '/api'
 const MAX_RETRIES = 2
 
 let lastNetworkToastAt = 0
+let lastErrToastAt = 0
+let lastErrToastKey = ''
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -15,6 +17,24 @@ function throttledNetworkToast() {
   if (now - lastNetworkToastAt < 3000) return
   lastNetworkToastAt = now
   toast('网络连接失败，正在重试')
+}
+
+function throttledErrorToast(detail: string) {
+  const now = Date.now()
+  const msg = detail && detail.length <= 40 ? detail : '数据加载失败，请稍后重试'
+  if (now - lastErrToastAt < 3000 && lastErrToastKey === msg) return
+  lastErrToastAt = now
+  lastErrToastKey = msg
+  toast(msg)
+}
+
+async function parseError(res: Response): Promise<string> {
+  try {
+    const data = await res.json()
+    return data.detail || JSON.stringify(data)
+  } catch {
+    return await res.text().catch(() => '')
+  }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -39,13 +59,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error('网络连接失败')
   }
   if (!res.ok) {
-    let detail = ''
-    try {
-      const data = await res.json()
-      detail = data.detail || JSON.stringify(data)
-    } catch {
-      detail = await res.text().catch(() => '')
-    }
+    const detail = await parseError(res)
+    throttledErrorToast(detail)
     throw new Error(detail || `请求失败 (${res.status})`)
   }
   return res.json() as Promise<T>
@@ -89,13 +104,8 @@ export async function streamNDJSON(
     throw new Error('网络连接失败')
   }
   if (!res.ok || !res.body) {
-    let detail = ''
-    try {
-      const data = await res.json()
-      detail = data.detail || JSON.stringify(data)
-    } catch {
-      detail = await res.text().catch(() => '')
-    }
+    const detail = await parseError(res)
+    throttledErrorToast(detail)
     throw new Error(detail || `请求失败 (${res.status})`)
   }
   const reader = res.body.getReader()
