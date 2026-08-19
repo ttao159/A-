@@ -31,6 +31,8 @@ def migrate():
                 conn.execute(text("ALTER TABLE strategies ADD COLUMN initial_capital FLOAT DEFAULT 0"))
             if "available_cash" not in cols:
                 conn.execute(text("ALTER TABLE strategies ADD COLUMN available_cash FLOAT DEFAULT 0"))
+            if "group_name" not in cols:
+                conn.execute(text("ALTER TABLE strategies ADD COLUMN group_name VARCHAR(50) DEFAULT ''"))
         if insp.has_table("trades"):
             cols = [c["name"] for c in insp.get_columns("trades")]
             if "strategy_id" not in cols:

@@ -38,6 +38,11 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '策略分组管理：默认分组、新建分组、批量归类/启停/删除' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '回测风险提示与历史时间/策略名筛选' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '参数实时校验：负数/百分比范围/非整数周期等非法值即时标红' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '卖出锁定最大可卖数量，仓位快捷下单（1成/3成/半仓/满仓）' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '全局回到顶部悬浮按钮' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '下单股票联想：输入代码或名称自动补全，过滤创业板/科创板并提示' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '选股结果信号列与指标快照、股价/市值区间过滤、导出 CSV、空态引导' },
   { version: '0.1.0', date: '2026-08', tag: '优化', content: '说明页折叠面板重构、静态/警告/提示三色规范、行情延迟说明' },

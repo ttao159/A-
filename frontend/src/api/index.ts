@@ -104,6 +104,12 @@ export const strategyApi = {
   update: (id: number, input: StrategyInput) => http.put<Strategy>(`/strategies/${id}`, input),
   remove: (id: number) => http.del<{ ok: boolean }>(`/strategies/${id}`),
   compare: () => http.get<StrategyCompareItem[]>('/strategies/compare'),
+  batchGroup: (ids: number[], groupName: string) =>
+    http.post<{ ok: boolean; count: number }>('/strategies/batch/group', { ids, group_name: groupName }),
+  batchToggle: (ids: number[], enabled: boolean) =>
+    http.post<{ ok: boolean; count: number }>('/strategies/batch/toggle', { ids, enabled }),
+  batchDelete: (ids: number[]) =>
+    http.post<{ ok: boolean; count: number }>('/strategies/batch/delete', { ids }),
 }
 
 export const positionApi = {
@@ -145,6 +151,7 @@ export const backtestApi = {
   run: (sid: number, start: string, end: string) =>
     http.post<BacktestResult>(`/strategies/${sid}/backtest`, { start_date: start, end_date: end }),
   list: (sid: number) => http.get<BacktestListItem[]>(`/strategies/${sid}/backtests`),
+  listAll: () => http.get<BacktestListItem[]>('/backtests'),
   get: (sid: number, bid: number) => http.get<BacktestResult>(`/strategies/${sid}/backtests/${bid}`),
   remove: (sid: number, bid: number) => http.del(`/strategies/${sid}/backtests/${bid}`),
 }

@@ -757,6 +757,7 @@ function editStrategy(s: GenStrategy) {
     id: 0,
     name: strategyNames.value[s.index] || `AI生成策略 #${s.index + 1}`,
     enabled: true,
+    group_name: '',
     config: s.config as unknown as StrategyConfig,
     initial_capital: 1000000,
     available_cash: 0,

@@ -25,7 +25,8 @@ from .market import MarketDataService
 from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy, Trade
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
-from .schemas import BacktestRequest, GeneratorRequest, OptimizeRequest, OrderPrepareRequest, StrategyCreate, StrategyUpdate
+from .schemas import (BacktestRequest, GeneratorRequest, OptimizeRequest, OrderPrepareRequest,
+                      StrategyBatchDelete, StrategyBatchGroup, StrategyBatchToggle, StrategyCreate, StrategyUpdate)
 from .scheduler import start_scheduler
 
 Base.metadata.create_all(bind=engine)
@@ -56,6 +57,7 @@ def _strategy_out(s: Strategy) -> dict:
         "id": s.id,
         "name": s.name,
         "enabled": bool(s.enabled),
+        "group_name": s.group_name or "",
         "config": json.loads(s.config_json),
         "initial_capital": round(s.initial_capital or 0.0, 2),
         "available_cash": round(s.available_cash or 0.0, 2),
@@ -119,6 +121,7 @@ def compare_strategies(db: Session = Depends(get_db)):
 def create_strategy(body: StrategyCreate, db: Session = Depends(get_db)):
     capital = body.initial_capital if body.initial_capital is not None else config.DEFAULT_INITIAL_CAPITAL
     s = Strategy(name=body.name, enabled=int(body.enabled),
+                 group_name=body.group_name or "",
                  config_json=json.dumps(body.config, ensure_ascii=False),
                  initial_capital=capital, available_cash=capital)
     db.add(s)
@@ -136,6 +139,8 @@ def update_strategy(sid: int, body: StrategyUpdate, db: Session = Depends(get_db
         s.name = body.name
     if body.enabled is not None:
         s.enabled = int(body.enabled)
+    if body.group_name is not None:
+        s.group_name = body.group_name
     if body.config is not None:
         s.config_json = json.dumps(body.config, ensure_ascii=False)
     if body.initial_capital is not None:
@@ -159,6 +164,42 @@ def delete_strategy(sid: int, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return {"ok": True}
+
+
+@app.post("/api/strategies/batch/group")
+def batch_group_strategies(body: StrategyBatchGroup, db: Session = Depends(get_db)):
+    """批量归类：将多个策略移动到指定分组。"""
+    if not body.ids:
+        raise HTTPException(400, "策略列表为空")
+    rows = db.query(Strategy).filter(Strategy.id.in_(body.ids)).all()
+    for s in rows:
+        s.group_name = body.group_name or ""
+    db.commit()
+    return {"ok": True, "count": len(rows)}
+
+
+@app.post("/api/strategies/batch/toggle")
+def batch_toggle_strategies(body: StrategyBatchToggle, db: Session = Depends(get_db)):
+    """批量启停：统一启用或停用多个策略。"""
+    if not body.ids:
+        raise HTTPException(400, "策略列表为空")
+    rows = db.query(Strategy).filter(Strategy.id.in_(body.ids)).all()
+    for s in rows:
+        s.enabled = int(body.enabled)
+    db.commit()
+    return {"ok": True, "count": len(rows)}
+
+
+@app.post("/api/strategies/batch/delete")
+def batch_delete_strategies(body: StrategyBatchDelete, db: Session = Depends(get_db)):
+    """批量删除多个策略。"""
+    if not body.ids:
+        raise HTTPException(400, "策略列表为空")
+    rows = db.query(Strategy).filter(Strategy.id.in_(body.ids)).all()
+    for s in rows:
+        db.delete(s)
+    db.commit()
+    return {"ok": True, "count": len(rows)}
 
 
 # ===== 回测 =====
@@ -194,6 +235,24 @@ def run_strategy_backtest(sid: int, body: BacktestRequest, db: Session = Depends
         "trades": result["trades"],
         "signal_stats": result["signal_stats"],
     }
+
+
+@app.get("/api/backtests")
+def list_all_backtests(db: Session = Depends(get_db)):
+    """跨策略回测历史列表（含策略名称），支持前端按时间与策略名称筛选。"""
+    rows = (db.query(Backtest, Strategy.name)
+            .join(Strategy, Strategy.id == Backtest.strategy_id)
+            .order_by(Backtest.id.desc())
+            .limit(200).all())
+    return [{
+        "id": bt.id,
+        "strategy_id": bt.strategy_id,
+        "strategy_name": name,
+        "start_date": bt.start_date,
+        "end_date": bt.end_date,
+        "metrics": json.loads(bt.metrics_json or "{}"),
+        "created_at": bt.created_at.isoformat() if bt.created_at else None,
+    } for bt, name in rows]
 
 
 @app.get("/api/strategies/{sid}/backtests")

@@ -8,6 +8,7 @@ export interface Strategy {
   id: number
   name: string
   enabled: boolean
+  group_name: string
   config: StrategyConfig
   initial_capital: number
   available_cash: number
@@ -18,6 +19,7 @@ export interface Strategy {
 export interface StrategyInput {
   name?: string
   enabled?: boolean
+  group_name?: string
   config?: StrategyConfig
   initial_capital?: number
 }
@@ -120,6 +122,7 @@ export interface BacktestResult {
 export interface BacktestListItem {
   id: number
   strategy_id: number
+  strategy_name?: string
   start_date: string
   end_date: string
   metrics: BacktestMetrics

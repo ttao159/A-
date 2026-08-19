@@ -52,6 +52,7 @@ def default_config() -> dict:
 class StrategyCreate(BaseModel):
     name: str
     enabled: bool = True
+    group_name: str = Field(default="", description="策略分组名称")
     config: dict = Field(default_factory=default_config)
     initial_capital: Optional[float] = Field(default=None, ge=0, description="策略分配本金，缺省为默认 100 万")
 
@@ -59,8 +60,23 @@ class StrategyCreate(BaseModel):
 class StrategyUpdate(BaseModel):
     name: Optional[str] = None
     enabled: Optional[bool] = None
+    group_name: Optional[str] = None
     config: Optional[dict] = None
     initial_capital: Optional[float] = Field(default=None, ge=0, description="调整策略分配本金")
+
+
+class StrategyBatchGroup(BaseModel):
+    ids: list[int] = Field(description="策略 ID 列表")
+    group_name: str = Field(description="目标分组名称")
+
+
+class StrategyBatchToggle(BaseModel):
+    ids: list[int] = Field(description="策略 ID 列表")
+    enabled: bool = Field(description="批量启用/停用")
+
+
+class StrategyBatchDelete(BaseModel):
+    ids: list[int] = Field(description="策略 ID 列表")
 
 
 class BacktestRequest(BaseModel):

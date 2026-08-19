@@ -13,6 +13,7 @@ class Strategy(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     enabled = Column(Integer, default=1)
+    group_name = Column(String(50), default="", nullable=False)
     config_json = Column(Text, nullable=False)
     initial_capital = Column(Float, default=0.0)
     available_cash = Column(Float, default=0.0)

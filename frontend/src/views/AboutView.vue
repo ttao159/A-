@@ -63,14 +63,14 @@
         <Icon name="swap" :size="16" class="guide-icon" />
         <div class="guide-body">
           <div class="guide-name">交易</div>
-          <div class="guide-desc">手动下单（输入代码/名称自动联想，仅支持沪深主板），查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
+          <div class="guide-desc">手动下单（输入代码/名称自动联想，仅支持沪深主板），卖出自动锁定最大可卖数量、禁止超卖；买入支持 1成/3成/半仓/满仓仓位快捷下单；查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
         </div>
       </div>
       <div id="guide-center" class="guide-item">
         <Icon name="target" :size="16" class="guide-icon" />
         <div class="guide-body">
           <div class="guide-name">策略中心</div>
-          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区。</div>
+          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略支持分组管理（默认分组 + 新建分组 + 批量归类/启停/删除），参数实时校验非法值即时标红；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区。回测前有历史效果风险提示，历史记录支持时间与策略名筛选。</div>
         </div>
       </div>
       <div id="guide-about" class="guide-item">
@@ -105,6 +105,12 @@
         <div class="guide-body">
           <div class="guide-name">风控参数</div>
           <div class="guide-desc">单只最大仓位、最大持仓数、单只最大亏损、组合整体止损、最大回撤，触发即强制生效。</div>
+        </div>
+      </div>
+      <div class="guide-item no-icon">
+        <div class="guide-body">
+          <div class="guide-name">参数校验</div>
+          <div class="guide-desc">所有信号与风控参数实时校验：负数、超出百分比范围、非整数周期等非法值即时标红并阻止保存；仅校验已启用的信号。</div>
         </div>
       </div>
     </FoldCard>

@@ -43,6 +43,7 @@
       @touchstart="onTouchStart"
       @touchmove="onTouchMove"
       @touchend="onTouchEnd"
+      @scroll="onMainScroll"
     >
       <router-view v-slot="{ Component }">
         <Transition name="page" mode="out-in">
@@ -50,6 +51,11 @@
         </Transition>
       </router-view>
     </main>
+    <Transition name="fab-pop">
+      <button v-if="showTopBtn" class="top-btn" aria-label="回到顶部" @click="scrollToTop">
+        <Icon name="chevron-up" :size="22" />
+      </button>
+    </Transition>
     <nav class="tab-bar">
       <router-link
         v-for="tab in tabs"
@@ -97,9 +103,18 @@ onMounted(() => {
 const mainRef = ref<HTMLElement | null>(null)
 const pullH = ref(0)
 const refreshing = ref(false)
+const showTopBtn = ref(false)
 const THRESHOLD = 60
 let startY = 0
 let pulling = false
+
+function onMainScroll() {
+  showTopBtn.value = (mainRef.value?.scrollTop ?? 0) > 300
+}
+
+function scrollToTop() {
+  mainRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 const tabs = [
   { path: '/', iconName: 'wallet', label: '账户', exact: true },
@@ -223,6 +238,43 @@ async function onTouchEnd() {
   border-radius: 50%;
   animation: ptr-spin 0.8s linear infinite;
   margin-right: 6px;
+}
+
+.top-btn {
+  position: fixed;
+  right: 16px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 24;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.top-btn:active {
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: scale(0.92);
+}
+
+.fab-pop-enter-active,
+.fab-pop-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fab-pop-enter-from,
+.fab-pop-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 @keyframes ptr-spin {

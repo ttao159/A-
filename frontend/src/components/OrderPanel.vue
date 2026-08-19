@@ -40,9 +40,27 @@
           <label>价格（元）</label>
           <input v-model="form.price" type="text" inputmode="decimal" placeholder="0.00" @input="onPriceInput" />
         </div>
+        <div v-if="form.direction === 'buy'" class="field">
+          <label>仓位快捷下单</label>
+          <div class="pos-quick">
+            <button
+              v-for="r in POS_RATIOS"
+              :key="r.label"
+              type="button"
+              class="pos-btn"
+              @click="applyRatio(r.ratio)"
+            >
+              {{ r.label }}
+            </button>
+          </div>
+        </div>
         <div class="field">
           <label>数量（100 股整数倍）</label>
           <input v-model="form.qty" type="text" inputmode="numeric" placeholder="100 的整数倍" @input="onQtyInput" />
+          <div v-if="form.direction === 'sell' && maxSellQty > 0" class="sell-hint">
+            最大可卖 {{ maxSellQty }} 股
+            <button type="button" class="fill-max" @click="fillMaxSell">全部卖出</button>
+          </div>
         </div>
         <div class="field">
           <label>所属策略（可选）</label>
@@ -100,6 +118,7 @@ import type { Stock } from '../api'
 import type { OrderPrepareInput } from '../api/types'
 import { useAccountStore } from '../stores/account'
 import { useStrategyStore } from '../stores/strategy'
+import { usePositionStore } from '../stores/position'
 import { isBlockedBoard } from '../utils/board'
 import { fmtMoney, fmtPrice } from '../utils/format'
 import { toast } from '../utils/toast'
@@ -109,6 +128,7 @@ const emit = defineEmits<{ close: []; done: [] }>()
 
 const accountStore = useAccountStore()
 const strategyStore = useStrategyStore()
+const positionStore = usePositionStore()
 
 const step = ref<'form' | 'confirm' | 'result'>('form')
 const submitting = ref(false)
@@ -128,6 +148,19 @@ const stockList = ref<Stock[]>([])
 const showSuggest = ref(false)
 const blockedTip = ref('')
 
+const POS_RATIOS = [
+  { label: '1成仓', ratio: 0.1 },
+  { label: '3成仓', ratio: 0.3 },
+  { label: '半仓', ratio: 0.5 },
+  { label: '满仓', ratio: 1 },
+]
+
+const currentPosition = computed(() =>
+  positionStore.positions.find((p) => p.code === form.code.trim()),
+)
+
+const maxSellQty = computed(() => currentPosition.value?.qty ?? 0)
+
 const suggestions = computed(() => {
   const q = form.code.trim()
   if (!q) return []
@@ -144,6 +177,7 @@ watch(
       step.value = 'form'
       showSuggest.value = false
       if (!strategyStore.strategies.length) strategyStore.fetch()
+      positionStore.fetch()
       if (!stockList.value.length) {
         stockApi.list().then((list) => (stockList.value = list)).catch(() => {})
       }
@@ -215,6 +249,25 @@ function onQtyInput() {
   form.qty = form.qty.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
 }
 
+function applyRatio(ratio: number) {
+  const price = Number(form.price)
+  const cash = accountStore.account?.available_cash ?? 0
+  if (!price || price <= 0) {
+    toast('请先填写有效价格')
+    return
+  }
+  if (cash <= 0) {
+    toast('可用资金不足')
+    return
+  }
+  const qty = Math.floor((cash * ratio) / price / 100) * 100
+  form.qty = String(qty > 0 ? qty : 100)
+}
+
+function fillMaxSell() {
+  form.qty = String(maxSellQty.value)
+}
+
 function buildInput(): OrderPrepareInput {
   return {
     code: form.code.trim(),
@@ -232,6 +285,10 @@ function validate(): string {
   if (isBlockedBoard(form.code.trim())) return '本系统不支持该板块（创业板/科创板）'
   if (!price || price <= 0) return '请输入有效价格'
   if (!qty || qty % 100 !== 0) return '数量需为 100 股整数倍'
+  if (form.direction === 'sell') {
+    if (maxSellQty.value <= 0) return '当前无该股票持仓，无法卖出'
+    if (qty > maxSellQty.value) return `卖出数量不能超过持仓 ${maxSellQty.value} 股`
+  }
   return ''
 }
 
@@ -329,6 +386,45 @@ function close() {
   margin-top: 6px;
   font-size: 12px;
   color: var(--danger);
+}
+
+.pos-quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pos-btn {
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--primary);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pos-btn:active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.sell-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fill-max {
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
 }
 
 .confirm-box .row {

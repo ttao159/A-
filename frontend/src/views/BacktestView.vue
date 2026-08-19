@@ -116,17 +116,31 @@
           {{ f.label }}
         </button>
       </div>
+      <div v-if="history.length" class="hist-adv-filters">
+        <div class="field hist-date">
+          <input v-model="histDateStart" type="date" aria-label="开始日期" />
+        </div>
+        <div class="field hist-date">
+          <input v-model="histDateEnd" type="date" aria-label="结束日期" />
+        </div>
+        <div class="field hist-name">
+          <input v-model="histStrategyName" type="text" placeholder="策略名称筛选" />
+        </div>
+      </div>
       <div v-if="!sortedHistory.length" class="empty">暂无历史回测</div>
       <div v-for="h in sortedHistory" :key="h.id" class="hist-row">
         <div style="flex: 1">
-          <div class="muted" style="font-size: 12px">{{ h.start_date }} ~ {{ h.end_date }}</div>
+          <div class="muted" style="font-size: 12px">
+            <span v-if="h.strategy_name" class="hist-sname">{{ h.strategy_name }}</span>
+            {{ h.start_date }} ~ {{ h.end_date }}
+          </div>
           <div style="font-size: 13px; margin-top: 2px">
             收益 <span :class="(h.metrics.total_return_pct ?? 0) >= 0 ? 'up' : 'down'">{{ fmtPct(h.metrics.total_return_pct) }}</span>
             · 胜率 {{ fmtPct(h.metrics.win_rate_pct) }}
             · 回撤 {{ fmtPct(h.metrics.max_drawdown_pct) }}
           </div>
         </div>
-        <button class="btn ghost small" :disabled="viewingId === h.id" @click="viewHistory(h.id)">
+        <button class="btn ghost small" :disabled="viewingId === h.id" @click="viewHistory(h)">
           {{ viewingId === h.id ? '加载中...' : '查看' }}
         </button>
         <button class="btn ghost small del" @click="removeBacktest(h)">删除</button>
@@ -136,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import BacktestResultDetail from '../components/BacktestResultDetail.vue'
 import { backtestApi, optimizeApi } from '../api'
@@ -161,6 +175,9 @@ const viewingId = ref<number | null>(null)
 
 const histFilter = ref<'all' | 'profit' | 'loss'>('all')
 const histSort = ref<'time' | 'return' | 'winrate' | 'drawdown'>('time')
+const histDateStart = ref('')
+const histDateEnd = ref('')
+const histStrategyName = ref('')
 
 const histFilters = [
   { key: 'all', label: '全部' },
@@ -169,12 +186,22 @@ const histFilters = [
 ] as const
 
 const sortedHistory = computed(() => {
+  const nameQ = histStrategyName.value.trim()
   let list = history.value.filter((h) => {
     const ret = h.metrics.total_return_pct ?? 0
     if (histFilter.value === 'profit') return ret >= 0
     if (histFilter.value === 'loss') return ret < 0
     return true
   })
+  if (histDateStart.value) {
+    list = list.filter((h) => h.start_date >= histDateStart.value)
+  }
+  if (histDateEnd.value) {
+    list = list.filter((h) => h.end_date <= histDateEnd.value)
+  }
+  if (nameQ) {
+    list = list.filter((h) => (h.strategy_name ?? '').includes(nameQ))
+  }
   const arr = [...list]
   switch (histSort.value) {
     case 'return':
@@ -234,10 +261,9 @@ onMounted(async () => {
   loadHistory()
 })
 
-watch(sid, () => loadHistory())
-
 async function run() {
   if (!sid.value) return
+  toast('历史回测不代表未来行情效果，仅作学习参考')
   loading.value = true
   try {
     result.value = await backtestApi.run(Number(sid.value), startDate.value, endDate.value)
@@ -250,19 +276,17 @@ async function run() {
 }
 
 async function loadHistory() {
-  if (!sid.value) return
   try {
-    history.value = await backtestApi.list(Number(sid.value))
+    history.value = await backtestApi.listAll()
   } catch (e) {
     // 历史加载失败不阻塞
   }
 }
 
-async function viewHistory(bid: number) {
-  if (!sid.value) return
-  viewingId.value = bid
+async function viewHistory(h: BacktestListItem) {
+  viewingId.value = h.id
   try {
-    viewingResult.value = await backtestApi.get(Number(sid.value), bid)
+    viewingResult.value = await backtestApi.get(h.strategy_id, h.id)
   } catch (e) {
     toast((e as Error).message)
   } finally {
@@ -271,7 +295,6 @@ async function viewHistory(bid: number) {
 }
 
 async function removeBacktest(h: BacktestListItem) {
-  if (!sid.value) return
   const ok = await confirmDialog({
     title: '删除回测',
     message: `确定删除 ${h.start_date} ~ ${h.end_date} 的回测记录吗？此操作不可恢复。`,
@@ -280,7 +303,7 @@ async function removeBacktest(h: BacktestListItem) {
   })
   if (!ok) return
   try {
-    await backtestApi.remove(Number(sid.value), h.id)
+    await backtestApi.remove(h.strategy_id, h.id)
     history.value = history.value.filter((x) => x.id !== h.id)
     if (result.value?.id === h.id) result.value = null
     if (viewingResult.value?.id === h.id) viewingResult.value = null
@@ -302,6 +325,7 @@ function toggleDim(key: string) {
 
 async function runOptimize() {
   if (!sid.value || !selectedDims.value.length) return
+  toast('历史回测不代表未来行情效果，仅作学习参考')
   optimizing.value = true
   optimizeError.value = ''
   optimizeResults.value = []
@@ -379,6 +403,48 @@ async function runOptimize() {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
+}
+
+.hist-adv-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.hist-adv-filters .field {
+  margin: 0;
+}
+
+.hist-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.hist-name {
+  flex: 1.4;
+  min-width: 0;
+}
+
+.hist-adv-filters input {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.hist-sname {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--focus-ring);
+  color: var(--primary);
+  font-size: 11px;
 }
 
 .hist-row {

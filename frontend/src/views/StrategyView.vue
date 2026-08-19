@@ -2,45 +2,73 @@
   <div>
     <StrategyCompare />
 
+    <div class="group-tabs">
+      <button class="group-tab" :class="{ active: activeGroup === '' }" @click="activeGroup = ''">全部</button>
+      <button
+        v-for="g in groups"
+        :key="g"
+        class="group-tab"
+        :class="{ active: activeGroup === g }"
+        @click="activeGroup = g"
+      >
+        {{ g }}
+      </button>
+      <button class="group-add" aria-label="新建分组" @click="showGroupAdd = true">＋</button>
+    </div>
+
+    <div class="batch-bar">
+      <button class="btn ghost small" @click="toggleBatch">{{ batchMode ? '退出批量' : '批量管理' }}</button>
+      <span v-if="batchMode" class="muted" style="font-size: 12px">已选 {{ selectedIds.length }} 项</span>
+    </div>
+
     <Skeleton v-if="strategyStore.loading && !strategyStore.strategies.length" :rows="2" />
     <div v-else-if="!strategyStore.strategies.length" class="empty">暂无策略，点击右下角 + 新建</div>
 
-    <div v-for="s in activeStrategies" :key="s.id" class="card" :class="{ highlighted: s.id === highlightId }">
-      <div class="row">
-        <div>
-          <div style="font-weight: 500">{{ s.name }}</div>
-          <div class="muted">
-            分配 {{ fmtMoneyCompact(s.initial_capital) }} · 可用 {{ fmtMoneyCompact(s.available_cash) }}
-          </div>
-        </div>
-        <button
-          class="switch"
-          :class="{ on: s.enabled }"
-          role="switch"
-          :aria-checked="s.enabled"
-          :aria-label="`${s.enabled ? '停用' : '启用'}策略 ${s.name}`"
-          @click="toggle(s)"
-        >
-          <span class="knob"></span>
-        </button>
-      </div>
-      <div class="ops-row">
-        <div class="more-wrap">
-          <button class="btn ghost" @click.stop="toggleMore(s.id)">
-            <Icon name="more-h" :size="16" />
-            <span>更多</span>
-          </button>
-          <Transition name="menu">
-            <div v-if="moreOpenId === s.id" class="more-menu">
-              <button class="menu-item" @click="openPreview(s)">详情</button>
-              <button class="menu-item" @click="startEdit(s)">编辑</button>
-              <button class="menu-item" @click="goBacktest(s)">回测</button>
+    <template v-for="s in activeStrategies" :key="s.id">
+      <div class="card" :class="{ highlighted: s.id === highlightId, selected: selectedIds.includes(s.id) }" @click="onCardClick(s)">
+        <div class="row">
+          <label v-if="batchMode" class="check" @click.stop>
+            <input v-model="selectedIds" type="checkbox" :value="s.id" />
+          </label>
+          <div style="flex: 1">
+            <div style="font-weight: 500">
+              {{ s.name }}
+              <span v-if="s.group_name" class="group-tag">{{ s.group_name }}</span>
             </div>
-          </Transition>
+            <div class="muted">
+              分配 {{ fmtMoneyCompact(s.initial_capital) }} · 可用 {{ fmtMoneyCompact(s.available_cash) }}
+            </div>
+          </div>
+          <button
+            v-if="!batchMode"
+            class="switch"
+            :class="{ on: s.enabled }"
+            role="switch"
+            :aria-checked="s.enabled"
+            :aria-label="`${s.enabled ? '停用' : '启用'}策略 ${s.name}`"
+            @click.stop="toggle(s)"
+          >
+            <span class="knob"></span>
+          </button>
         </div>
-        <button class="btn danger" style="margin-left: auto" @click="remove(s)">删除</button>
+        <div v-if="!batchMode" class="ops-row">
+          <div class="more-wrap">
+            <button class="btn ghost" @click.stop="toggleMore(s.id)">
+              <Icon name="more-h" :size="16" />
+              <span>更多</span>
+            </button>
+            <Transition name="menu">
+              <div v-if="moreOpenId === s.id" class="more-menu">
+                <button class="menu-item" @click="openPreview(s)">详情</button>
+                <button class="menu-item" @click="startEdit(s)">编辑</button>
+                <button class="menu-item" @click="goBacktest(s)">回测</button>
+              </div>
+            </Transition>
+          </div>
+          <button class="btn danger" style="margin-left: auto" @click="remove(s)">删除</button>
+        </div>
       </div>
-    </div>
+    </template>
 
     <div v-if="idleStrategies.length" class="card">
       <button class="idle-toggle" @click="idleOpen = !idleOpen">
@@ -51,26 +79,40 @@
         该策略尚未触发任何信号，建议检查条件设置或运行回测。
       </div>
       <template v-if="idleOpen">
-        <div v-for="s in idleStrategies" :key="s.id" class="card idle-card" :class="{ highlighted: s.id === highlightId }">
+        <div
+          v-for="s in idleStrategies"
+          :key="s.id"
+          class="card idle-card"
+          :class="{ highlighted: s.id === highlightId, selected: selectedIds.includes(s.id) }"
+          @click="onCardClick(s)"
+        >
           <div class="row">
-            <div>
-              <div style="font-weight: 500">{{ s.name }}<span v-if="!s.enabled" class="muted">（停用）</span></div>
+            <label v-if="batchMode" class="check" @click.stop>
+              <input v-model="selectedIds" type="checkbox" :value="s.id" />
+            </label>
+            <div style="flex: 1">
+              <div style="font-weight: 500">
+                {{ s.name }}
+                <span v-if="!s.enabled" class="muted">（停用）</span>
+                <span v-if="s.group_name" class="group-tag">{{ s.group_name }}</span>
+              </div>
               <div class="muted">
                 分配 {{ fmtMoneyCompact(s.initial_capital) }} · 可用 {{ fmtMoneyCompact(s.available_cash) }}
               </div>
             </div>
             <button
+              v-if="!batchMode"
               class="switch"
               :class="{ on: s.enabled }"
               role="switch"
               :aria-checked="s.enabled"
               :aria-label="`${s.enabled ? '停用' : '启用'}策略 ${s.name}`"
-              @click="toggle(s)"
+              @click.stop="toggle(s)"
             >
               <span class="knob"></span>
             </button>
           </div>
-          <div class="ops-row">
+          <div v-if="!batchMode" class="ops-row">
             <div class="more-wrap">
               <button class="btn ghost" @click.stop="toggleMore(s.id)">
                 <Icon name="more-h" :size="16" />
@@ -90,7 +132,14 @@
       </template>
     </div>
 
-    <button class="fab" aria-label="新建策略" @click="showTemplatePicker = true">
+    <div v-if="batchMode && selectedIds.length" class="batch-actions">
+      <button class="batch-btn" @click="showGroupPick = true">归类</button>
+      <button class="batch-btn" @click="batchToggle(true)">批量启用</button>
+      <button class="batch-btn" @click="batchToggle(false)">批量停用</button>
+      <button class="batch-btn danger" @click="batchDelete">批量删除</button>
+    </div>
+
+    <button v-if="!batchMode" class="fab" aria-label="新建策略" @click="showTemplatePicker = true">
       <Icon name="plus" :size="26" />
     </button>
 
@@ -123,6 +172,32 @@
         <button class="btn ghost block" style="margin-top: 12px" @click="showTemplatePicker = false">取消</button>
       </div>
     </div>
+
+    <div v-if="showGroupAdd" class="scan-mask" @click.self="showGroupAdd = false">
+      <div class="box" style="text-align: left; width: 88%">
+        <h3 style="margin: 0 0 12px">新建分组</h3>
+        <div class="field">
+          <input v-model="newGroupName" placeholder="输入分组名称" @keyup.enter="addGroup" />
+        </div>
+        <div class="row" style="gap: 12px; margin-top: 12px">
+          <button class="btn block" @click="addGroup">创建</button>
+          <button class="btn ghost block" @click="showGroupAdd = false">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showGroupPick" class="scan-mask" @click.self="showGroupPick = false">
+      <div class="box" style="text-align: left; width: 88%">
+        <h3 style="margin: 0 0 12px">归类到分组</h3>
+        <button class="group-pick-item" @click="batchGroup('')">
+          <span>未分组</span>
+        </button>
+        <button v-for="g in groups" :key="g" class="group-pick-item" @click="batchGroup(g)">
+          <span>{{ g }}</span>
+        </button>
+        <button class="btn ghost block" style="margin-top: 12px" @click="showGroupPick = false">取消</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -144,6 +219,8 @@ import type { StrategyTemplate } from '../utils/strategyTemplates'
 import { STRATEGY_TEMPLATES } from '../utils/strategyTemplates'
 import { fmtMoneyCompact } from '../utils/format'
 import { confirmDialog } from '../utils/confirm'
+import { toast } from '../utils/toast'
+import { loadLS, saveLS } from '../utils/storage'
 
 const strategyStore = useStrategyStore()
 const positionStore = usePositionStore()
@@ -162,6 +239,15 @@ const moreOpenId = ref<number | null>(null)
 const idleOpen = ref(false)
 const idleMap = ref<Record<number, StrategyCompareItem>>({})
 const idleReady = ref(false)
+
+const DEFAULT_GROUPS = ['测试中策略', '实盘运行策略', '废弃策略']
+const groups = ref<string[]>(loadLS<string[]>('groups') ?? [...DEFAULT_GROUPS])
+const activeGroup = ref('')
+const batchMode = ref(false)
+const selectedIds = ref<number[]>([])
+const showGroupAdd = ref(false)
+const showGroupPick = ref(false)
+const newGroupName = ref('')
 
 onMounted(() => {
   if (route.query.sid) highlightId.value = Number(route.query.sid)
@@ -185,8 +271,12 @@ function isIdle(s: Strategy) {
   return it.market_value === 0 && it.pnl === 0
 }
 
-const activeStrategies = computed(() => strategyStore.strategies.filter((s) => !isIdle(s)))
-const idleStrategies = computed(() => strategyStore.strategies.filter((s) => isIdle(s)))
+function matchesGroup(s: Strategy) {
+  return !activeGroup.value || s.group_name === activeGroup.value
+}
+
+const activeStrategies = computed(() => strategyStore.strategies.filter((s) => !isIdle(s) && matchesGroup(s)))
+const idleStrategies = computed(() => strategyStore.strategies.filter((s) => isIdle(s) && matchesGroup(s)))
 
 async function loadCompare() {
   try {
@@ -258,6 +348,73 @@ async function remove(s: Strategy) {
 function goBacktest(s: Strategy) {
   moreOpenId.value = null
   router.push({ path: '/strategy/backtest', query: { sid: String(s.id) } })
+}
+
+function toggleBatch() {
+  batchMode.value = !batchMode.value
+  selectedIds.value = []
+}
+
+function onCardClick(s: Strategy) {
+  if (!batchMode.value) return
+  const i = selectedIds.value.indexOf(s.id)
+  if (i >= 0) selectedIds.value = selectedIds.value.filter((x) => x !== s.id)
+  else selectedIds.value = [...selectedIds.value, s.id]
+}
+
+function addGroup() {
+  const name = newGroupName.value.trim()
+  if (!name) {
+    toast('请输入分组名称')
+    return
+  }
+  if (groups.value.includes(name)) {
+    toast('分组已存在')
+    return
+  }
+  groups.value = [...groups.value, name]
+  saveLS('groups', groups.value)
+  newGroupName.value = ''
+  showGroupAdd.value = false
+}
+
+async function batchGroup(groupName: string) {
+  try {
+    await strategyApi.batchGroup(selectedIds.value, groupName)
+    showGroupPick.value = false
+    toast(`已归类 ${selectedIds.value.length} 个策略`)
+    await strategyStore.fetch()
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+async function batchToggle(enabled: boolean) {
+  try {
+    await strategyApi.batchToggle(selectedIds.value, enabled)
+    toast(enabled ? `已启用 ${selectedIds.value.length} 个策略` : `已停用 ${selectedIds.value.length} 个策略`)
+    await strategyStore.fetch()
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+async function batchDelete() {
+  const ok = await confirmDialog({
+    title: '批量删除策略',
+    message: `确认删除选中的 ${selectedIds.value.length} 个策略？删除后不可恢复。`,
+    confirmText: '删除',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    await strategyApi.batchDelete(selectedIds.value)
+    toast('已删除')
+    selectedIds.value = []
+    await strategyStore.fetch()
+  } catch (e) {
+    toast((e as Error).message)
+  }
 }
 </script>
 
@@ -433,5 +590,124 @@ function goBacktest(s: Strategy) {
 .tpl-desc {
   font-size: 12px;
   margin-top: 4px;
+}
+
+.group-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.group-tab {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.group-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.group-add {
+  flex: 0 0 auto;
+  width: 32px;
+  min-height: 32px;
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  background: none;
+  color: var(--text-2);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.group-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--focus-ring);
+  color: var(--primary);
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+}
+
+.card.selected {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.batch-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  z-index: 26;
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+
+.batch-btn {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.batch-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.group-pick-item {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-pick-item:active {
+  background: var(--border);
 }
 </style>
