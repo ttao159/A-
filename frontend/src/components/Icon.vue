@@ -108,5 +108,10 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 20 })
       <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
       <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
     </template>
+    <template v-else-if="name === 'log-out'">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </template>
   </svg>
 </template>

@@ -47,6 +47,16 @@ def migrate():
             cols = [c["name"] for c in insp.get_columns("scan_reports")]
             if "source" not in cols:
                 conn.execute(text("ALTER TABLE scan_reports ADD COLUMN source VARCHAR(10) DEFAULT 'manual'"))
+        if not insp.has_table("users"):
+            conn.execute(text("""
+                CREATE TABLE users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    password_hash VARCHAR(128) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
 
 
 def get_db():

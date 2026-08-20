@@ -4,6 +4,12 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
+      meta: { title: '登录', guest: true },
+    },
+    {
       path: '/',
       name: 'home',
       component: () => import('../views/HomeView.vue'),
@@ -69,6 +75,20 @@ const router = createRouter({
     { path: '/screener', redirect: '/strategy/screener' },
     { path: '/generator', redirect: '/strategy/scan' },
   ],
+})
+
+// 路由守卫：未登录重定向到登录页
+router.beforeEach((to) => {
+  const token = localStorage.getItem('token')
+  const isGuest = to.meta.guest as boolean
+  
+  if (!token && !isGuest) {
+    return '/login'
+  }
+  
+  if (token && isGuest) {
+    return '/'
+  }
 })
 
 export default router

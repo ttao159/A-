@@ -38,6 +38,7 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '用户登录与注册：bcrypt 密码哈希、JWT 认证、路由守卫' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '策略分组管理：默认分组、新建分组、批量归类/启停/删除' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '回测风险提示与历史时间/策略名筛选' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '参数实时校验：负数/百分比范围/非整数周期等非法值即时标红' },

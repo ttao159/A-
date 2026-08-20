@@ -37,12 +37,17 @@ async function parseError(res: Response): Promise<string> {
   }
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let res: Response | null = null
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       res = await fetch(`${BASE}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...(options.headers || {}) },
         ...options,
       })
       markOnline()

@@ -59,9 +59,15 @@ export interface PnlAttributionItem {
 
 export interface PnlAttribution {
   granularity: string
-  today_pnl: number
-  base: number
   items: PnlAttributionItem[]
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    http.post<{ access_token: string; token_type: string; username: string }>('/auth/login', { username, password }),
+  register: (username: string, password: string) =>
+    http.post<{ ok: boolean; message: string }>('/auth/register', { username, password }),
+  me: () => http.get<{ id: number; username: string; created_at: string }>('/auth/me'),
 }
 
 export interface AccountDiagnosis {

@@ -17,7 +17,7 @@
     <FoldCard title="账户说明" icon="wallet" default-open persist-key="about-account">
       <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
       <div class="info-row"><span>安全模式</span><b>{{ accountStore.isLive ? '真实资金·注意风险' : '本地模拟·无真实资金' }}</b></div>
-      <div class="info-row"><span>数据存储</span><b>本机 · 无登录认证</b></div>
+      <div class="info-row"><span>数据存储</span><b>本机 · 用户名密码登录</b></div>
       <div class="info-row"><span>初始资金</span><b>{{ fmtMoney(accountStore.account?.initial_capital ?? 0) }}</b></div>
       <div class="info-row">
         <span class="with-icon"><Icon name="trending-up" :size="14" />资金曲线</span>

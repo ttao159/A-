@@ -17,17 +17,19 @@ from sqlalchemy.orm import Session
 
 from . import backtest, config, optimizer
 from .account import AccountService
+from .auth import ACCESS_TOKEN_EXPIRE_MINUTES, LoginRequest, LoginResponse, UserOut, create_access_token, get_current_user, hash_password, verify_password
 from .broker import get_broker
 from .database import Base, SessionLocal, engine, get_db, migrate
 from .generator import run_generation
 from .industry_map import industry_map
 from .market import MarketDataService
-from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy, Trade
+from .models import Alert, Backtest, EquityPoint, GenerationReport, Order, ScanReport, Strategy, Trade, User
 from .public_data import DataUnavailableError
 from .scanner import scan_and_trade, scan_lock
 from .schemas import (BacktestRequest, GeneratorRequest, OptimizeRequest, OrderPrepareRequest,
                       StrategyBatchDelete, StrategyBatchGroup, StrategyBatchToggle, StrategyCreate, StrategyUpdate)
 from .scheduler import start_scheduler
+from sqlalchemy import select
 
 Base.metadata.create_all(bind=engine)
 migrate()
@@ -1088,6 +1090,32 @@ def reset_account(db: Session = Depends(get_db)):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ===== 认证 =====
+@app.post("/api/auth/register", response_model=dict)
+def register(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == req.username).first()
+    if user:
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    new = User(username=req.username, password_hash=hash_password(req.password))
+    db.add(new)
+    db.commit()
+    return {"ok": True, "message": "注册成功"}
+
+
+@app.post("/api/auth/login", response_model=LoginResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == req.username).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    token = create_access_token({"sub": user.username})
+    return LoginResponse(access_token=token, username=user.username)
+
+
+@app.get("/api/auth/me", response_model=UserOut)
+def me(current_user: User = Depends(get_current_user)):
+    return current_user
 
 
 app.mount("/", StaticFiles(directory="/workspace", html=True), name="static")

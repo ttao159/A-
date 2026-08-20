@@ -15,6 +15,9 @@
           <option value="paper">模拟盘</option>
           <option value="live">实盘</option>
         </select>
+        <button class="logout-btn" @click="handleLogout" aria-label="退出登录">
+          <Icon name="log-out" :size="18" />
+        </button>
       </div>
     </header>
     <div v-if="accountStore.isLive" class="risk-banner">
@@ -73,15 +76,23 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from './stores/account'
+import { useUserStore } from './stores/user'
 import { triggerPullRefresh } from './composables/pullRefresh'
 import { netStatus } from './composables/netStatus'
 import { toast } from './utils/toast'
 import Icon from './components/Icon.vue'
 
 const route = useRoute()
+const router = useRouter()
 const accountStore = useAccountStore()
+const userStore = useUserStore()
+
+function handleLogout() {
+  userStore.logout()
+  router.push('/login')
+}
 
 const isDark = ref(false)
 
@@ -209,6 +220,25 @@ async function onTouchEnd() {
 .theme-btn:active {
   color: var(--primary);
   border-color: var(--primary);
+  transform: scale(0.92);
+}
+
+.logout-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.logout-btn:active {
+  color: var(--danger);
+  border-color: var(--danger);
   transform: scale(0.92);
 }
 
