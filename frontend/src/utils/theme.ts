@@ -15,19 +15,19 @@ export interface ChartColors {
 }
 
 const FALLBACK: ChartColors = {
-  up: '#e0393e',
-  down: '#0aa869',
-  line: '#1a73e8',
-  text: '#303133',
-  text2: '#909399',
-  grid: '#c0c4cc',
+  up: '#dc2626',
+  down: '#16a34a',
+  line: '#2563eb',
+  text: '#111827',
+  text2: '#6b7280',
+  grid: '#e5e7eb',
   bg: '#ffffff',
-  border: '#e0e0e0',
-  upFill: 'rgba(224, 57, 62, 0.12)',
-  downFill: 'rgba(10, 168, 105, 0.12)',
-  ma1: '#f5a623',
-  ma2: '#409eff',
-  ma3: '#9254de',
+  border: '#e5e7eb',
+  upFill: 'rgba(220, 38, 38, 0.08)',
+  downFill: 'rgba(22, 163, 74, 0.08)',
+  ma1: '#f59e0b',
+  ma2: '#3b82f6',
+  ma3: '#8b5cf6',
 }
 
 export function chartColors(): ChartColors {
