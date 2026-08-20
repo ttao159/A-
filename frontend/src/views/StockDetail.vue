@@ -245,11 +245,16 @@ function detectDivergenceOnData() {
 }
 
 function switchDraw(tool: DrawTool) {
-  if (tool !== 'channel') {
+  const next = drawTool.value === tool ? 'none' : tool
+  if (next !== 'channel') {
+    if (channelState.value === 'adjusting' && channelBaseLine.value) {
+      drawnLines.value.pop()
+      saveDrawnLines()
+    }
     channelState.value = 'idle'
     channelBaseLine.value = null
   }
-  drawTool.value = drawTool.value === tool ? 'none' : tool
+  drawTool.value = next
 }
 
 function clearDrawnLines() {
@@ -1021,17 +1026,6 @@ function drawPreviewLine(ctx: CanvasRenderingContext2D) {
     const step = (W - PAD_L - PAD_R) / vis.length
     const barX = (i: number) => PAD_L + step * (i - vStart) + step / 2
     const xb1 = barX(bl.barIdx1); const xb2 = barX(bl.barIdx2)
-    const yb1 = toY(bl.price1); const yb2 = toY(bl.price2)
-
-    ctx.save()
-    ctx.setLineDash([2, 4])
-    ctx.strokeStyle = chartColors().line
-    ctx.lineWidth = 1.8
-    ctx.beginPath()
-    ctx.moveTo(xb1, yb1)
-    ctx.lineTo(xb2, yb2)
-    ctx.stroke()
-    ctx.restore()
 
     const priceDelta = -(channelDragY.value / priceH) * range
     const offset = priceDelta
@@ -1358,11 +1352,19 @@ function onPointerEnd(e: PointerEvent) {
     const eData = canvasToPriceData(end.x, end.y)
     if (!sData || !eData) return
     if (drawTool.value === 'channel') {
+      const baseLine: DrawnLine = {
+        type: 'trendline', id: drawIdSeq++,
+        price1: sData.price, price2: eData.price,
+        barIdx1: sData.barIdx, barIdx2: eData.barIdx,
+        color: chartColors().line, dash: false, extendRight: true,
+      }
+      drawnLines.value.push(baseLine)
       channelBaseLine.value = {
         price1: sData.price, price2: eData.price,
         barIdx1: sData.barIdx, barIdx2: eData.barIdx,
       }
       channelState.value = 'adjusting'
+      saveDrawnLines()
       draw()
       return
     }
@@ -1406,17 +1408,11 @@ function onPointerEnd(e: PointerEvent) {
       const priceDelta = -(channelDragY.value / priceH2) * range2
       const bl = channelBaseLine.value
       const offset = priceDelta
-      drawnLines.value.push(
-        {
-          type: 'trendline', id: drawIdSeq++, price1: bl.price1, price2: bl.price2,
-          barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: false, extendRight: true,
-        },
-        {
-          type: 'trendline', id: drawIdSeq++,
-          price1: bl.price1 + offset, price2: bl.price2 + offset,
-          barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
-        },
-      )
+      drawnLines.value.push({
+        type: 'trendline', id: drawIdSeq++,
+        price1: bl.price1 + offset, price2: bl.price2 + offset,
+        barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
+      })
       saveDrawnLines()
     }
     channelState.value = 'idle'
