@@ -987,6 +987,28 @@ function channelAutoOffset(
   return maxAbove > maxBelow ? -maxBelow : maxAbove
 }
 
+function canvasToSnappedPrice(cx: number, cy: number): { price: number; barIdx: number } | null {
+  const base = canvasToPriceData(cx, cy)
+  if (!base) return null
+  const bar = bars.value[base.barIdx]
+  if (!bar) return base
+  const distHigh = Math.abs(base.price - bar.high)
+  const distLow = Math.abs(base.price - bar.low)
+  const vis = visibleBars()
+  if (!vis.length) return base
+  let min = Infinity; let max = -Infinity
+  for (const b of vis) { if (b.low < min) min = b.low; if (b.high > max) max = b.high }
+  const range = max - min || 1
+  const snapThreshold = range * 0.03
+  if (distHigh <= distLow && distHigh <= snapThreshold) {
+    return { price: bar.high, barIdx: base.barIdx }
+  }
+  if (distLow < distHigh && distLow <= snapThreshold) {
+    return { price: bar.low, barIdx: base.barIdx }
+  }
+  return base
+}
+
 function canvasToPriceData(cx: number, cy: number): { price: number; barIdx: number } | null {
   const data = visibleBars()
   if (!data.length) return null
@@ -1377,19 +1399,25 @@ function onPointerEnd(e: PointerEvent) {
     const eData = canvasToPriceData(end.x, end.y)
     if (!sData || !eData) return
     if (drawTool.value === 'channel') {
+      const snappedStart = canvasToSnappedPrice(start.x, start.y)
+      const snappedEnd = canvasToSnappedPrice(end.x, end.y)
+      const p1 = snappedStart ? snappedStart.price : sData.price
+      const p2 = snappedEnd ? snappedEnd.price : eData.price
+      const bi1 = snappedStart ? snappedStart.barIdx : sData.barIdx
+      const bi2 = snappedEnd ? snappedEnd.barIdx : eData.barIdx
       const baseLine: DrawnLine = {
         type: 'trendline', id: drawIdSeq++,
-        price1: sData.price, price2: eData.price,
-        barIdx1: sData.barIdx, barIdx2: eData.barIdx,
+        price1: p1, price2: p2,
+        barIdx1: bi1, barIdx2: bi2,
         color: chartColors().line, dash: false, extendRight: true,
       }
       drawnLines.value.push(baseLine)
       channelBaseLine.value = {
-        price1: sData.price, price2: eData.price,
-        barIdx1: sData.barIdx, barIdx2: eData.barIdx,
+        price1: p1, price2: p2,
+        barIdx1: bi1, barIdx2: bi2,
       }
       channelState.value = 'adjusting'
-      const autoOffset = channelAutoOffset(sData.barIdx, eData.barIdx, sData.price, eData.price)
+      const autoOffset = channelAutoOffset(bi1, bi2, p1, p2)
       if (autoOffset !== null) {
         const vis = visibleBars()
         if (vis.length) {
