@@ -26,7 +26,7 @@
           :key="t.key"
           class="draw-btn"
           :class="{ active: drawTool === t.key }"
-          @click="drawTool = drawTool === t.key ? 'none' : (t.key as DrawTool)"
+          @click="switchDraw(t.key as DrawTool)"
         >
           {{ t.label }}
         </button>
@@ -240,6 +240,14 @@ function detectDivergenceOnData() {
     if (priceChange < -0.02 && volChange > 0.3) marks.push(i)
   }
   divergenceMarkers.value = marks
+}
+
+function switchDraw(tool: DrawTool) {
+  if (tool !== 'channel') {
+    channelState.value = 'idle'
+    channelBaseLine.value = null
+  }
+  drawTool.value = drawTool.value === tool ? 'none' : tool
 }
 
 function clearDrawnLines() {
@@ -1312,7 +1320,7 @@ function onPointerDown(e: PointerEvent) {
 function onPointerMove(e: PointerEvent) {
   if (!pointers.has(e.pointerId)) return
   pointers.set(e.pointerId, canvasPoint(e))
-  if (drawTool.value !== 'none' && drawStart.value) {
+  if ((drawTool.value !== 'none' && drawStart.value) || (drawTool.value === 'channel' && channelState.value === 'adjusting')) {
     draw()
     return
   }
