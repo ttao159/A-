@@ -962,6 +962,31 @@ function snapPoints(): { x: number; y: number; price: number }[] {
 
 
 
+function channelAutoOffset(
+  idx1: number,
+  idx2: number,
+  price1: number,
+  price2: number,
+): number | null {
+  const start = Math.min(idx1, idx2)
+  const end = Math.max(idx1, idx2)
+  if (end - start < 3) return null
+  const slope = (price2 - price1) / (end - start)
+  const intercept = price1 - slope * idx1
+  let maxAbove = 0
+  let maxBelow = 0
+  for (let i = start; i <= end; i++) {
+    const linePrice = slope * i + intercept
+    const bar = bars.value[i]
+    if (!bar) continue
+    const above = bar.high - linePrice
+    const below = linePrice - bar.low
+    if (above > maxAbove) maxAbove = above
+    if (below > maxBelow) maxBelow = below
+  }
+  return maxAbove > maxBelow ? -maxBelow : maxAbove
+}
+
 function canvasToPriceData(cx: number, cy: number): { price: number; barIdx: number } | null {
   const data = visibleBars()
   if (!data.length) return null
@@ -1364,6 +1389,18 @@ function onPointerEnd(e: PointerEvent) {
         barIdx1: sData.barIdx, barIdx2: eData.barIdx,
       }
       channelState.value = 'adjusting'
+      const autoOffset = channelAutoOffset(sData.barIdx, eData.barIdx, sData.price, eData.price)
+      if (autoOffset !== null) {
+        const vis = visibleBars()
+        if (vis.length) {
+          let min = Infinity; let max = -Infinity
+          for (const b of vis) { if (b.low < min) min = b.low; if (b.high > max) max = b.high }
+          const range = max - min || 1
+          const priceH = (H * VOL_TOP) - PAD_T
+          channelDragStartY.value = 0
+          channelDragY.value = -(autoOffset / range) * priceH
+        }
+      }
       saveDrawnLines()
       draw()
       return
