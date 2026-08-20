@@ -38,6 +38,10 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线画线工具：趋势线、水平线绘制、擦除与 localStorage 持久化' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线形态智能识别：双顶/双底/头肩顶/上升三角自动检测与标注' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '策略模板扩充：MACD趋势/趋势跟随/强势追涨/零轴反弹/K线形态/均线多头排列/KDJ底背离' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '全局 UI 美化：统色方案、卡片层次、空态/加载/Toast 动画、暗色模式优化' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '用户登录与注册：bcrypt 密码哈希、JWT 认证、路由守卫' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '策略分组管理：默认分组、新建分组、批量归类/启停/删除' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '回测风险提示与历史时间/策略名筛选' },

@@ -20,6 +20,22 @@
           {{ m.label }}
         </button>
       </div>
+      <div class="row" style="gap: 6px; margin-top: 8px">
+        <button
+          v-for="t in drawTools"
+          :key="t.key"
+          class="draw-btn"
+          :class="{ active: drawTool === t.key }"
+          @click="drawTool = drawTool === t.key ? 'none' : (t.key as DrawTool)"
+        >
+          {{ t.label }}
+        </button>
+        <button
+          v-if="drawnLines.length"
+          class="draw-btn"
+          @click="clearDrawnLines()"
+        >清除</button>
+      </div>
     </div>
 
     <div class="card">
@@ -80,6 +96,7 @@ import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
 import { netStatus } from '../composables/netStatus'
 import { hiDPIContext } from '../utils/canvas'
+import { type PatternResult, detectPatterns } from '../utils/patterns'
 
 const route = useRoute()
 const code = ref(String(route.params.code ?? ''))
@@ -114,6 +131,75 @@ const MAX_VISIBLE = 240
 const visibleCount = ref(120)
 const crossIndex = ref<number | null>(null)
 const showMA = ref(true)
+
+type DrawTool = 'none' | 'trendline' | 'horizontal' | 'erase'
+const drawTool = ref<DrawTool>('none')
+
+interface DrawnLine {
+  type: 'trendline' | 'horizontal'
+  id: number
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  color: string
+  dash: boolean
+}
+const drawnLines = ref<DrawnLine[]>([])
+const drawStart = ref<{ x: number; y: number } | null>(null)
+let drawIdSeq = 0
+
+const detectedPatterns = ref<PatternResult[]>([])
+
+const drawTools = [
+  { key: 'trendline', label: '趋势线' },
+  { key: 'horizontal', label: '水平线' },
+  { key: 'erase', label: '擦除' },
+]
+
+function lsKey() {
+  return `drawnLines_${code.value}`
+}
+
+function saveDrawnLines() {
+  localStorage.setItem(lsKey(), JSON.stringify(drawnLines.value))
+}
+
+function loadDrawnLines() {
+  try {
+    const raw = localStorage.getItem(lsKey())
+    if (raw) drawnLines.value = JSON.parse(raw)
+  } catch { /* ignore */ }
+}
+
+function detectPatternsOnData() {
+  if (mode.value === 'minute') {
+    detectedPatterns.value = []
+    return
+  }
+  try {
+    const data = bars.value.slice(-visibleCount.value)
+    if (data.length < 5) {
+      detectedPatterns.value = []
+      return
+    }
+    const patterns = detectPatterns(data)
+    detectedPatterns.value = patterns
+  } catch {
+    detectedPatterns.value = []
+  }
+}
+
+function clearDrawnLines() {
+  drawnLines.value = []
+  saveDrawnLines()
+  draw()
+}
+
+watch(drawTool, () => {
+  if (drawTool.value !== 'none') crossIndex.value = null
+  draw()
+})
 
 const stockMeta = computed(() => (mode.value === 'minute' ? '当日分时' : `${bars.value.length} 根K线`))
 const legendText = computed(() => {
@@ -172,6 +258,8 @@ async function load(silent = false) {
     if (!silent) error.value = (e as Error).message
   } finally {
     loading.value = false
+    loadDrawnLines()
+    detectPatternsOnData()
     draw()
   }
 }
@@ -255,6 +343,10 @@ function draw() {
   ctx.clearRect(0, 0, W, H)
   if (mode.value === 'minute') drawMinute(ctx)
   else drawKline(ctx)
+  drawDrawnLines(ctx)
+  drawPatterns(ctx)
+  if (drawStart.value) drawPreviewLine(ctx)
+  if (drawTool.value !== 'none') drawCanvasHint(ctx)
 }
 
 function drawKline(ctx: CanvasRenderingContext2D) {
@@ -445,6 +537,166 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function currentPlotData() {
+  if (mode.value === 'minute') return (minuteData.value?.bars ?? []).slice(-visibleCount.value)
+  return bars.value.slice(-visibleCount.value)
+}
+
+function currentPlotStep(padded = false) {
+  const data = currentPlotData()
+  const n = data.length
+  const plotW = padded ? W - PAD_L - PAD_R : W
+  if (mode.value === 'minute') {
+    return plotW / Math.max(1, n - 1)
+  }
+  return plotW / n
+}
+
+function drawDrawnLines(ctx: CanvasRenderingContext2D) {
+  if (!drawnLines.value.length) return
+  const data = currentPlotData()
+  if (!data.length) return
+
+  for (const line of drawnLines.value) {
+    ctx.save()
+    if (line.dash) ctx.setLineDash([6, 4])
+    ctx.strokeStyle = line.color
+    ctx.lineWidth = 1.8
+    ctx.beginPath()
+    ctx.moveTo(line.x1, line.y1)
+    ctx.lineTo(line.x2, line.y2)
+    ctx.stroke()
+    if (drawTool.value === 'erase') {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      ctx.fillRect(line.x1 - 6, line.y1 - 6, 12, 12)
+      ctx.fillRect(line.x2 - 6, line.y2 - 6, 12, 12)
+    }
+    ctx.restore()
+  }
+}
+
+function drawPatterns(ctx: CanvasRenderingContext2D) {
+  if (mode.value === 'minute') return
+  const data = bars.value.slice(-visibleCount.value)
+  if (!data.length) return
+
+  const step = currentPlotStep(true)
+
+  for (const p of detectedPatterns.value) {
+    const idx = p.startIdx
+    const endIdx = p.endIdx ?? p.startIdx
+    if (idx >= data.length || endIdx >= data.length) continue
+    const x1 = PAD_L + step * idx + step / 2
+    const x2 = PAD_L + step * endIdx + step / 2
+    const bx = Math.min(x1, x2) - 6
+    const bw = Math.abs(x2 - x1) + 12
+    const by = PAD_T + 2
+    const bh = (H * VOL_TOP) - PAD_T - 4
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.06)'
+    ctx.fillRect(bx, by, bw, bh)
+
+    ctx.strokeStyle = 'rgba(37, 99, 235, 0.35)'
+    ctx.lineWidth = 1.4
+    ctx.setLineDash([5, 3])
+    ctx.strokeRect(bx, by, bw, bh)
+    ctx.setLineDash([])
+
+    ctx.font = '11px sans-serif'
+    ctx.fillStyle = chartColors().line
+    const label = p.label
+    const tw = ctx.measureText(label).width
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.12)'
+    ctx.fillRect(bx, by, tw + 10, 20)
+    ctx.fillStyle = chartColors().line
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, bx + 5, by + 10)
+    ctx.restore()
+  }
+}
+
+function drawPreviewLine(ctx: CanvasRenderingContext2D) {
+  const start = drawStart.value
+  if (!start) return
+  const c = chartColors()
+  const ptr = [...pointers.values()]?.[0]
+  if (!ptr) return
+
+  ctx.save()
+  if (drawTool.value === 'horizontal') {
+    ctx.strokeStyle = c.line
+    ctx.lineWidth = 1.4
+    ctx.setLineDash([5, 3])
+    ctx.beginPath()
+    ctx.moveTo(PAD_L, start.y)
+    ctx.lineTo(W - PAD_R, start.y)
+    ctx.stroke()
+  } else if (drawTool.value === 'trendline') {
+    ctx.strokeStyle = c.line
+    ctx.lineWidth = 1.4
+    ctx.setLineDash([5, 3])
+    ctx.beginPath()
+    ctx.moveTo(start.x, start.y)
+    ctx.lineTo(ptr.x, ptr.y)
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  ctx.restore()
+}
+
+function drawCanvasHint(ctx: CanvasRenderingContext2D) {
+  ctx.save()
+  ctx.font = '12px sans-serif'
+  ctx.fillStyle = chartColors().text2
+  ctx.textAlign = 'center'
+  const msg =
+    drawTool.value === 'trendline'
+      ? '点击起点拖至终点画趋势线'
+      : drawTool.value === 'horizontal'
+        ? '点击位置画水平线'
+        : drawTool.value === 'erase'
+          ? '点击线条以擦除'
+          : ''
+  ctx.fillText(msg, W / 2, H - 4)
+  ctx.textAlign = 'start'
+  ctx.restore()
+}
+
+function deleteLineAt(px: number, py: number) {
+  const threshold = 12
+  let idx = -1
+  for (let i = drawnLines.value.length - 1; i >= 0; i--) {
+    const l = drawnLines.value[i]
+    if (distanceToSegment(px, py, l.x1, l.y1, l.x2, l.y2) < threshold) {
+      idx = i
+      break
+    }
+  }
+  if (idx >= 0) {
+    drawnLines.value.splice(idx, 1)
+    saveDrawnLines()
+    draw()
+  }
+}
+
+function distanceToSegment(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len2 = dx * dx + dy * dy
+  if (len2 === 0) return Math.hypot(px - x1, py - y1)
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2
+  t = Math.max(0, Math.min(1, t))
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+}
+
 function drawCrosshair(ctx: CanvasRenderingContext2D, px: number, py: number) {
   const c = chartColors()
   ctx.save()
@@ -536,6 +788,15 @@ function onPointerDown(e: PointerEvent) {
     // 忽略指针捕获失败
   }
   pointers.set(e.pointerId, canvasPoint(e))
+  if (drawTool.value !== 'none') {
+    const pt = canvasPoint(e)
+    if (drawTool.value === 'erase') {
+      deleteLineAt(pt.x, pt.y)
+      return
+    }
+    drawStart.value = { x: pt.x, y: pt.y }
+    return
+  }
   if (pointers.size === 1) {
     updateCrossAt(canvasPoint(e).x, true)
   } else if (pointers.size === 2) {
@@ -549,6 +810,10 @@ function onPointerDown(e: PointerEvent) {
 function onPointerMove(e: PointerEvent) {
   if (!pointers.has(e.pointerId)) return
   pointers.set(e.pointerId, canvasPoint(e))
+  if (drawTool.value !== 'none' && drawStart.value) {
+    draw()
+    return
+  }
   if (pointers.size === 1) {
     updateCrossAt(canvasPoint(e).x)
   } else if (pointers.size === 2) {
@@ -564,6 +829,26 @@ function onPointerMove(e: PointerEvent) {
 
 function onPointerEnd(e: PointerEvent) {
   pointers.delete(e.pointerId)
+  if (drawTool.value !== 'none' && drawStart.value) {
+    const end = canvasPoint(e)
+    const start = drawStart.value
+    drawStart.value = null
+    if (Math.hypot(end.x - start.x, end.y - start.y) < 4) return
+    const line: DrawnLine = {
+      type: drawTool.value as 'trendline' | 'horizontal',
+      id: drawIdSeq++,
+      x1: drawTool.value === 'horizontal' ? PAD_L : start.x,
+      y1: drawTool.value === 'horizontal' ? start.y : start.y,
+      x2: drawTool.value === 'horizontal' ? W - PAD_R : end.x,
+      y2: drawTool.value === 'horizontal' ? start.y : end.y,
+      color: chartColors().line,
+      dash: false,
+    }
+    drawnLines.value.push(line)
+    saveDrawnLines()
+    draw()
+    return
+  }
   if (pointers.size < 2) pinchStartDist = 0
 }
 
@@ -600,6 +885,26 @@ function onPointerEnd(e: PointerEvent) {
 }
 
 .mode-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.draw-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.draw-btn:active {
+  opacity: 0.7;
+}
+
+.draw-btn.active {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
