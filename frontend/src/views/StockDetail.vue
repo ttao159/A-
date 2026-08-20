@@ -36,6 +36,19 @@
           @click="clearDrawnLines()"
         >清除</button>
       </div>
+      <div v-if="channelEditIdx >= 0" class="row" style="gap: 8px; margin-top: 6px; align-items: center">
+        <span style="font-size: 12px; color: var(--text-2); white-space: nowrap">通道宽度</span>
+        <input
+          type="range"
+          :min="-maxChannelRange"
+          :max="maxChannelRange"
+          :step="maxChannelRange / 100"
+          :value="channelSliderValue"
+          @input="onChannelSlider"
+          style="flex: 1; height: 24px"
+        />
+        <span style="font-size: 11px; color: var(--text-2); min-width: 48px; text-align: right">{{ fmtChannelOffset(channelSliderValue) }}</span>
+      </div>
     </div>
 
     <div class="card">
@@ -167,6 +180,9 @@ const channelState = ref<ChannelState>('idle')
 const channelBaseLine = ref<{ price1: number; price2: number; barIdx1: number; barIdx2: number } | null>(null)
 const channelDragY = ref(0)
 const channelDragStartY = ref(0)
+const channelEditIdx = ref(-1)
+const channelEditBaseIdx = ref(-1)
+const channelSliderValue = ref(0)
 
 const detectedPatterns = ref<PatternResult[]>([])
 const detectedSR = ref<SupportResistance[]>([])
@@ -257,8 +273,40 @@ function switchDraw(tool: DrawTool) {
   drawTool.value = next
 }
 
+const maxChannelRange = computed(() => {
+  const vis = visibleBars()
+  if (!vis.length) return 10
+  let min = Infinity; let max = -Infinity
+  for (const b of vis) { if (b.low < min) min = b.low; if (b.high > max) max = b.high }
+  return (max - min) || 10
+})
+
+function onChannelSlider(e: Event) {
+  const val = Number((e.target as HTMLInputElement).value)
+  channelSliderValue.value = val
+  if (channelEditIdx.value < 0) return
+  const line = drawnLines.value[channelEditIdx.value]
+  const base = drawnLines.value[channelEditBaseIdx.value]
+  if (!line || !base) return
+  line.price1 = base.price1 + val
+  line.price2 = base.price2 + val
+  saveDrawnLines()
+  draw()
+}
+
+function fmtChannelOffset(offset: number) {
+  return offset >= 0 ? `+${offset.toFixed(2)}` : offset.toFixed(2)
+}
+
+function resetChannelEdit() {
+  channelEditIdx.value = -1
+  channelEditBaseIdx.value = -1
+  channelSliderValue.value = 0
+}
+
 function clearDrawnLines() {
   drawnLines.value = []
+  resetChannelEdit()
   saveDrawnLines()
   draw()
 }
@@ -1170,6 +1218,7 @@ function deleteLineAt(px: number, py: number) {
   }
   if (idx >= 0) {
     drawnLines.value.splice(idx, 1)
+    if (idx <= channelEditIdx.value || idx <= channelEditBaseIdx.value) resetChannelEdit()
     saveDrawnLines()
     draw()
   }
@@ -1473,11 +1522,15 @@ function onPointerEnd(e: PointerEvent) {
       const priceDelta = -(channelDragY.value / priceH2) * range2
       const bl = channelBaseLine.value
       const offset = priceDelta
-      drawnLines.value.push({
+      const chLine: DrawnLine = {
         type: 'trendline', id: drawIdSeq++,
         price1: bl.price1 + offset, price2: bl.price2 + offset,
         barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
-      })
+      }
+      drawnLines.value.push(chLine)
+      channelEditBaseIdx.value = drawnLines.value.length - 2
+      channelEditIdx.value = drawnLines.value.length - 1
+      channelSliderValue.value = offset
       saveDrawnLines()
     }
     channelState.value = 'idle'
