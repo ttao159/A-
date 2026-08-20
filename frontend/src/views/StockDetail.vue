@@ -151,12 +151,13 @@ const drawTool = ref<DrawTool>('none')
 interface DrawnLine {
   type: 'trendline' | 'horizontal'
   id: number
-  x1: number
-  y1: number
-  x2: number
-  y2: number
+  price1: number
+  price2: number
+  barIdx1: number
+  barIdx2: number
   color: string
   dash: boolean
+  extendRight?: boolean
 }
 const drawnLines = ref<DrawnLine[]>([])
 const drawStart = ref<{ x: number; y: number } | null>(null)
@@ -183,7 +184,11 @@ function saveDrawnLines() {
 function loadDrawnLines() {
   try {
     const raw = localStorage.getItem(lsKey())
-    if (raw) drawnLines.value = JSON.parse(raw)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return
+    // 过滤旧格式(pixel-only)线条, 新格式有 price1 字段
+    drawnLines.value = parsed.filter((l: DrawnLine) => typeof l.price1 === 'number')
   } catch { /* ignore */ }
 }
 
@@ -499,13 +504,6 @@ function drawKline(ctx: CanvasRenderingContext2D) {
 
   drawGridLines(ctx, min, max, y)
 
-  const prevBar = all[offset + n - 1] ?? all[all.length - 2]
-  if (prevBar) {
-    const limitUp = prevBar.close * 1.1
-    const limitDown = prevBar.close * 0.9
-    drawLimitLines(ctx, limitUp, limitDown, y, c)
-  }
-
   markVolumeAnomalies(ctx, data, volY, step, c)
 
   drawPriceAxisLabels(ctx, y, min, max)
@@ -544,40 +542,6 @@ function drawGridLines(
     ctx.stroke()
   }
   ctx.setLineDash([])
-  ctx.restore()
-}
-
-function drawLimitLines(
-  ctx: CanvasRenderingContext2D,
-  limitUp: number,
-  limitDown: number,
-  y: (v: number) => number,
-  c: ReturnType<typeof chartColors>,
-) {
-  ctx.save()
-  ctx.lineWidth = 0.8
-
-  ctx.strokeStyle = c.up
-  ctx.setLineDash([3, 3])
-  ctx.beginPath()
-  ctx.moveTo(PAD_L, y(limitUp))
-  ctx.lineTo(W - PAD_R, y(limitUp))
-  ctx.stroke()
-
-  ctx.strokeStyle = c.down
-  ctx.beginPath()
-  ctx.moveTo(PAD_L, y(limitDown))
-  ctx.lineTo(W - PAD_R, y(limitDown))
-  ctx.stroke()
-  ctx.setLineDash([])
-
-  ctx.font = '9px sans-serif'
-  ctx.textBaseline = 'middle'
-  ctx.fillStyle = c.up
-  ctx.fillText(`涨停 ${limitUp.toFixed(2)}`, W - PAD_R + 2, y(limitUp))
-  ctx.fillStyle = c.down
-  ctx.fillText(`跌停 ${limitDown.toFixed(2)}`, W - PAD_R + 2, y(limitDown))
-
   ctx.restore()
 }
 
@@ -753,22 +717,54 @@ function currentPlotStep(padded = false) {
 
 function drawDrawnLines(ctx: CanvasRenderingContext2D) {
   if (!drawnLines.value.length) return
-  const data = currentPlotData()
-  if (!data.length) return
+  const all = bars.value
+  const data = visibleBars()
+  if (!data.length || mode.value === 'minute') return
+
+  let min = Infinity
+  let max = -Infinity
+  for (const b of data) {
+    if (b.low < min) min = b.low
+    if (b.high > max) max = b.high
+  }
+  const range = max - min || 1
+  const volTop = H * VOL_TOP
+  const priceH = volTop - PAD_T
+  const toY = (price: number) => PAD_T + ((max - price) / range) * priceH
+  const visibleStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+  const step = (W - PAD_L - PAD_R) / data.length
+  const barX = (barIdx: number) => PAD_L + step * (barIdx - visibleStart) + step / 2
 
   for (const line of drawnLines.value) {
+    const x1 = barX(line.barIdx1)
+    const x2 = barX(line.barIdx2)
+    const y1 = toY(line.price1)
+    const y2 = toY(line.price2)
+
     ctx.save()
     if (line.dash) ctx.setLineDash([6, 4])
     ctx.strokeStyle = line.color
     ctx.lineWidth = 1.8
     ctx.beginPath()
-    ctx.moveTo(line.x1, line.y1)
-    ctx.lineTo(line.x2, line.y2)
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    if (line.type === 'trendline' && line.extendRight && line.barIdx2 >= visibleStart) {
+      const slope = (y2 - y1) / (x2 - x1)
+      if (isFinite(slope)) {
+        const rightX = W - PAD_R
+        const rightY = y2 + slope * (rightX - x2)
+        ctx.setLineDash([4, 5])
+        ctx.moveTo(x2, y2)
+        ctx.lineTo(rightX, rightY)
+      }
+    }
     ctx.stroke()
+    ctx.setLineDash([])
+
     if (drawTool.value === 'erase') {
       ctx.fillStyle = 'rgba(255,255,255,0.6)'
-      ctx.fillRect(line.x1 - 6, line.y1 - 6, 12, 12)
-      ctx.fillRect(line.x2 - 6, line.y2 - 6, 12, 12)
+      ctx.fillRect(x1 - 6, y1 - 6, 12, 12)
+      ctx.fillRect(x2 - 6, y2 - 6, 12, 12)
     }
     ctx.restore()
   }
@@ -945,6 +941,55 @@ function snapPoints(): { x: number; y: number; price: number }[] {
   return pts
 }
 
+function computeChannelOffset(
+  idx1: number,
+  idx2: number,
+  price1: number,
+  price2: number,
+): number | null {
+  const start = Math.min(idx1, idx2)
+  const end = Math.max(idx1, idx2)
+  if (end - start < 3) return null
+  const slope = (price2 - price1) / (end - start)
+  const intercept = price1 - slope * idx1
+  let maxAbove = 0
+  let maxBelow = 0
+  for (let i = start; i <= end; i++) {
+    const linePrice = slope * i + intercept
+    const bar = bars.value[i]
+    if (!bar) continue
+    const above = bar.high - linePrice
+    const below = linePrice - bar.low
+    if (above > maxAbove) maxAbove = above
+    if (below > maxBelow) maxBelow = below
+  }
+  const offset = maxAbove > maxBelow ? -maxBelow : maxAbove
+  return offset
+}
+
+function canvasToPriceData(cx: number, cy: number): { price: number; barIdx: number } | null {
+  const data = visibleBars()
+  if (!data.length) return null
+  const all = bars.value
+  const n = data.length
+  const step = (W - PAD_L - PAD_R) / n
+  const visibleStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+  const barIdx = Math.round((cx - PAD_L) / step - 0.5) + visibleStart
+  const clampedIdx = Math.max(0, Math.min(all.length - 1, barIdx))
+
+  let min = Infinity
+  let max = -Infinity
+  for (const b of data) {
+    if (b.low < min) min = b.low
+    if (b.high > max) max = b.high
+  }
+  const range = max - min || 1
+  const priceH = (H * VOL_TOP) - PAD_T
+  const price = max - ((cy - PAD_T) / priceH) * range
+
+  return { price: Math.round(price * 100) / 100, barIdx: clampedIdx }
+}
+
 function nearestSnap(cx: number, cy: number): { x: number; y: number } | null {
   const radius = 10
   let best: { x: number; y: number } | null = null
@@ -1020,12 +1065,27 @@ function drawCanvasHint(ctx: CanvasRenderingContext2D) {
   ctx.restore()
 }
 
+function lineToPixel(l: DrawnLine): { x1: number; y1: number; x2: number; y2: number } {
+  const all = bars.value
+  const data = visibleBars()
+  if (!data.length) return { x1: 0, y1: 0, x2: 0, y2: 0 }
+  let min = Infinity; let max = -Infinity
+  for (const b of data) { if (b.low < min) min = b.low; if (b.high > max) max = b.high }
+  const range = max - min || 1
+  const priceH = (H * VOL_TOP) - PAD_T
+  const toY = (p: number) => PAD_T + ((max - p) / range) * priceH
+  const visibleStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+  const step = (W - PAD_L - PAD_R) / data.length
+  const barX = (idx: number) => PAD_L + step * (idx - visibleStart) + step / 2
+  return { x1: barX(l.barIdx1), y1: toY(l.price1), x2: barX(l.barIdx2), y2: toY(l.price2) }
+}
+
 function deleteLineAt(px: number, py: number) {
   const threshold = 12
   let idx = -1
   for (let i = drawnLines.value.length - 1; i >= 0; i--) {
-    const l = drawnLines.value[i]
-    if (distanceToSegment(px, py, l.x1, l.y1, l.x2, l.y2) < threshold) {
+    const pix = lineToPixel(drawnLines.value[i])
+    if (distanceToSegment(px, py, pix.x1, pix.y1, pix.x2, pix.y2) < threshold) {
       idx = i
       break
     }
@@ -1247,21 +1307,49 @@ function onPointerEnd(e: PointerEvent) {
     const end = canvasPoint(e)
     const start = drawStart.value
     drawStart.value = null
-    const snap = nearestSnap(end.x, end.y)
-    const fx = snap ? snap.x : end.x
-    const fy = snap ? snap.y : end.y
-    if (Math.hypot(fx - start.x, fy - start.y) < 4) return
-    const line: DrawnLine = {
-      type: drawTool.value as 'trendline' | 'horizontal',
-      id: drawIdSeq++,
-      x1: drawTool.value === 'horizontal' ? PAD_L : start.x,
-      y1: drawTool.value === 'horizontal' ? start.y : start.y,
-      x2: drawTool.value === 'horizontal' ? W - PAD_R : fx,
-      y2: drawTool.value === 'horizontal' ? start.y : fy,
-      color: chartColors().line,
-      dash: false,
+    const sData = canvasToPriceData(start.x, start.y)
+    const eData = canvasToPriceData(end.x, end.y)
+    if (!sData || !eData) return
+    if (drawTool.value === 'horizontal') {
+      const line: DrawnLine = {
+        type: 'horizontal',
+        id: drawIdSeq++,
+        price1: sData.price,
+        price2: sData.price,
+        barIdx1: 0,
+        barIdx2: bars.value.length - 1,
+        color: chartColors().line,
+        dash: false,
+      }
+      drawnLines.value.push(line)
+    } else {
+      const line: DrawnLine = {
+        type: 'trendline',
+        id: drawIdSeq++,
+        price1: sData.price,
+        price2: eData.price,
+        barIdx1: sData.barIdx,
+        barIdx2: eData.barIdx,
+        color: chartColors().line,
+        dash: false,
+        extendRight: true,
+      }
+      drawnLines.value.push(line)
+      const channelWidth = computeChannelOffset(sData.barIdx, eData.barIdx, sData.price, eData.price)
+      if (channelWidth !== null && Math.abs(channelWidth) > 0.01) {
+        drawnLines.value.push({
+          type: 'trendline',
+          id: drawIdSeq++,
+          price1: sData.price + channelWidth,
+          price2: eData.price + channelWidth,
+          barIdx1: sData.barIdx,
+          barIdx2: eData.barIdx,
+          color: chartColors().line,
+          dash: true,
+          extendRight: true,
+        })
+      }
     }
-    drawnLines.value.push(line)
     saveDrawnLines()
     draw()
     return

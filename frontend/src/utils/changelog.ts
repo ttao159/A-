@@ -39,7 +39,10 @@ export const NOTICES: Notice[] = [
 
 export const CHANGELOG: ChangelogEntry[] = [
   { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线网格线+价格轴：5级水平参考线、右侧价格刻度' },
-  { version: '0.1.0', date: '2026-08', tag: '新增', content: '涨跌停标记：涨跌停价位虚线+标签' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '画线价格锚定：线条绑定K线价格而非像素，缩放平移线条随K线移动不再错位' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '画线射线延长：画趋势线后自动向右延伸虚线射线' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '画线平行通道：画趋势线后自动生成等距平行通道虚线' },
+  { version: '0.1.0', date: '2026-08', tag: '移除', content: '涨跌停标记' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '成交量异动标记：放量>2倍均量 K线加!' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '画线吸附：画线时自动吸附附近K线极值点' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '手势回弹动画：平移/缩放超出边界平滑回弹' },
