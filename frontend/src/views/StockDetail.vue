@@ -96,7 +96,7 @@ import { chartColors } from '../utils/theme'
 import { useThemeRedraw } from '../composables/useThemeRedraw'
 import { netStatus } from '../composables/netStatus'
 import { hiDPIContext } from '../utils/canvas'
-import { type PatternResult, detectPatterns } from '../utils/patterns'
+import { type PatternResult, type SupportResistance, findSupportResistance, detectPatterns } from '../utils/patterns'
 
 const route = useRoute()
 const code = ref(String(route.params.code ?? ''))
@@ -150,6 +150,7 @@ const drawStart = ref<{ x: number; y: number } | null>(null)
 let drawIdSeq = 0
 
 const detectedPatterns = ref<PatternResult[]>([])
+const detectedSR = ref<SupportResistance[]>([])
 
 const drawTools = [
   { key: 'trendline', label: '趋势线' },
@@ -183,9 +184,12 @@ function detectPatternsOnData() {
       detectedPatterns.value = []
       return
     }
+    const sr = findSupportResistance(data)
+    detectedSR.value = sr
     const patterns = detectPatterns(data)
     detectedPatterns.value = patterns
   } catch {
+    detectedSR.value = []
     detectedPatterns.value = []
   }
 }
@@ -344,6 +348,7 @@ function draw() {
   if (mode.value === 'minute') drawMinute(ctx)
   else drawKline(ctx)
   drawDrawnLines(ctx)
+  drawSupportResistance(ctx)
   drawPatterns(ctx)
   if (drawStart.value) drawPreviewLine(ctx)
   if (drawTool.value !== 'none') drawCanvasHint(ctx)
@@ -575,6 +580,44 @@ function drawDrawnLines(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function drawSupportResistance(ctx: CanvasRenderingContext2D) {
+  if (mode.value === 'minute' || !detectedSR.value.length) return
+  const data = bars.value.slice(-visibleCount.value)
+  if (!data.length) return
+
+  let min = Infinity
+  let max = -Infinity
+  for (const b of data) {
+    if (b.high > max) max = b.high
+    if (b.low < min) min = b.low
+  }
+  const range = max - min || 1
+  const volTop = H * VOL_TOP
+  const priceH = volTop - PAD_T
+  const y = (v: number) => PAD_T + ((max - v) / range) * priceH
+
+  for (const sr of detectedSR.value) {
+    const py = y(sr.price)
+    if (py < PAD_T || py > volTop) continue
+    const c = chartColors()
+    ctx.save()
+    ctx.strokeStyle = sr.type === 'resistance' ? c.up : c.down
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(PAD_L, py)
+    ctx.lineTo(W - PAD_R, py)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    ctx.font = '9px sans-serif'
+    ctx.fillStyle = sr.type === 'resistance' ? c.up : c.down
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(`${sr.type === 'resistance' ? 'R' : 'S'} ${sr.price.toFixed(2)}`, W - PAD_R, py - 1)
+    ctx.restore()
+  }
+}
+
 function drawPatterns(ctx: CanvasRenderingContext2D) {
   if (mode.value === 'minute') return
   const data = bars.value.slice(-visibleCount.value)
@@ -593,23 +636,29 @@ function drawPatterns(ctx: CanvasRenderingContext2D) {
     const by = PAD_T + 2
     const bh = (H * VOL_TOP) - PAD_T - 4
 
-    ctx.save()
-    ctx.fillStyle = 'rgba(37, 99, 235, 0.06)'
-    ctx.fillRect(bx, by, bw, bh)
+    const bullish = p.direction === 'bullish'
+    const baseColor = bullish ? chartColors().down : chartColors().up
+    const alpha = Math.min(1, p.score * 0.5 + 0.3)
 
-    ctx.strokeStyle = 'rgba(37, 99, 235, 0.35)'
+    ctx.save()
+    ctx.globalAlpha = alpha * 0.25
+    ctx.fillStyle = baseColor
+    ctx.fillRect(bx, by, bw, bh)
+    ctx.globalAlpha = alpha
+    ctx.strokeStyle = baseColor
     ctx.lineWidth = 1.4
     ctx.setLineDash([5, 3])
     ctx.strokeRect(bx, by, bw, bh)
     ctx.setLineDash([])
 
+    const label = `${p.label} ${Math.round(p.score * 100)}%`
     ctx.font = '11px sans-serif'
-    ctx.fillStyle = chartColors().line
-    const label = p.label
-    const tw = ctx.measureText(label).width
-    ctx.fillStyle = 'rgba(37, 99, 235, 0.12)'
-    ctx.fillRect(bx, by, tw + 10, 20)
-    ctx.fillStyle = chartColors().line
+    const tw = ctx.measureText(label).width + 10
+    ctx.globalAlpha = alpha * 0.4
+    ctx.fillStyle = baseColor
+    ctx.fillRect(bx, by, tw, 20)
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = bullish ? chartColors().down : chartColors().up
     ctx.textBaseline = 'middle'
     ctx.fillText(label, bx + 5, by + 10)
     ctx.restore()
