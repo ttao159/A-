@@ -7,7 +7,7 @@ describe('changelog', () => {
     for (const e of CHANGELOG) {
       expect(e.version).toBeTruthy()
       expect(e.date).toBeTruthy()
-      expect(['新增', '优化', '修复', '安全']).toContain(e.tag)
+      expect(['新增', '优化', '修复', '安全', '移除']).toContain(e.tag)
       expect(e.content).toBeTruthy()
     }
   })

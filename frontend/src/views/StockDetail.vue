@@ -145,7 +145,8 @@ function visibleBars() {
   return bars.value.slice(start, bars.value.length - scrollOffset.value)
 }
 
-type DrawTool = 'none' | 'trendline' | 'horizontal' | 'erase'
+type DrawTool = 'none' | 'trendline' | 'horizontal' | 'channel' | 'erase'
+type ChannelState = 'idle' | 'drawing' | 'adjusting'
 const drawTool = ref<DrawTool>('none')
 
 interface DrawnLine {
@@ -162,6 +163,8 @@ interface DrawnLine {
 const drawnLines = ref<DrawnLine[]>([])
 const drawStart = ref<{ x: number; y: number } | null>(null)
 let drawIdSeq = 0
+const channelState = ref<ChannelState>('idle')
+const channelBaseLine = ref<{ price1: number; price2: number; barIdx1: number; barIdx2: number } | null>(null)
 
 const detectedPatterns = ref<PatternResult[]>([])
 const detectedSR = ref<SupportResistance[]>([])
@@ -170,6 +173,7 @@ const divergenceMarkers = ref<number[]>([])
 const drawTools = [
   { key: 'trendline', label: '趋势线' },
   { key: 'horizontal', label: '水平线' },
+  { key: 'channel', label: '通道' },
   { key: 'erase', label: '擦除' },
 ]
 
@@ -397,7 +401,7 @@ function draw() {
   drawSupportResistance(ctx)
   drawDivergenceMarkers(ctx)
   drawPatterns(ctx)
-  if (drawStart.value) drawPreviewLine(ctx)
+  if (drawStart.value || (drawTool.value === 'channel' && channelState.value === 'adjusting')) drawPreviewLine(ctx)
   if (drawTool.value !== 'none') drawCanvasHint(ctx)
 }
 
@@ -941,31 +945,7 @@ function snapPoints(): { x: number; y: number; price: number }[] {
   return pts
 }
 
-function computeChannelOffset(
-  idx1: number,
-  idx2: number,
-  price1: number,
-  price2: number,
-): number | null {
-  const start = Math.min(idx1, idx2)
-  const end = Math.max(idx1, idx2)
-  if (end - start < 3) return null
-  const slope = (price2 - price1) / (end - start)
-  const intercept = price1 - slope * idx1
-  let maxAbove = 0
-  let maxBelow = 0
-  for (let i = start; i <= end; i++) {
-    const linePrice = slope * i + intercept
-    const bar = bars.value[i]
-    if (!bar) continue
-    const above = bar.high - linePrice
-    const below = linePrice - bar.low
-    if (above > maxAbove) maxAbove = above
-    if (below > maxBelow) maxBelow = below
-  }
-  const offset = maxAbove > maxBelow ? -maxBelow : maxAbove
-  return offset
-}
+
 
 function canvasToPriceData(cx: number, cy: number): { price: number; barIdx: number } | null {
   const data = visibleBars()
@@ -1015,6 +995,52 @@ function drawSnapIndicator(ctx: CanvasRenderingContext2D, sx: number, sy: number
 }
 
 function drawPreviewLine(ctx: CanvasRenderingContext2D) {
+  if (drawTool.value === 'none' || drawTool.value === 'erase') return
+
+  if (drawTool.value === 'channel' && channelState.value === 'adjusting' && channelBaseLine.value) {
+    const bl = channelBaseLine.value
+    const vis = visibleBars()
+    if (!vis.length) return
+    let min = Infinity; let max = -Infinity
+    for (const b of vis) { if (b.low < min) min = b.low; if (b.high > max) max = b.high }
+    const range = max - min || 1
+    const priceH = (H * VOL_TOP) - PAD_T
+    const toY = (p: number) => PAD_T + ((max - p) / range) * priceH
+    const all = bars.value
+    const vStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+    const step = (W - PAD_L - PAD_R) / vis.length
+    const barX = (i: number) => PAD_L + step * (i - vStart) + step / 2
+    const xb1 = barX(bl.barIdx1); const xb2 = barX(bl.barIdx2)
+    const yb1 = toY(bl.price1); const yb2 = toY(bl.price2)
+
+    ctx.save()
+    ctx.setLineDash([2, 4])
+    ctx.strokeStyle = chartColors().line
+    ctx.lineWidth = 1.8
+    ctx.beginPath()
+    ctx.moveTo(xb1, yb1)
+    ctx.lineTo(xb2, yb2)
+    ctx.stroke()
+    ctx.restore()
+
+    const raw = [...pointers.values()]?.[0]
+    if (!raw) return
+    const sData = canvasToPriceData(raw.x, raw.y)
+    if (!sData) return
+    const offset = sData.price - bl.price1
+    const cy1 = toY(bl.price1 + offset); const cy2 = toY(bl.price2 + offset)
+    ctx.save()
+    ctx.setLineDash([5, 5])
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+    ctx.lineWidth = 1.4
+    ctx.beginPath()
+    ctx.moveTo(xb1, cy1)
+    ctx.lineTo(xb2, cy2)
+    ctx.stroke()
+    ctx.restore()
+    return
+  }
+
   const start = drawStart.value
   if (!start) return
   const c = chartColors()
@@ -1033,7 +1059,7 @@ function drawPreviewLine(ctx: CanvasRenderingContext2D) {
     ctx.moveTo(PAD_L, start.y)
     ctx.lineTo(W - PAD_R, start.y)
     ctx.stroke()
-  } else if (drawTool.value === 'trendline') {
+  } else {
     ctx.strokeStyle = c.line
     ctx.lineWidth = 1.4
     ctx.setLineDash([5, 3])
@@ -1057,9 +1083,13 @@ function drawCanvasHint(ctx: CanvasRenderingContext2D) {
       ? '点击起点拖至终点画趋势线'
       : drawTool.value === 'horizontal'
         ? '点击位置画水平线'
-        : drawTool.value === 'erase'
-          ? '点击线条以擦除'
-          : ''
+        : drawTool.value === 'channel'
+          ? channelState.value === 'adjusting'
+            ? '点击K线位置确定通道宽度'
+            : '点击起点拖至终点画基线'
+          : drawTool.value === 'erase'
+            ? '点击线条以擦除'
+            : ''
   ctx.fillText(msg, W / 2, H - 4)
   ctx.textAlign = 'start'
   ctx.restore()
@@ -1238,6 +1268,29 @@ function onPointerDown(e: PointerEvent) {
       deleteLineAt(pt.x, pt.y)
       return
     }
+    if (drawTool.value === 'channel' && channelState.value === 'adjusting') {
+      const sData = canvasToPriceData(pt.x, pt.y)
+      if (sData && channelBaseLine.value) {
+        const bl = channelBaseLine.value
+        const offset = sData.price - bl.price1
+        drawnLines.value.push(
+          {
+            type: 'trendline', id: drawIdSeq++, price1: bl.price1, price2: bl.price2,
+            barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: false, extendRight: true,
+          },
+          {
+            type: 'trendline', id: drawIdSeq++,
+            price1: bl.price1 + offset, price2: bl.price2 + offset,
+            barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
+          },
+        )
+        saveDrawnLines()
+        channelState.value = 'idle'
+        channelBaseLine.value = null
+        draw()
+      }
+      return
+    }
     drawStart.value = { x: pt.x, y: pt.y }
     return
   }
@@ -1310,6 +1363,15 @@ function onPointerEnd(e: PointerEvent) {
     const sData = canvasToPriceData(start.x, start.y)
     const eData = canvasToPriceData(end.x, end.y)
     if (!sData || !eData) return
+    if (drawTool.value === 'channel') {
+      channelBaseLine.value = {
+        price1: sData.price, price2: eData.price,
+        barIdx1: sData.barIdx, barIdx2: eData.barIdx,
+      }
+      channelState.value = 'adjusting'
+      draw()
+      return
+    }
     if (drawTool.value === 'horizontal') {
       const line: DrawnLine = {
         type: 'horizontal',
@@ -1322,7 +1384,7 @@ function onPointerEnd(e: PointerEvent) {
         dash: false,
       }
       drawnLines.value.push(line)
-    } else {
+    } else if (drawTool.value === 'trendline') {
       const line: DrawnLine = {
         type: 'trendline',
         id: drawIdSeq++,
@@ -1335,20 +1397,6 @@ function onPointerEnd(e: PointerEvent) {
         extendRight: true,
       }
       drawnLines.value.push(line)
-      const channelWidth = computeChannelOffset(sData.barIdx, eData.barIdx, sData.price, eData.price)
-      if (channelWidth !== null && Math.abs(channelWidth) > 0.01) {
-        drawnLines.value.push({
-          type: 'trendline',
-          id: drawIdSeq++,
-          price1: sData.price + channelWidth,
-          price2: eData.price + channelWidth,
-          barIdx1: sData.barIdx,
-          barIdx2: eData.barIdx,
-          color: chartColors().line,
-          dash: true,
-          extendRight: true,
-        })
-      }
     }
     saveDrawnLines()
     draw()
