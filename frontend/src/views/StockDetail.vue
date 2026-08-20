@@ -60,6 +60,10 @@
           <span v-if="mode === 'minute'">{{ minuteInfo }}</span>
           <span v-else>{{ legendText }}</span>
           <label v-if="mode !== 'minute'" class="ma-toggle">
+            <input type="checkbox" v-model="showPatterns" />
+            形态
+          </label>
+          <label v-if="mode !== 'minute'" class="ma-toggle">
             <input type="checkbox" v-model="showMA" />
             均线
           </label>
@@ -131,6 +135,15 @@ const MAX_VISIBLE = 240
 const visibleCount = ref(120)
 const crossIndex = ref<number | null>(null)
 const showMA = ref(true)
+const scrollOffset = ref(0)
+const showPatterns = ref(true)
+
+const maxScrollOffset = computed(() => Math.max(0, bars.value.length - visibleCount.value))
+
+function visibleBars() {
+  const start = Math.max(0, bars.value.length - visibleCount.value - scrollOffset.value)
+  return bars.value.slice(start, bars.value.length - scrollOffset.value)
+}
 
 type DrawTool = 'none' | 'trendline' | 'horizontal' | 'erase'
 const drawTool = ref<DrawTool>('none')
@@ -175,19 +188,18 @@ function loadDrawnLines() {
 
 function detectPatternsOnData() {
   if (mode.value === 'minute') {
+    detectedSR.value = []
     detectedPatterns.value = []
     return
   }
   try {
-    const data = bars.value.slice(-visibleCount.value)
-    if (data.length < 5) {
+    if (bars.value.length < 5) {
+      detectedSR.value = []
       detectedPatterns.value = []
       return
     }
-    const sr = findSupportResistance(data)
-    detectedSR.value = sr
-    const patterns = detectPatterns(data)
-    detectedPatterns.value = patterns
+    detectedSR.value = findSupportResistance(bars.value)
+    detectedPatterns.value = detectPatterns(bars.value)
   } catch {
     detectedSR.value = []
     detectedPatterns.value = []
@@ -310,6 +322,7 @@ function pickStock(s: Stock) {
   name.value = s.name
   searching.value = false
   searchQuery.value = ''
+  scrollOffset.value = 0
   load()
 }
 
@@ -337,6 +350,7 @@ watch(mode, () => {
 
 function resetVisible() {
   visibleCount.value = mode.value === 'minute' ? 240 : 120
+  scrollOffset.value = 0
 }
 
 function draw() {
@@ -358,7 +372,8 @@ function drawKline(ctx: CanvasRenderingContext2D) {
   const c = chartColors()
   const all = bars.value
   if (!all.length) return
-  const data = all.slice(-visibleCount.value)
+  const data = visibleBars()
+  if (!data.length) return
   const volTop = H * VOL_TOP
   const priceH = volTop - PAD_T
   const volH = H - PAD_B - volTop
@@ -400,7 +415,7 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     { n: 10, color: c.ma2 },
     { n: 20, color: c.ma3 },
   ]
-  const offset = all.length - data.length
+  const offset = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
   if (showMA.value) {
     for (const { n: period, color } of maPeriods) {
       if (all.length < period) continue
@@ -544,7 +559,7 @@ function drawMinute(ctx: CanvasRenderingContext2D) {
 
 function currentPlotData() {
   if (mode.value === 'minute') return (minuteData.value?.bars ?? []).slice(-visibleCount.value)
-  return bars.value.slice(-visibleCount.value)
+  return visibleBars()
 }
 
 function currentPlotStep(padded = false) {
@@ -582,7 +597,7 @@ function drawDrawnLines(ctx: CanvasRenderingContext2D) {
 
 function drawSupportResistance(ctx: CanvasRenderingContext2D) {
   if (mode.value === 'minute' || !detectedSR.value.length) return
-  const data = bars.value.slice(-visibleCount.value)
+  const data = visibleBars()
   if (!data.length) return
 
   let min = Infinity
@@ -619,18 +634,29 @@ function drawSupportResistance(ctx: CanvasRenderingContext2D) {
 }
 
 function drawPatterns(ctx: CanvasRenderingContext2D) {
-  if (mode.value === 'minute') return
-  const data = bars.value.slice(-visibleCount.value)
-  if (!data.length) return
+  if (mode.value === 'minute' || !showPatterns.value) return
+  const all = bars.value
+  if (!all.length) return
 
+  const visibleStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+  const visibleEnd = all.length - scrollOffset.value
+  const data = visibleBars()
+  if (!data.length) return
   const step = currentPlotStep(true)
 
+  let drawn = 0
   for (const p of detectedPatterns.value) {
-    const idx = p.startIdx
+    if (drawn >= 3) break
+    const startIdx = p.startIdx
     const endIdx = p.endIdx ?? p.startIdx
-    if (idx >= data.length || endIdx >= data.length) continue
-    const x1 = PAD_L + step * idx + step / 2
-    const x2 = PAD_L + step * endIdx + step / 2
+    if (endIdx < visibleStart || startIdx >= visibleEnd) continue
+
+    const relStart = startIdx - visibleStart
+    const relEnd = endIdx - visibleStart
+    const clampedStart = Math.max(0, relStart)
+    const clampedEnd = Math.min(data.length - 1, relEnd)
+    const x1 = PAD_L + step * clampedStart + step / 2
+    const x2 = PAD_L + step * clampedEnd + step / 2
     const bx = Math.min(x1, x2) - 6
     const bw = Math.abs(x2 - x1) + 12
     const by = PAD_T + 2
@@ -662,6 +688,7 @@ function drawPatterns(ctx: CanvasRenderingContext2D) {
     ctx.textBaseline = 'middle'
     ctx.fillText(label, bx + 5, by + 10)
     ctx.restore()
+    drawn++
   }
 }
 
@@ -780,6 +807,9 @@ function drawCrossLabel(ctx: CanvasRenderingContext2D, time: string, detail: str
 
 let pinchStartDist = 0
 let pinchStartCount = 120
+let dragState: 'none' | 'crosshair' | 'pan' = 'none'
+let dragStartX = 0
+let dragStartOffset = 0
 
 const pointers = new Map<number, { x: number; y: number }>()
 
@@ -803,7 +833,7 @@ function updateCrossAt(px: number, toggle = false) {
   const data =
     mode.value === 'minute'
       ? (minuteData.value?.bars ?? []).slice(-visibleCount.value)
-      : bars.value.slice(-visibleCount.value)
+      : visibleBars()
   if (!data.length) return
   if (px < PAD_L || px > W - PAD_R) {
     crossIndex.value = null
@@ -847,8 +877,13 @@ function onPointerDown(e: PointerEvent) {
     return
   }
   if (pointers.size === 1) {
-    updateCrossAt(canvasPoint(e).x, true)
+    const px = canvasPoint(e).x
+    dragState = 'crosshair'
+    dragStartX = px
+    dragStartOffset = scrollOffset.value
+    updateCrossAt(px, true)
   } else if (pointers.size === 2) {
+    dragState = 'none'
     pinchStartDist = twoFingerDist()
     pinchStartCount = visibleCount.value
     crossIndex.value = null
@@ -864,7 +899,27 @@ function onPointerMove(e: PointerEvent) {
     return
   }
   if (pointers.size === 1) {
-    updateCrossAt(canvasPoint(e).x)
+    const px = canvasPoint(e).x
+    const dx = px - dragStartX
+    if (dragState === 'crosshair' && Math.abs(dx) > 8) {
+      dragState = 'pan'
+      crossIndex.value = null
+    }
+    if (dragState === 'pan') {
+      const data = currentPlotData()
+      const n = data.length
+      if (!n) return
+      const step = (W - PAD_L - PAD_R) / n
+      const barDelta = Math.round(-dx / step)
+      const next = dragStartOffset + barDelta
+      const clamped = Math.max(0, Math.min(maxScrollOffset.value, next))
+      if (clamped !== scrollOffset.value) {
+        scrollOffset.value = clamped
+        draw()
+      }
+    } else {
+      updateCrossAt(px)
+    }
   } else if (pointers.size === 2) {
     const d = twoFingerDist()
     if (pinchStartDist > 0) {
@@ -878,6 +933,8 @@ function onPointerMove(e: PointerEvent) {
 
 function onPointerEnd(e: PointerEvent) {
   pointers.delete(e.pointerId)
+  dragState = 'none'
+  scrollOffset.value = Math.max(0, Math.min(maxScrollOffset.value, scrollOffset.value))
   if (drawTool.value !== 'none' && drawStart.value) {
     const end = canvasPoint(e)
     const start = drawStart.value

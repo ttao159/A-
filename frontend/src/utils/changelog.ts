@@ -38,7 +38,10 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
-  { version: '0.1.0', date: '2026-08', tag: '优化', content: '形态识别升级：9 种形态、成交量确认、趋势上下文集过滤、置信度评分、支撑阻力自动画线' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: 'K线缩放后形态识别修复：全量检测+可见范围过滤，放大不再丢失形态' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线左右平移：单指水平拖拽平移历史K线' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '形态显示精简：最多 3 个形态+开关按钮，避免拥挤' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '形态识别升级：9 种形态、成交量确认、趋势上下文过滤、置信度评分、支撑阻力自动画线' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线画线工具：趋势线、水平线绘制、擦除与 localStorage 持久化' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线形态智能识别：双顶/双底/头肩顶/上升三角自动检测与标注' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '策略模板扩充：MACD趋势/趋势跟随/强势追涨/零轴反弹/K线形态/均线多头排列/KDJ底背离' },
