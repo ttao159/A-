@@ -165,6 +165,8 @@ const drawStart = ref<{ x: number; y: number } | null>(null)
 let drawIdSeq = 0
 const channelState = ref<ChannelState>('idle')
 const channelBaseLine = ref<{ price1: number; price2: number; barIdx1: number; barIdx2: number } | null>(null)
+const channelDragY = ref(0)
+const channelDragStartY = ref(0)
 
 const detectedPatterns = ref<PatternResult[]>([])
 const detectedSR = ref<SupportResistance[]>([])
@@ -1031,11 +1033,8 @@ function drawPreviewLine(ctx: CanvasRenderingContext2D) {
     ctx.stroke()
     ctx.restore()
 
-    const raw = [...pointers.values()]?.[0]
-    if (!raw) return
-    const sData = canvasToPriceData(raw.x, raw.y)
-    if (!sData) return
-    const offset = sData.price - bl.price1
+    const priceDelta = -(channelDragY.value / priceH) * range
+    const offset = priceDelta
     const cy1 = toY(bl.price1 + offset); const cy2 = toY(bl.price2 + offset)
     ctx.save()
     ctx.setLineDash([5, 5])
@@ -1093,8 +1092,8 @@ function drawCanvasHint(ctx: CanvasRenderingContext2D) {
         ? '点击位置画水平线'
         : drawTool.value === 'channel'
           ? channelState.value === 'adjusting'
-            ? '点击K线位置确定通道宽度'
-            : '点击起点拖至终点画基线'
+            ? '按住拖拽调节通道宽度，松手落定'
+            : '拖拽画基线'
           : drawTool.value === 'erase'
             ? '点击线条以擦除'
             : ''
@@ -1277,26 +1276,9 @@ function onPointerDown(e: PointerEvent) {
       return
     }
     if (drawTool.value === 'channel' && channelState.value === 'adjusting') {
-      const sData = canvasToPriceData(pt.x, pt.y)
-      if (sData && channelBaseLine.value) {
-        const bl = channelBaseLine.value
-        const offset = sData.price - bl.price1
-        drawnLines.value.push(
-          {
-            type: 'trendline', id: drawIdSeq++, price1: bl.price1, price2: bl.price2,
-            barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: false, extendRight: true,
-          },
-          {
-            type: 'trendline', id: drawIdSeq++,
-            price1: bl.price1 + offset, price2: bl.price2 + offset,
-            barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
-          },
-        )
-        saveDrawnLines()
-        channelState.value = 'idle'
-        channelBaseLine.value = null
-        draw()
-      }
+      channelDragStartY.value = pt.y
+      channelDragY.value = 0
+      draw()
       return
     }
     drawStart.value = { x: pt.x, y: pt.y }
@@ -1321,6 +1303,10 @@ function onPointerMove(e: PointerEvent) {
   if (!pointers.has(e.pointerId)) return
   pointers.set(e.pointerId, canvasPoint(e))
   if ((drawTool.value !== 'none' && drawStart.value) || (drawTool.value === 'channel' && channelState.value === 'adjusting')) {
+    if (drawTool.value === 'channel' && channelState.value === 'adjusting') {
+      const pt = canvasPoint(e)
+      channelDragY.value = pt.y - channelDragStartY.value
+    }
     draw()
     return
   }
@@ -1407,6 +1393,34 @@ function onPointerEnd(e: PointerEvent) {
       drawnLines.value.push(line)
     }
     saveDrawnLines()
+    draw()
+    return
+  }
+  if (drawTool.value === 'channel' && channelState.value === 'adjusting' && channelBaseLine.value) {
+    const data = visibleBars()
+    if (data.length) {
+      let min2 = Infinity; let max2 = -Infinity
+      for (const b of data) { if (b.low < min2) min2 = b.low; if (b.high > max2) max2 = b.high }
+      const range2 = max2 - min2 || 1
+      const priceH2 = (H * VOL_TOP) - PAD_T
+      const priceDelta = -(channelDragY.value / priceH2) * range2
+      const bl = channelBaseLine.value
+      const offset = priceDelta
+      drawnLines.value.push(
+        {
+          type: 'trendline', id: drawIdSeq++, price1: bl.price1, price2: bl.price2,
+          barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: false, extendRight: true,
+        },
+        {
+          type: 'trendline', id: drawIdSeq++,
+          price1: bl.price1 + offset, price2: bl.price2 + offset,
+          barIdx1: bl.barIdx1, barIdx2: bl.barIdx2, color: chartColors().line, dash: true, extendRight: true,
+        },
+      )
+      saveDrawnLines()
+    }
+    channelState.value = 'idle'
+    channelBaseLine.value = null
     draw()
     return
   }
