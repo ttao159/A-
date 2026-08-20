@@ -164,6 +164,7 @@ let drawIdSeq = 0
 
 const detectedPatterns = ref<PatternResult[]>([])
 const detectedSR = ref<SupportResistance[]>([])
+const divergenceMarkers = ref<number[]>([])
 
 const drawTools = [
   { key: 'trendline', label: '趋势线' },
@@ -190,20 +191,46 @@ function detectPatternsOnData() {
   if (mode.value === 'minute') {
     detectedSR.value = []
     detectedPatterns.value = []
+    divergenceMarkers.value = []
     return
   }
   try {
     if (bars.value.length < 5) {
       detectedSR.value = []
       detectedPatterns.value = []
+      divergenceMarkers.value = []
       return
     }
     detectedSR.value = findSupportResistance(bars.value)
     detectedPatterns.value = detectPatterns(bars.value)
+    detectDivergenceOnData()
   } catch {
     detectedSR.value = []
     detectedPatterns.value = []
+    divergenceMarkers.value = []
   }
+}
+
+function detectDivergenceOnData() {
+  const data = bars.value
+  if (data.length < 10) {
+    divergenceMarkers.value = []
+    return
+  }
+  const marks: number[] = []
+  for (let i = 10; i < data.length; i++) {
+    const priceWindow = data.slice(i - 5, i + 1)
+    const volWindow = data.slice(i - 5, i + 1)
+    const priceFirst = priceWindow.slice(0, 2).reduce((s, b) => s + b.close, 0) / 2
+    const priceLast = priceWindow.slice(-2).reduce((s, b) => s + b.close, 0) / 2
+    const volFirst = volWindow.slice(0, 2).reduce((s, b) => s + b.volume, 0) / 2
+    const volLast = volWindow.slice(-2).reduce((s, b) => s + b.volume, 0) / 2
+    const priceChange = (priceLast - priceFirst) / Math.max(priceFirst, 1)
+    const volChange = volFirst > 0 ? (volLast - volFirst) / volFirst : 0
+    if (priceChange > 0.02 && volChange < -0.15) marks.push(i)
+    if (priceChange < -0.02 && volChange > 0.3) marks.push(i)
+  }
+  divergenceMarkers.value = marks
 }
 
 function clearDrawnLines() {
@@ -363,6 +390,7 @@ function draw() {
   else drawKline(ctx)
   drawDrawnLines(ctx)
   drawSupportResistance(ctx)
+  drawDivergenceMarkers(ctx)
   drawPatterns(ctx)
   if (drawStart.value) drawPreviewLine(ctx)
   if (drawTool.value !== 'none') drawCanvasHint(ctx)
@@ -393,6 +421,11 @@ function drawKline(ctx: CanvasRenderingContext2D) {
   const y = (v: number) => PAD_T + ((max - v) / range) * priceH
   const volY = (v: number) => H - PAD_B - (v / maxVol) * volH
 
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(PAD_L, PAD_T, W - PAD_L - PAD_R, volTop - PAD_T)
+  ctx.clip()
+
   for (let i = 0; i < n; i++) {
     const b = data[i]
     const x = PAD_L + step * i + step / 2
@@ -407,8 +440,26 @@ function drawKline(ctx: CanvasRenderingContext2D) {
     const bottom = y(Math.min(b.open, b.close))
     const bh = Math.max(1, bottom - top)
     ctx.fillRect(x - bodyW / 2, top, bodyW, bh)
+  }
+  ctx.restore()
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(PAD_L, volTop, W - PAD_L - PAD_R, H - PAD_B - volTop)
+  ctx.clip()
+  for (let i = 0; i < n; i++) {
+    const b = data[i]
+    const x = PAD_L + step * i + step / 2
+    const up = b.close >= b.open
+    ctx.fillStyle = up ? c.up : c.down
     ctx.fillRect(x - bodyW / 2, volY(b.volume), bodyW, H - PAD_B - volY(b.volume))
   }
+  ctx.restore()
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(PAD_L, PAD_T, W - PAD_L - PAD_R, volTop - PAD_T)
+  ctx.clip()
 
   const maPeriods = [
     { n: 5, color: c.ma1 },
@@ -443,12 +494,21 @@ function drawKline(ctx: CanvasRenderingContext2D) {
       ctx.stroke()
     }
   }
+  ctx.restore()
   ctx.lineWidth = 1
 
-  ctx.fillStyle = c.text2
-  ctx.font = '10px sans-serif'
-  ctx.fillText(String(max.toFixed(2)), PAD_L, PAD_T + 8)
-  ctx.fillText(String(min.toFixed(2)), PAD_L, PAD_T + priceH)
+  drawGridLines(ctx, min, max, y)
+
+  const prevBar = all[offset + n - 1] ?? all[all.length - 2]
+  if (prevBar) {
+    const limitUp = prevBar.close * 1.1
+    const limitDown = prevBar.close * 0.9
+    drawLimitLines(ctx, limitUp, limitDown, y, c)
+  }
+
+  markVolumeAnomalies(ctx, data, volY, step, c)
+
+  drawPriceAxisLabels(ctx, y, min, max)
 
   if (crossIndex.value !== null) {
     const i = crossIndex.value
@@ -459,6 +519,125 @@ function drawKline(ctx: CanvasRenderingContext2D) {
       drawCrossLabel(ctx, b.date, `开${b.open.toFixed(2)} 高${b.high.toFixed(2)} 低${b.low.toFixed(2)} 收${b.close.toFixed(2)}`)
     }
   }
+}
+
+function drawGridLines(
+  ctx: CanvasRenderingContext2D,
+  min: number,
+  max: number,
+  y: (v: number) => number,
+) {
+  const c = chartColors()
+  const count = 5
+  const priceStep = (max - min) / (count - 1)
+
+  ctx.save()
+  ctx.strokeStyle = c.grid
+  ctx.lineWidth = 0.5
+  ctx.setLineDash([2, 4])
+  for (let i = 0; i < count; i++) {
+    const price = min + i * priceStep
+    const py = y(price)
+    ctx.beginPath()
+    ctx.moveTo(PAD_L, py)
+    ctx.lineTo(W - PAD_R, py)
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  ctx.restore()
+}
+
+function drawLimitLines(
+  ctx: CanvasRenderingContext2D,
+  limitUp: number,
+  limitDown: number,
+  y: (v: number) => number,
+  c: ReturnType<typeof chartColors>,
+) {
+  ctx.save()
+  ctx.lineWidth = 0.8
+
+  ctx.strokeStyle = c.up
+  ctx.setLineDash([3, 3])
+  ctx.beginPath()
+  ctx.moveTo(PAD_L, y(limitUp))
+  ctx.lineTo(W - PAD_R, y(limitUp))
+  ctx.stroke()
+
+  ctx.strokeStyle = c.down
+  ctx.beginPath()
+  ctx.moveTo(PAD_L, y(limitDown))
+  ctx.lineTo(W - PAD_R, y(limitDown))
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.font = '9px sans-serif'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = c.up
+  ctx.fillText(`涨停 ${limitUp.toFixed(2)}`, W - PAD_R + 2, y(limitUp))
+  ctx.fillStyle = c.down
+  ctx.fillText(`跌停 ${limitDown.toFixed(2)}`, W - PAD_R + 2, y(limitDown))
+
+  ctx.restore()
+}
+
+function markVolumeAnomalies(
+  ctx: CanvasRenderingContext2D,
+  data: Bar[],
+  volY: (v: number) => number,
+  step: number,
+  c: ReturnType<typeof chartColors>,
+) {
+  if (data.length < 10) return
+  const lookback = 10
+  let avgSum = 0
+  for (let i = 0; i < lookback; i++) avgSum += data[i].volume
+  const avg = avgSum / lookback
+  if (avg <= 0) return
+
+  ctx.save()
+  const volTop = H * VOL_TOP
+  ctx.beginPath()
+  ctx.rect(PAD_L, volTop, W - PAD_L - PAD_R, H - PAD_B - volTop)
+  ctx.clip()
+
+  ctx.font = 'bold 10px sans-serif'
+  ctx.textAlign = 'center'
+
+  for (let i = lookback; i < data.length; i++) {
+    const volume = data[i].volume
+    if (volume >= avg * 2) {
+      const x = PAD_L + step * i + step / 2
+      const vy = volY(volume)
+      ctx.fillStyle = c.ma1
+      ctx.fillText('!', x, vy - 2)
+    }
+    avgSum += volume - data[i - lookback].volume
+  }
+  ctx.textAlign = 'start'
+  ctx.restore()
+}
+
+function drawPriceAxisLabels(
+  ctx: CanvasRenderingContext2D,
+  y: (v: number) => number,
+  min: number,
+  max: number,
+) {
+  const c = chartColors()
+  const count = 5
+  const priceStep = (max - min) / (count - 1)
+
+  ctx.save()
+  ctx.font = '10px sans-serif'
+  ctx.fillStyle = c.text2
+  ctx.textAlign = 'right'
+  for (let i = 0; i < count; i++) {
+    const price = min + i * priceStep
+    ctx.textBaseline = 'middle'
+    ctx.fillText(price.toFixed(2), W - 2, y(price))
+  }
+  ctx.restore()
 }
 
 function drawMinute(ctx: CanvasRenderingContext2D) {
@@ -595,6 +774,33 @@ function drawDrawnLines(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function drawDivergenceMarkers(ctx: CanvasRenderingContext2D) {
+  if (mode.value === 'minute' || !divergenceMarkers.value.length) return
+  const all = bars.value
+  const visibleStart = Math.max(0, all.length - visibleCount.value - scrollOffset.value)
+  const data = visibleBars()
+  if (!data.length) return
+  const step = (W - PAD_L - PAD_R) / data.length
+
+  ctx.save()
+  ctx.font = 'bold 12px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  for (const idx of divergenceMarkers.value) {
+    if (idx < visibleStart || idx >= visibleStart + data.length) continue
+    const rel = idx - visibleStart
+    const x = PAD_L + step * rel + step / 2
+    const b = data[rel]
+    if (!b) continue
+    const priceChange = b.close - (data[rel - 1]?.close ?? b.open)
+    const isBearish = priceChange > 0
+    ctx.fillStyle = isBearish ? chartColors().up : chartColors().down
+    ctx.fillText('◇', x, PAD_T + 14)
+  }
+  ctx.restore()
+}
+
 function drawSupportResistance(ctx: CanvasRenderingContext2D) {
   if (mode.value === 'minute' || !detectedSR.value.length) return
   const data = visibleBars()
@@ -688,16 +894,90 @@ function drawPatterns(ctx: CanvasRenderingContext2D) {
     ctx.textBaseline = 'middle'
     ctx.fillText(label, bx + 5, by + 10)
     ctx.restore()
+    if (p.level !== undefined && p.endIdx < bars.value.length - 2) {
+      const breakIdx = p.endIdx + 1
+      if (breakIdx < visibleStart || breakIdx >= visibleStart + data.length) continue
+      const relBreak = breakIdx - visibleStart
+      const bxCenter = PAD_L + step * relBreak + step / 2
+      const breakBar = bars.value[breakIdx]
+      const broken =
+        p.direction === 'bullish'
+          ? breakBar.close > p.level
+          : p.direction === 'bearish'
+            ? breakBar.close < p.level
+            : false
+      if (broken) {
+        ctx.save()
+        const arrowColor = p.direction === 'bullish' ? chartColors().down : chartColors().up
+        ctx.fillStyle = arrowColor
+        ctx.font = 'bold 14px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.fillText(p.direction === 'bullish' ? '▲' : '▼', bxCenter, by + bh + 1)
+        ctx.restore()
+      }
+    }
     drawn++
   }
+}
+
+function snapPoints(): { x: number; y: number; price: number }[] {
+  const data = visibleBars()
+  if (!data.length) return []
+  let min = Infinity
+  let max = -Infinity
+  for (const b of data) {
+    if (b.low < min) min = b.low
+    if (b.high > max) max = b.high
+  }
+  const range = max - min || 1
+  const step = (W - PAD_L - PAD_R) / data.length
+  const volTop = H * VOL_TOP
+  const priceH = volTop - PAD_T
+  const y = (v: number) => PAD_T + ((max - v) / range) * priceH
+  const pts: { x: number; y: number; price: number }[] = []
+  for (let i = 0; i < data.length; i++) {
+    const b = data[i]
+    pts.push({ x: PAD_L + step * i + step / 2, y: y(b.high), price: b.high })
+    pts.push({ x: PAD_L + step * i + step / 2, y: y(b.low), price: b.low })
+    pts.push({ x: PAD_L + step * i + step / 2, y: y(b.close), price: b.close })
+  }
+  return pts
+}
+
+function nearestSnap(cx: number, cy: number): { x: number; y: number } | null {
+  const radius = 10
+  let best: { x: number; y: number } | null = null
+  let bestDist = Infinity
+  for (const pt of snapPoints()) {
+    const d = Math.hypot(cx - pt.x, cy - pt.y)
+    if (d < radius && d < bestDist) {
+      bestDist = d
+      best = { x: pt.x, y: pt.y }
+    }
+  }
+  return best
+}
+
+function drawSnapIndicator(ctx: CanvasRenderingContext2D, sx: number, sy: number) {
+  ctx.save()
+  ctx.strokeStyle = chartColors().ma1
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
 }
 
 function drawPreviewLine(ctx: CanvasRenderingContext2D) {
   const start = drawStart.value
   if (!start) return
   const c = chartColors()
-  const ptr = [...pointers.values()]?.[0]
-  if (!ptr) return
+  const raw = [...pointers.values()]?.[0]
+  if (!raw) return
+  const snap = nearestSnap(raw.x, raw.y)
+  const ex = snap ? snap.x : raw.x
+  const ey = snap ? snap.y : raw.y
 
   ctx.save()
   if (drawTool.value === 'horizontal') {
@@ -714,10 +994,11 @@ function drawPreviewLine(ctx: CanvasRenderingContext2D) {
     ctx.setLineDash([5, 3])
     ctx.beginPath()
     ctx.moveTo(start.x, start.y)
-    ctx.lineTo(ptr.x, ptr.y)
+    ctx.lineTo(ex, ey)
     ctx.stroke()
   }
   ctx.setLineDash([])
+  if (snap) drawSnapIndicator(ctx, ex, ey)
   ctx.restore()
 }
 
@@ -812,6 +1093,30 @@ let dragStartX = 0
 let dragStartOffset = 0
 
 const pointers = new Map<number, { x: number; y: number }>()
+
+let bounceAnimId = 0
+
+function bounceScrollOffset(target: number) {
+  if (bounceAnimId) cancelAnimationFrame(bounceAnimId)
+  const start = scrollOffset.value
+  const dist = target - start
+  if (Math.abs(dist) < 0.5) {
+    scrollOffset.value = target
+    draw()
+    return
+  }
+  const dur = 200
+  const t0 = performance.now()
+  function tick(now: number) {
+    const elapsed = now - t0
+    const p = Math.min(1, elapsed / dur)
+    const eased = 1 - (1 - p) * (1 - p)
+    scrollOffset.value = start + dist * eased
+    draw()
+    if (p < 1) bounceAnimId = requestAnimationFrame(tick)
+  }
+  bounceAnimId = requestAnimationFrame(tick)
+}
 
 function canvasPoint(e: PointerEvent) {
   const el = canvas.value
@@ -934,19 +1239,25 @@ function onPointerMove(e: PointerEvent) {
 function onPointerEnd(e: PointerEvent) {
   pointers.delete(e.pointerId)
   dragState = 'none'
-  scrollOffset.value = Math.max(0, Math.min(maxScrollOffset.value, scrollOffset.value))
+  const clamped = Math.max(0, Math.min(maxScrollOffset.value, scrollOffset.value))
+  if (Math.abs(clamped - scrollOffset.value) > 0.5) {
+    bounceScrollOffset(clamped)
+  }
   if (drawTool.value !== 'none' && drawStart.value) {
     const end = canvasPoint(e)
     const start = drawStart.value
     drawStart.value = null
-    if (Math.hypot(end.x - start.x, end.y - start.y) < 4) return
+    const snap = nearestSnap(end.x, end.y)
+    const fx = snap ? snap.x : end.x
+    const fy = snap ? snap.y : end.y
+    if (Math.hypot(fx - start.x, fy - start.y) < 4) return
     const line: DrawnLine = {
       type: drawTool.value as 'trendline' | 'horizontal',
       id: drawIdSeq++,
       x1: drawTool.value === 'horizontal' ? PAD_L : start.x,
       y1: drawTool.value === 'horizontal' ? start.y : start.y,
-      x2: drawTool.value === 'horizontal' ? W - PAD_R : end.x,
-      y2: drawTool.value === 'horizontal' ? start.y : end.y,
+      x2: drawTool.value === 'horizontal' ? W - PAD_R : fx,
+      y2: drawTool.value === 'horizontal' ? start.y : fy,
       color: chartColors().line,
       dash: false,
     }

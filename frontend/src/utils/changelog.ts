@@ -38,6 +38,14 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线网格线+价格轴：5级水平参考线、右侧价格刻度' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '涨跌停标记：涨跌停价位虚线+标签' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '成交量异动标记：放量>2倍均量 K线加!' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '画线吸附：画线时自动吸附附近K线极值点' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '手势回弹动画：平移/缩放超出边界平滑回弹' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '量价背离标记：缩量上涨/放量下跌◇高亮' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '形态突破确认：形态完成后突破位置▲/▼箭头' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '绘图裁剪优化：价区/量区分区裁剪，减少溢出渲染' },
   { version: '0.1.0', date: '2026-08', tag: '优化', content: 'K线缩放后形态识别修复：全量检测+可见范围过滤，放大不再丢失形态' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线左右平移：单指水平拖拽平移历史K线' },
   { version: '0.1.0', date: '2026-08', tag: '优化', content: '形态显示精简：最多 3 个形态+开关按钮，避免拥挤' },
