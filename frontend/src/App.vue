@@ -10,16 +10,20 @@
           class="mode-select"
           :value="accountStore.isLive ? 'live' : 'paper'"
           aria-label="交易模式"
+          title="实盘(Demo): 随机/历史回放数据模拟，非真实券商行情"
           @change="onModeChange"
         >
           <option value="paper">模拟盘</option>
-          <option value="live">实盘</option>
+          <option value="live">实盘 (Demo)</option>
         </select>
         <button class="logout-btn" @click="handleLogout" aria-label="退出登录">
           <Icon name="log-out" :size="18" />
         </button>
       </div>
     </header>
+    <div v-if="userStore.isDemo" class="demo-banner">
+      Demo 只读模式：数据为随机/历史回放，仅供策略体验，无法下单或修改策略
+    </div>
     <div v-if="accountStore.isLive" class="risk-banner">
       实盘交易存在风险，请谨慎操作并核实每笔委托
     </div>
@@ -82,6 +86,7 @@ import { useUserStore } from './stores/user'
 import { triggerPullRefresh } from './composables/pullRefresh'
 import { netStatus } from './composables/netStatus'
 import { toast } from './utils/toast'
+import { confirmDialog } from './utils/confirm'
 import Icon from './components/Icon.vue'
 
 const route = useRoute()
@@ -140,11 +145,24 @@ const title = computed(() => {
   return 'A股自动交易助手'
 })
 
-function onModeChange(e: Event) {
+async function onModeChange(e: Event) {
   const sel = e.target as HTMLSelectElement
-  if (sel.value === 'live') {
-    toast('实盘功能尚未接入，当前为模拟盘')
-    sel.value = accountStore.isLive ? 'live' : 'paper'
+  if (sel.value === 'live' && !accountStore.isLive) {
+    sel.value = 'paper'
+    const ok = await confirmDialog({
+      title: '实盘模式 (Demo)',
+      message: '当前实盘为演示版本，使用随机/历史回放行情数据，非真实券商通道。\n\n切换后策略将基于模拟数据进行决策，与实际市场存在偏差。\n\n确认切换？',
+      confirmText: '确认切换',
+      danger: true,
+    })
+    if (ok) {
+      sel.value = 'live'
+      accountStore.setLive(true)
+      toast('已切换至实盘演示模式')
+    }
+  } else if (sel.value === 'paper' && accountStore.isLive) {
+    accountStore.setLive(false)
+    toast('已切换至模拟盘')
   }
 }
 
@@ -258,6 +276,16 @@ async function onTouchEnd() {
   font-size: 13px;
   text-align: center;
   border-bottom: 1px solid var(--border);
+}
+
+.demo-banner {
+  padding: 8px 16px;
+  background: var(--border-light);
+  color: var(--text-2);
+  font-size: 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
 }
 
 .ptr-spinner {

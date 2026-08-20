@@ -119,6 +119,7 @@ import type { OrderPrepareInput } from '../api/types'
 import { useAccountStore } from '../stores/account'
 import { useStrategyStore } from '../stores/strategy'
 import { usePositionStore } from '../stores/position'
+import { useUserStore } from '../stores/user'
 import { isBlockedBoard } from '../utils/board'
 import { fmtMoney, fmtPrice } from '../utils/format'
 import { toast } from '../utils/toast'
@@ -129,6 +130,7 @@ const emit = defineEmits<{ close: []; done: [] }>()
 const accountStore = useAccountStore()
 const strategyStore = useStrategyStore()
 const positionStore = usePositionStore()
+const userStore = useUserStore()
 
 const step = ref<'form' | 'confirm' | 'result'>('form')
 const submitting = ref(false)
@@ -293,6 +295,10 @@ function validate(): string {
 }
 
 async function prepare() {
+  if (userStore.isDemo) {
+    toast('Demo 只读模式，无法下单')
+    return
+  }
   const err = validate()
   if (err) {
     toast(err)

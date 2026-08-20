@@ -38,6 +38,11 @@ export const NOTICES: Notice[] = [
 ]
 
 export const CHANGELOG: ChangelogEntry[] = [
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: 'Demo 只读模式：注册页可免注册体验策略，只读限制下单与策略修改' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '登录页：密码显隐切换、回车提交、错误红框提示、移动端 16px 防缩放' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '登录页：忘记密码 / 重置配置入口' },
+  { version: '0.1.0', date: '2026-08', tag: '优化', content: '实盘标签加 (Demo) 后缀 + 数据来源 tooltip' },
+  { version: '0.1.0', date: '2026-08', tag: '新增', content: '实盘切换二次确认弹窗，风险提示前置' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: 'K线网格线+价格轴：5级水平参考线、右侧价格刻度' },
   { version: '0.1.0', date: '2026-08', tag: '优化', content: '画线价格锚定：线条绑定K线价格而非像素，缩放平移线条随K线移动不再错位' },
   { version: '0.1.0', date: '2026-08', tag: '新增', content: '画线射线延长：画趋势线后自动向右延伸虚线射线' },
