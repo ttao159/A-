@@ -4,6 +4,9 @@
   --card-hover: #f9fafb;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
+  --brand-from: #1d4ed8;
+  --brand-to: #0ea5e9;
+  --brand-accent: #f59e0b;
   --text: #111827;
   --text-2: #6b7280;
   --text-3: #9ca3af;
@@ -41,6 +44,9 @@
   --card-hover: #1e222b;
   --primary: #60a5fa;
   --primary-hover: #93bbfc;
+  --brand-from: #3b82f6;
+  --brand-to: #22d3ee;
+  --brand-accent: #fbbf24;
   --text: #e5e7eb;
   --text-2: #9ca3af;
   --text-3: #6b7280;
@@ -77,6 +83,14 @@ body,
   height: 100%;
 }
 
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease,
+    fill 0.3s ease, box-shadow 0.3s ease !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
@@ -86,6 +100,7 @@ body {
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .app {
@@ -171,7 +186,8 @@ body {
   color: var(--text-2);
   font-size: 11px;
   min-height: 48px;
-  transition: color 0.15s, transform 0.1s ease, opacity 0.15s ease;
+  position: relative;
+  transition: color 0.2s ease, transform 0.1s ease, opacity 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -180,12 +196,38 @@ body {
   opacity: 0.75;
 }
 
-.tab-item svg {
+.tab-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 3px;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.tab-item.router-link-active {
+.tab-item.active {
   color: var(--primary);
+  font-weight: 600;
+}
+
+.tab-item.active .tab-icon-wrap {
+  transform: translateY(-1px);
+}
+
+.tab-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 20px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--primary);
+  transition: transform 0.2s ease;
+}
+
+.tab-item.active::after {
+  transform: translateX(-50%) scaleX(1);
 }
 
 .card {
@@ -194,7 +236,14 @@ body {
   padding: var(--spacing-lg);
   margin: var(--spacing-md) var(--spacing-lg);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s, background 0.15s;
+  transition: box-shadow 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+@media (hover: hover) and (min-width: 768px) {
+  .card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
 }
 
 .card--interactive:active {

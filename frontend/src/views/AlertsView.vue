@@ -6,7 +6,7 @@
       <div v-else-if="error" class="error-box">
         {{ error }}<br /><button class="retry-btn" @click="load">重试</button>
       </div>
-      <div v-else-if="!alerts.length" class="empty">暂无预警记录</div>
+      <EmptyState v-else-if="!alerts.length" icon="bell" title="暂无预警记录" desc="预警触发后会在这里展示，去策略中心配置提醒条件" />
       <template v-else>
         <div v-for="a in alerts" :key="a.id" class="alert-item">
           <span class="alert-tag" :class="isProfitAlert(a.type) ? 'up' : 'down'">{{ alertTypeLabel(a.type) }}</span>
@@ -25,6 +25,7 @@ import { onMounted, ref } from 'vue'
 import { alertApi, type Alert } from '../api'
 import { usePullRefresh } from '../composables/pullRefresh'
 import Skeleton from '../components/Skeleton.vue'
+import EmptyState from '../components/EmptyState.vue'
 import { fmtDateTime } from '../utils/format'
 import { alertTypeLabel, isProfitAlert } from '../utils/alerts'
 

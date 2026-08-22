@@ -6,7 +6,7 @@
         {{ account.broker_type === 'live' ? '实盘' : '模拟盘' }}
       </span>
     </div>
-    <div class="asset-total">{{ fmtMoneyCompact(account.total_asset) }}</div>
+    <div class="asset-total">{{ fmtMoneyCompact(displayTotal) }}</div>
     <div class="asset-pnl">
       <span class="pnl-big" :class="[pnlClass, { flash: flashing }]">{{ pnlText }}</span>
       <span class="realtime-tag">实时</span>
@@ -47,8 +47,11 @@ import { computed } from 'vue'
 import type { Account } from '../api/types'
 import { fmtMoneyCompact, fmtPct, pnlClass as pnlColor } from '../utils/format'
 import { useFlashValue } from '../composables/useFlash'
+import { useCountUp } from '../composables/useCountUp'
 
 const props = defineProps<{ account: Account }>()
+
+const displayTotal = useCountUp(() => props.account.total_asset)
 
 const flashing = useFlashValue(() => props.account.total_pnl)
 const todayFlashing = useFlashValue(() => props.account.today_pnl)

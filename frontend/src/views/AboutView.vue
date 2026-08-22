@@ -1,12 +1,21 @@
 <template>
   <div>
+    <div class="risk-alert">
+      <Icon name="alert-triangle" :size="18" class="risk-alert-icon" />
+      <div class="risk-alert-body">
+        <div class="risk-alert-title">风险提示</div>
+        <div class="risk-alert-text">本系统仅供学习与技术演示，模拟盘不构成任何投资建议。实盘交易存在风险，接入前请谨慎评估并核实每笔委托。</div>
+      </div>
+    </div>
+
     <div class="nav-card">
       <div class="nav-pills">
         <button
-          v-for="g in guides"
+          v-for="g in sections"
           :key="g.id"
           class="nav-pill"
-          @click="scrollTo(g.id)"
+          :class="{ active: activeSection === g.id }"
+          @click="activeSection = g.id"
         >
           <Icon :name="g.icon" :size="14" />
           <span>{{ g.label }}</span>
@@ -14,170 +23,173 @@
       </div>
     </div>
 
-    <FoldCard title="账户说明" icon="wallet" default-open persist-key="about-account">
-      <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
-      <div class="info-row"><span>安全模式</span><b>{{ accountStore.isLive ? '真实资金·注意风险' : '本地模拟·无真实资金' }}</b></div>
-      <div class="info-row"><span>数据存储</span><b>本机 · 用户名密码登录</b></div>
-      <div class="info-row"><span>初始资金</span><b>{{ fmtMoney(accountStore.account?.initial_capital ?? 0) }}</b></div>
-      <div class="info-row">
-        <span class="with-icon"><Icon name="trending-up" :size="14" />资金曲线</span>
-        <b>按日记录总资产</b>
-      </div>
-      <div class="info-row">
-        <span class="with-icon"><Icon name="calendar" :size="14" />扫描时间</span>
-        <b>{{ schedule }}</b>
-      </div>
-    </FoldCard>
-
-    <FoldCard title="交易费用（A 股规则）" icon="receipt" default-open persist-key="about-fee">
-      <div class="info-row"><span>佣金</span><b>万 2.5（最低 5 元）</b></div>
-      <div class="info-row"><span>印花税</span><b>0.05%（仅卖出）</b></div>
-      <div class="info-row"><span>过户费</span><b>0.001%</b></div>
-    </FoldCard>
-
-    <FoldCard title="扫描范围" icon="activity" default-open persist-key="about-scope">
-      <div class="note note-static">
-        沪深 A 股主板，剔除创业板（300/301）与科创板（688/689），规避高波动与涨跌幅限制差异。
-      </div>
-    </FoldCard>
-
-    <FoldCard title="数据来源" icon="database" default-open persist-key="about-source">
-      <div class="info-row"><span>股票列表</span><b>新浪财经公开接口</b></div>
-      <div class="info-row"><span>日线 / 分时 / 实时</span><b>腾讯行情公开接口</b></div>
-      <div class="info-row"><span>全市场快照</span><b>新浪行情公开接口</b></div>
-      <div class="info-row"><span>策略生成</span><b>内置智能体推理</b></div>
-      <div class="note note-warning">
-        行情存在延迟，非交易所原生实时行情，仅使用真实公开行情，不做合成数据。
-      </div>
-    </FoldCard>
-
-    <FoldCard title="操作指南" icon="book" default-open persist-key="about-guide">
-      <div id="guide-account" class="guide-item">
-        <Icon name="wallet" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">账户</div>
-          <div class="guide-desc">查看总资产、资金曲线、持仓概览与预警提醒，下拉可刷新；支持 AI 账户健康度诊断与今日盈亏归因。</div>
+    <section v-if="activeSection === 'account'">
+      <FoldCard title="账户说明" icon="wallet" default-open>
+        <div class="info-row"><span>账户模式</span><b>{{ accountStore.isLive ? '实盘' : '模拟盘' }}</b></div>
+        <div class="info-row"><span>安全模式</span><b>{{ accountStore.isLive ? '真实资金·注意风险' : '本地模拟·无真实资金' }}</b></div>
+        <div class="info-row"><span>数据存储</span><b>本机 · 用户名密码登录</b></div>
+        <div class="info-row"><span>初始资金</span><b>{{ fmtMoney(accountStore.account?.initial_capital ?? 0) }}</b></div>
+        <div class="info-row">
+          <span class="with-icon"><Icon name="trending-up" :size="14" />资金曲线</span>
+          <b>按日记录总资产</b>
         </div>
-      </div>
-      <div id="guide-trade" class="guide-item">
-        <Icon name="swap" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">交易</div>
-          <div class="guide-desc">手动下单（输入代码/名称自动联想，仅支持沪深主板），卖出自动锁定最大可卖数量、禁止超卖；买入支持 1成/3成/半仓/满仓仓位快捷下单；查看成交与委托记录，支持分页加载、状态筛选与搜索。</div>
+        <div class="info-row">
+          <span class="with-icon"><Icon name="calendar" :size="14" />扫描时间</span>
+          <b>{{ schedule }}</b>
         </div>
-      </div>
-      <div id="guide-center" class="guide-item">
-        <Icon name="target" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">策略中心</div>
-          <div class="guide-desc">底部「策略中心」进入，内含 4 个二级页签：策略、回测、选股、扫描。新建策略使用右下角悬浮按钮；策略支持分组管理（默认分组 + 新建分组 + 批量归类/启停/删除），参数实时校验非法值即时标红；策略卡片支持启停开关与「更多」菜单（详情/编辑/回测），删除按钮带二次确认；收益为零且空仓的策略自动收进「未启用策略」区。回测前有历史效果风险提示，历史记录支持时间与策略名筛选。</div>
-        </div>
-      </div>
-      <div id="guide-about" class="guide-item">
-        <Icon name="info" :size="16" class="guide-icon" />
-        <div class="guide-body">
-          <div class="guide-name">说明</div>
-          <div class="guide-desc">本页查看账户说明、数据来源、交易费用、风控与版本更新记录。</div>
-        </div>
-      </div>
-    </FoldCard>
+      </FoldCard>
+    </section>
 
-    <FoldCard title="风控说明" icon="shield" default-open persist-key="about-risk">
-      <div class="info-row"><span>单笔委托上限</span><b>50 万元</b></div>
-      <div class="info-row"><span>单日委托上限</span><b>200 万元</b></div>
-      <div class="info-row"><span>生效条件</span><b>仅实盘模式</b></div>
-    </FoldCard>
+    <section v-else-if="activeSection === 'fee'">
+      <FoldCard title="交易费用（A 股规则）" icon="receipt" default-open>
+        <div class="info-row"><span>佣金</span><b>万 2.5（最低 5 元）</b></div>
+        <div class="info-row"><span>印花税</span><b>0.05%（仅卖出）</b></div>
+        <div class="info-row"><span>过户费</span><b>0.001%</b></div>
+      </FoldCard>
+    </section>
 
-    <FoldCard title="策略参数说明" icon="target" :default-open="false" persist-key="about-params">
-      <div class="guide-item no-icon">
-        <div class="guide-body">
-          <div class="guide-name">买入信号</div>
-          <div class="guide-desc">均线金叉、MACD 金叉、突破新高、放量突破、RSI 超卖、KDJ 金叉、布林下轨反弹等，可多选组合。</div>
+    <section v-else-if="activeSection === 'data'">
+      <FoldCard title="扫描范围" icon="activity" default-open>
+        <div class="note note-static">
+          沪深 A 股主板，剔除创业板（300/301）与科创板（688/689），规避高波动与涨跌幅限制差异。
         </div>
-      </div>
-      <div class="guide-item no-icon">
-        <div class="guide-body">
-          <div class="guide-name">卖出信号</div>
-          <div class="guide-desc">止盈、止损、移动止盈、均线死叉、MACD 死叉、跌破均线、最大持有天数等。</div>
+      </FoldCard>
+      <FoldCard title="数据来源" icon="database" default-open>
+        <div class="info-row"><span>股票列表</span><b>新浪财经公开接口</b></div>
+        <div class="info-row"><span>日线 / 分时 / 实时</span><b>腾讯行情公开接口</b></div>
+        <div class="info-row"><span>全市场快照</span><b>新浪行情公开接口</b></div>
+        <div class="info-row"><span>策略生成</span><b>内置智能体推理</b></div>
+        <div class="note note-warning">
+          行情存在延迟，非交易所原生实时行情，仅使用真实公开行情，不做合成数据。
         </div>
-      </div>
-      <div class="guide-item no-icon">
-        <div class="guide-body">
-          <div class="guide-name">风控参数</div>
-          <div class="guide-desc">单只最大仓位、最大持仓数、单只最大亏损、组合整体止损、最大回撤，触发即强制生效。</div>
-        </div>
-      </div>
-      <div class="guide-item no-icon">
-        <div class="guide-body">
-          <div class="guide-name">参数校验</div>
-          <div class="guide-desc">所有信号与风控参数实时校验：负数、超出百分比范围、非整数周期等非法值即时标红并阻止保存；仅校验已启用的信号。</div>
-        </div>
-      </div>
-    </FoldCard>
+      </FoldCard>
+    </section>
 
-    <FoldCard title="版本信息" icon="info" :default-open="false" persist-key="about-version">
-      <div class="version-head">
-        <span class="version-tag">v{{ version }}</span>
-        <button class="btn ghost small" :disabled="checking" @click="checkUpdate">
-          {{ checking ? '检查中...' : '检测新版本' }}
-        </button>
-      </div>
-
-      <div class="sub-title">维护公告</div>
-      <div v-for="(n, i) in NOTICES" :key="'n' + i" class="notice-item" :class="`notice-${n.level}`">
-        <div class="notice-head">
-          <span class="notice-title">{{ n.title }}</span>
-          <span class="muted">{{ n.date }}</span>
-        </div>
-        <div class="notice-content">{{ n.content }}</div>
-      </div>
-
-      <div class="sub-title">版本日志</div>
-      <div class="changelog-filter">
-        <button
-          v-for="t in TAG_FILTERS"
-          :key="t"
-          class="changelog-tab"
-          :class="{ active: tagFilter === t }"
-          @click="tagFilter = t"
-        >
-          {{ t }}
-        </button>
-      </div>
-      <div v-for="g in groupedChangelog" :key="g.version" class="version-group">
-        <button
-          class="version-group-head"
-          :class="{ archived: g.version !== version }"
-          @click="g.version === version ? null : toggleArchive(g.version)"
-        >
-          <span>v{{ g.version }}{{ g.version === version ? '（当前）' : '（归档）' }}</span>
-          <span class="muted">{{ g.entries.length }} 条</span>
-          <Icon
-            v-if="g.version !== version"
-            :name="archivedOpen.includes(g.version) ? 'chevron-up' : 'chevron-down'"
-            :size="16"
-          />
-        </button>
-        <div v-if="g.version === version || archivedOpen.includes(g.version)">
-          <div v-for="e in g.entries" :key="e.content" class="changelog-item">
-            <span class="changelog-tag" :class="tagClass(e.tag)">{{ e.tag }}</span>
-            <span>{{ e.content }}</span>
+    <section v-else-if="activeSection === 'guide'">
+      <FoldCard title="操作指南" icon="book" default-open>
+        <div v-for="g in guideSteps" :key="g.id" class="guide-step">
+          <span class="guide-step-no">{{ g.no }}</span>
+          <div class="guide-step-body">
+            <div class="guide-step-name">
+              <Icon :name="g.icon" :size="15" class="guide-step-icon" />
+              {{ g.name }}
+            </div>
+            <ul class="guide-step-list">
+              <li v-for="(s, i) in g.steps" :key="i">{{ s }}</li>
+            </ul>
           </div>
         </div>
-      </div>
-      <div v-if="!groupedChangelog.length" class="muted">暂无版本记录</div>
-    </FoldCard>
+      </FoldCard>
+    </section>
 
-    <div class="card">
-      <div class="note note-danger">
-        本系统仅供学习与技术演示，模拟盘不构成任何投资建议。实盘交易存在风险，接入前请谨慎评估并核实每笔委托。
+    <section v-else-if="activeSection === 'risk'">
+      <FoldCard title="风控说明" icon="shield" default-open>
+        <div class="info-row"><span>单笔委托上限</span><b>50 万元</b></div>
+        <div class="info-row"><span>单日委托上限</span><b>200 万元</b></div>
+        <div class="info-row"><span>生效条件</span><b>仅实盘模式</b></div>
+      </FoldCard>
+      <FoldCard title="策略参数说明" icon="target" :default-open="false">
+        <div class="guide-item no-icon">
+          <div class="guide-body">
+            <div class="guide-name">买入信号</div>
+            <div class="guide-desc">均线金叉、MACD 金叉、突破新高、放量突破、RSI 超卖、KDJ 金叉、布林下轨反弹等，可多选组合。</div>
+          </div>
+        </div>
+        <div class="guide-item no-icon">
+          <div class="guide-body">
+            <div class="guide-name">卖出信号</div>
+            <div class="guide-desc">止盈、止损、移动止盈、均线死叉、MACD 死叉、跌破均线、最大持有天数等。</div>
+          </div>
+        </div>
+        <div class="guide-item no-icon">
+          <div class="guide-body">
+            <div class="guide-name">风控参数</div>
+            <div class="guide-desc">单只最大仓位、最大持仓数、单只最大亏损、组合整体止损、最大回撤，触发即强制生效。</div>
+          </div>
+        </div>
+        <div class="guide-item no-icon">
+          <div class="guide-body">
+            <div class="guide-name">参数校验</div>
+            <div class="guide-desc">所有信号与风控参数实时校验：负数、超出百分比范围、非整数周期等非法值即时标红并阻止保存；仅校验已启用的信号。</div>
+          </div>
+        </div>
+      </FoldCard>
+    </section>
+
+    <section v-else-if="activeSection === 'faq'">
+      <div v-for="f in faqs" :key="f.q" class="card fold-card">
+        <button class="faq-head" @click="toggleFaq(f.q)">
+          <Icon name="help-circle" :size="16" class="faq-q-icon" />
+          <span class="faq-q">{{ f.q }}</span>
+          <Icon :name="openFaq.has(f.q) ? 'chevron-up' : 'chevron-down'" :size="18" class="faq-chev" />
+        </button>
+        <Transition name="fold">
+          <div v-show="openFaq.has(f.q)" class="faq-body">
+            {{ f.a }}
+          </div>
+        </Transition>
       </div>
-    </div>
+    </section>
+
+    <section v-else-if="activeSection === 'about'">
+      <FoldCard title="版本信息" icon="info" default-open>
+        <div class="version-head">
+          <span class="version-tag">v{{ version }}</span>
+          <button class="btn ghost small" :disabled="checking" @click="checkUpdate">
+            {{ checking ? '检查中...' : '检测新版本' }}
+          </button>
+        </div>
+
+        <div class="sub-title">维护公告</div>
+        <div v-for="(n, i) in NOTICES" :key="'n' + i" class="notice-item" :class="`notice-${n.level}`">
+          <div class="notice-head">
+            <span class="notice-title">{{ n.title }}</span>
+            <span class="muted">{{ n.date }}</span>
+          </div>
+          <div class="notice-content">{{ n.content }}</div>
+        </div>
+
+        <div class="sub-title">版本日志</div>
+        <div class="changelog-filter">
+          <button
+            v-for="t in TAG_FILTERS"
+            :key="t"
+            class="changelog-tab"
+            :class="{ active: tagFilter === t }"
+            @click="tagFilter = t"
+          >
+            {{ t }}
+          </button>
+        </div>
+        <div v-for="g in groupedChangelog" :key="g.version" class="version-group">
+          <button
+            class="version-group-head"
+            :class="{ archived: g.version !== version }"
+            @click="g.version === version ? null : toggleArchive(g.version)"
+          >
+            <span>v{{ g.version }}{{ g.version === version ? '（当前）' : '（归档）' }}</span>
+            <span class="muted">{{ g.entries.length }} 条</span>
+            <Icon
+              v-if="g.version !== version"
+              :name="archivedOpen.includes(g.version) ? 'chevron-up' : 'chevron-down'"
+              :size="16"
+            />
+          </button>
+          <div v-if="g.version === version || archivedOpen.includes(g.version)">
+            <div v-for="e in g.entries" :key="e.content" class="changelog-item">
+              <span class="changelog-tag" :class="tagClass(e.tag)">{{ e.tag }}</span>
+              <span>{{ e.content }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="!groupedChangelog.length" class="muted">暂无版本记录</div>
+      </FoldCard>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useAccountStore } from '../stores/account'
 import Icon from '../components/Icon.vue'
 import FoldCard from '../components/FoldCard.vue'
@@ -190,15 +202,70 @@ import { version } from '../../package.json'
 
 const accountStore = useAccountStore()
 
-const guides = [
-  { id: 'guide-account', label: '账户', icon: 'wallet' },
-  { id: 'guide-trade', label: '交易', icon: 'swap' },
-  { id: 'guide-center', label: '策略中心', icon: 'target' },
-  { id: 'guide-about', label: '说明', icon: 'info' },
+const sections = [
+  { id: 'account', label: '账户说明', icon: 'wallet' },
+  { id: 'fee', label: '交易费用', icon: 'receipt' },
+  { id: 'data', label: '数据来源', icon: 'database' },
+  { id: 'guide', label: '操作指南', icon: 'book' },
+  { id: 'risk', label: '风控说明', icon: 'shield' },
+  { id: 'faq', label: '常见问题', icon: 'help-circle' },
+  { id: 'about', label: '关于', icon: 'info' },
 ]
 
-function scrollTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+const activeSection = ref('account')
+
+const guideSteps = [
+  {
+    id: 'account',
+    no: '1',
+    icon: 'wallet',
+    name: '账户',
+    steps: ['查看总资产、资金曲线、持仓概览与预警提醒', '下拉可刷新行情与持仓', '支持 AI 账户健康度诊断与今日盈亏归因'],
+  },
+  {
+    id: 'trade',
+    no: '2',
+    icon: 'swap',
+    name: '交易',
+    steps: ['输入代码/名称自动联想，仅支持沪深主板', '卖出自动锁定最大可卖数量、禁止超卖', '买入支持 1成/3成/半仓/满仓快捷下单', '查看成交与委托记录，支持分页、筛选与搜索'],
+  },
+  {
+    id: 'center',
+    no: '3',
+    icon: 'target',
+    name: '策略中心',
+    steps: ['底部「策略中心」进入，内含策略/回测/选股/扫描 4 个二级页签', '新建策略使用右下角悬浮按钮', '策略支持分组管理、批量归类/启停/删除，删除带二次确认', '参数实时校验，非法值即时标红', '回测前有风险提示，历史记录支持时间与策略名筛选'],
+  },
+]
+
+const faqs = [
+  {
+    q: '为什么委托会被拒绝？',
+    a: '常见原因包括：资金不足、持仓数量不足（超卖）、价格偏离当前行情、标的停牌或不在交易时间等。请核对委托条件后重试。',
+  },
+  {
+    q: '模拟盘和实盘有什么区别？',
+    a: '模拟盘使用本地模拟数据，无真实资金，仅供策略体验；实盘（Demo）使用随机/历史回放行情模拟，仍非真实券商通道，切换后策略将基于模拟数据决策。',
+  },
+  {
+    q: '行情数据延迟多久？',
+    a: '行情来自腾讯/新浪公开接口，存在一定延迟，非交易所原生实时行情，请以券商终端为准。',
+  },
+  {
+    q: '策略收益显示 0.00% 是正常的吗？',
+    a: '策略尚未运行或空仓时会显示 0.00%。可先运行回测查看历史效果，或检查策略条件是否合理。',
+  },
+  {
+    q: '如何退出 Demo 只读模式？',
+    a: 'Demo 模式免注册体验，只读限制下单与策略修改。使用用户名密码登录即可获得完整功能。',
+  },
+]
+
+const openFaq = reactive(new Set<string>())
+
+function toggleFaq(q: string) {
+  if (openFaq.has(q)) openFaq.delete(q)
+  else openFaq.add(q)
 }
 
 const schedule = ref('交易日 15:05 收盘后')
@@ -273,11 +340,40 @@ async function checkUpdate() {
 </script>
 
 <style scoped>
+.risk-alert {
+  display: flex;
+  gap: 10px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+}
+
+.risk-alert-icon {
+  flex: 0 0 auto;
+  color: var(--warning);
+  margin-top: 1px;
+}
+
+.risk-alert-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--warning);
+  margin-bottom: 2px;
+}
+
+.risk-alert-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
 .nav-card {
   position: sticky;
   top: 0;
   z-index: 5;
-  margin-bottom: 10px;
+  margin: 12px 16px 10px;
   padding: 8px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -308,17 +404,17 @@ async function checkUpdate() {
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: transform 0.12s ease, color 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.12s ease, color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .nav-pill:active {
   transform: scale(0.95);
 }
 
-.nav-pill:first-child {
-  color: var(--primary);
+.nav-pill.active {
+  color: #fff;
   border-color: var(--primary);
-  background: var(--focus-ring);
+  background: var(--primary);
 }
 
 .info-row {
@@ -344,6 +440,58 @@ async function checkUpdate() {
   color: var(--text-2);
 }
 
+.guide-step {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.guide-step:last-child {
+  border-bottom: none;
+}
+
+.guide-step-no {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--focus-ring);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.guide-step-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.guide-step-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.guide-step-icon {
+  color: var(--primary);
+}
+
+.guide-step-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
 .guide-item {
   display: flex;
   gap: 10px;
@@ -353,12 +501,6 @@ async function checkUpdate() {
 
 .guide-item:last-child {
   border-bottom: none;
-}
-
-.guide-icon {
-  flex: 0 0 auto;
-  margin-top: 2px;
-  color: var(--primary);
 }
 
 .guide-body {
@@ -397,10 +539,56 @@ async function checkUpdate() {
   color: var(--warning);
 }
 
-.note-danger {
-  border: 1px solid var(--danger);
-  background: var(--danger-bg);
-  color: var(--danger);
+.faq-head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.faq-head:active {
+  opacity: 0.7;
+}
+
+.faq-q-icon {
+  flex: 0 0 auto;
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.faq-q {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.faq-chev {
+  flex: 0 0 auto;
+  color: var(--text-2);
+}
+
+.faq-body {
+  padding: 0 0 14px 24px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+.fold-enter-active,
+.fold-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.fold-enter-from,
+.fold-leave-to {
+  opacity: 0;
 }
 
 .version-head {

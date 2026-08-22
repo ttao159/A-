@@ -53,7 +53,10 @@
             {{ f.label }}
           </button>
         </div>
-        <div v-if="!filteredTrades.length" class="empty">暂无成交</div>
+        <div v-if="!filteredTrades.length" class="empty">
+          <EmptyState v-if="tradeFilter === 'all' && !tradeSearch" icon="swap" title="暂无成交记录" desc="完成第一笔交易后，成交记录会展示在这里" />
+          <EmptyState v-else icon="search" title="未找到匹配结果" desc="尝试调整筛选条件或搜索关键词" />
+        </div>
         <div v-for="t in filteredTrades" :key="'t' + t.id" class="list-item trade-item" @click="toggleDetail(t.id)">
           <div style="flex: 1">
             <div style="font-weight: 500">
@@ -95,7 +98,10 @@
             {{ f.label }}
           </button>
         </div>
-        <div v-if="!filteredOrders.length" class="empty">暂无委托</div>
+        <div v-if="!filteredOrders.length" class="empty">
+          <EmptyState v-if="orderFilter === 'all'" icon="receipt" title="暂无委托记录" desc="下单后委托状态会展示在这里" />
+          <EmptyState v-else icon="search" title="未找到匹配结果" desc="尝试调整筛选条件" />
+        </div>
         <div v-for="o in filteredOrders" :key="'o' + o.id" class="list-item">
           <div style="flex: 1">
             <div style="font-weight: 500">
@@ -130,6 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import OrderPanel from '../components/OrderPanel.vue'
+import EmptyState from '../components/EmptyState.vue'
 import { useTradeStore } from '../stores/trade'
 import { usePullRefresh } from '../composables/pullRefresh'
 import { fmtMoney, fmtPrice, fmtDateTime } from '../utils/format'

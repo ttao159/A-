@@ -1,11 +1,15 @@
 <template>
   <div class="app">
     <header class="app-header">
-      <h1>{{ title }}</h1>
+      <h1 class="brand-title">{{ title }}</h1>
       <div class="header-right">
+        <NotificationCenter />
         <button class="theme-btn" @click="toggleTheme" aria-label="切换主题">
           <Icon :name="isDark ? 'sun' : 'moon'" :size="18" />
         </button>
+        <router-link class="user-btn" to="/settings" aria-label="个人中心">
+          <Icon name="user" :size="18" />
+        </router-link>
         <select
           class="mode-select"
           :value="accountStore.isLive ? 'live' : 'paper'"
@@ -69,12 +73,15 @@
         :key="tab.path"
         :to="tab.path"
         class="tab-item"
-        :class="{ 'router-link-active': tab.exact ? route.path === tab.path : route.path.startsWith(tab.path) }"
+        :class="{ active: isActive(tab) }"
       >
-        <Icon :name="tab.iconName" :size="22" />
+        <span class="tab-icon-wrap">
+          <Icon :name="tab.iconName" :size="22" />
+        </span>
         <span class="tab-label">{{ tab.label }}</span>
       </router-link>
     </nav>
+    <OnboardingTour v-if="showOnboarding" />
   </div>
 </template>
 
@@ -85,35 +92,30 @@ import { useAccountStore } from './stores/account'
 import { useUserStore } from './stores/user'
 import { triggerPullRefresh } from './composables/pullRefresh'
 import { netStatus } from './composables/netStatus'
+import { useTheme } from './composables/useTheme'
 import { toast } from './utils/toast'
 import { confirmDialog } from './utils/confirm'
 import Icon from './components/Icon.vue'
+import NotificationCenter from './components/NotificationCenter.vue'
+import OnboardingTour from './components/OnboardingTour.vue'
 
 const route = useRoute()
 const router = useRouter()
 const accountStore = useAccountStore()
 const userStore = useUserStore()
+const { isDark, toggle: toggleTheme } = useTheme()
+
+const showOnboarding = ref(
+  !localStorage.getItem('onboarding_v1_done') && !userStore.isDemo,
+)
 
 function handleLogout() {
   userStore.logout()
   router.push('/login')
 }
 
-const isDark = ref(false)
-
-function applyTheme(dark: boolean) {
-  isDark.value = dark
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  localStorage.setItem('theme', dark ? 'dark' : 'light')
-}
-
-function toggleTheme() {
-  applyTheme(!isDark.value)
-}
-
 onMounted(() => {
   accountStore.fetch()
-  applyTheme(localStorage.getItem('theme') === 'dark')
 })
 
 const mainRef = ref<HTMLElement | null>(null)
@@ -138,6 +140,10 @@ const tabs = [
   { path: '/strategy', iconName: 'target', label: '策略中心' },
   { path: '/about', iconName: 'info', label: '说明' },
 ]
+
+function isActive(tab: (typeof tabs)[number]) {
+  return tab.exact ? route.path === tab.path : route.path.startsWith(tab.path)
+}
 
 const title = computed(() => {
   const t = route.meta.title as string | undefined
@@ -203,6 +209,18 @@ async function onTouchEnd() {
   gap: 8px;
 }
 
+.brand-title {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: linear-gradient(120deg, var(--brand-from), var(--brand-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
 .mode-select {
   height: 34px;
   padding: 0 8px;
@@ -252,6 +270,28 @@ async function onTouchEnd() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.user-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-decoration: none;
+}
+
+.user-btn:active,
+.user-btn.router-link-active {
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: scale(0.92);
 }
 
 .logout-btn:active {

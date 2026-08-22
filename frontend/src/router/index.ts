@@ -71,6 +71,12 @@ const router = createRouter({
       component: () => import('../views/AlertsView.vue'),
       meta: { title: '预警' },
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+      meta: { title: '个人中心' },
+    },
     { path: '/backtest', redirect: '/strategy/backtest' },
     { path: '/screener', redirect: '/strategy/screener' },
     { path: '/generator', redirect: '/strategy/scan' },
